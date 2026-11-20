@@ -1,0 +1,203 @@
+import { defaultConfig } from '../sandbox/engine';
+import type { RunRecord, SandboxConfig } from '../sandbox/types';
+import { METHOD_BY_ID } from '../methods/registry';
+import { emptyAnswers } from '../methods/rules';
+import { createProject, newId, PASSPORT_SCHEMA, PASSPORT_SCHEMA_VERSION, type ProjectDoc } from './schema';
+
+/**
+ * Runtime import validation (PLAN §12). TypeScript types do not validate uploaded JSON.
+ * - size, depth, string length and array limits
+ * - no prototype pollution (only template keys are copied; __proto__ etc. ignored)
+ * - future schema versions rejected with an explanation
+ * - unknown top-level fields preserved in `preservedUnknown`
+ */
+export const IMPORT_LIMITS = { maxBytes: 5_000_000, maxDepth: 24, maxString: 20_000, maxArray: 2_000 };
+
+export type ImportResult =
+  | { ok: true; project: ProjectDoc; warnings: string[]; summary: string[] }
+  | { ok: false; error: string };
+
+const FORBIDDEN = new Set(['__proto__', 'constructor', 'prototype']);
+
+function depthOk(v: unknown, d = 0): boolean {
+  if (d > IMPORT_LIMITS.maxDepth) return false;
+  if (v && typeof v === 'object') {
+    for (const k of Object.keys(v)) if (!depthOk((v as Record<string, unknown>)[k], d + 1)) return false;
+  }
+  return true;
+}
+
+type Tmpl = unknown;
+
+/** Copy `input` into the shape of `template`, keeping only well-typed template keys. */
+function sanitize(input: unknown, template: Tmpl, itemTemplates: Record<string, Tmpl>, path: string, warn: (m: string) => void): unknown {
+  if (typeof template === 'string') {
+    if (typeof input === 'string') return input.length > IMPORT_LIMITS.maxString ? (warn(`${path}: text truncated to ${IMPORT_LIMITS.maxString} characters.`), input.slice(0, IMPORT_LIMITS.maxString)) : input;
+    if (input !== undefined) warn(`${path}: expected text; default kept.`);
+    return template;
+  }
+  if (typeof template === 'number') {
+    if (typeof input === 'number' && Number.isFinite(input)) return input;
+    if (input !== undefined) warn(`${path}: expected a finite number; default kept.`);
+    return template;
+  }
+  if (typeof template === 'boolean') {
+    if (typeof input === 'boolean') return input;
+    if (input !== undefined) warn(`${path}: expected true/false; default kept.`);
+    return template;
+  }
+  if (template === null) return input === undefined ? null : input; // nullable passthrough handled by caller
+  if (Array.isArray(template)) {
+    if (!Array.isArray(input)) { if (input !== undefined) warn(`${path}: expected a list; default kept.`); return template; }
+    const list = input.slice(0, IMPORT_LIMITS.maxArray);
+    if (input.length > IMPORT_LIMITS.maxArray) warn(`${path}: list truncated to ${IMPORT_LIMITS.maxArray} items.`);
+    const item = itemTemplates[path] ?? (template.length ? template[0] : undefined);
+    if (item === undefined) return list.filter((x) => typeof x === 'number' || typeof x === 'string' || typeof x === 'boolean');
+    return list.map((x, i) => sanitize(x, item, itemTemplates, `${path}[]`, (m) => warn(m.replace(`${path}[]`, `${path}[${i}]`))));
+  }
+  if (typeof template === 'object') {
+    const out: Record<string, unknown> = {};
+    const src = (input && typeof input === 'object' && !Array.isArray(input)) ? input as Record<string, unknown> : {};
+    if (input !== undefined && src !== input) warn(`${path}: expected an object; defaults kept.`);
+    for (const k of Object.keys(template as object)) {
+      if (FORBIDDEN.has(k)) continue;
+      out[k] = sanitize(Object.prototype.hasOwnProperty.call(src, k) ? src[k] : undefined, (template as Record<string, unknown>)[k], itemTemplates, path ? `${path}.${k}` : k, warn);
+    }
+    return out;
+  }
+  return template;
+}
+
+const ITEM_TEMPLATES: Record<string, Tmpl> = {
+  'passport.inputs': { id: '', name: '', value: '', unit: '', sourceType: 'unspecified', provenance: '', uncertainty: '' },
+  'passport.assumptions': { id: '', statement: '', rationale: '', consequenceIfWrong: '', plannedCheck: '', evidenceKind: 'unspecified', sourceNote: '' },
+  'passport.outcomes': { id: '', metric: '', definition: '', unit: '', direction: '', aggregation: '', criterion: '' },
+  'passport.representation.nodes': { id: '', type: 'entity', label: '', x: 0, y: 0 },
+  'passport.representation.relations': { id: '', from: '', to: '', label: '', directed: true },
+  lensNotes: { id: '', lensId: '', text: '', createdAt: '' },
+  'methods.shortlist': '',
+};
+const CONFIG_ITEMS = (prefix: string): Record<string, Tmpl> => ({
+  [`${prefix}.demand.values`]: 0, [`${prefix}.demand.probs`]: 0, [`${prefix}.demand.list`]: 0, [`${prefix}.capacity.list`]: 0,
+  [`${prefix}.schedule.openDays`]: true, [`${prefix}.schedule.paidDays`]: true,
+});
+
+const EVIDENCE = new Set(['observed', 'literature', 'expert', 'assumed', 'synthetic', 'unspecified']);
+const CLAIMS = new Set(['', 'descriptive', 'explanatory', 'predictive', 'exploratory', 'decision-support']);
+const REVIEW = new Set(['draft', 'self-reviewed', 'teacher-reviewed', 'needs-revision']);
+
+function sanitizeConfig(input: unknown, prefix: string, warn: (m: string) => void): SandboxConfig {
+  const c = sanitize(input, defaultConfig(), CONFIG_ITEMS(prefix), prefix, warn) as SandboxConfig;
+  if (!['constant', 'random', 'list'].includes(c.demand.mode)) { warn(`${prefix}.demand.mode invalid; reset to constant.`); c.demand.mode = 'constant'; }
+  if (!['direct', 'staff', 'list'].includes(c.capacity.mode)) { warn(`${prefix}.capacity.mode invalid; reset to direct.`); c.capacity.mode = 'direct'; }
+  return c;
+}
+
+function sanitizeRun(input: unknown, warn: (m: string) => void): RunRecord | null {
+  if (input === null || input === undefined) return null;
+  const r = input as Partial<RunRecord>;
+  const okSummaries = (s: unknown) => Array.isArray(s) && s.length <= 10000 && s.every((x) => x && typeof x === 'object' && typeof (x as { terminalBacklog: unknown }).terminalBacklog === 'number');
+  if (typeof r.id !== 'string' || !r.baseline || !okSummaries(r.baseline.summaries) || (r.alternative && !okSummaries(r.alternative.summaries))
+    || !['running', 'partial', 'complete', 'failed'].includes(String(r.status))) {
+    warn('Saved sandbox results were not in a recognised format and were not imported. Re-run the model to regenerate them.');
+    return null;
+  }
+  // Shape is trusted only for numeric display; re-sanitise snapshots.
+  return {
+    ...(r as RunRecord),
+    status: r.status === 'running' ? 'partial' : r.status!,
+    baselineSnapshot: sanitizeConfig(r.baselineSnapshot, 'sandbox.lastRun.baselineSnapshot', warn),
+    alternativeSnapshot: r.alternativeSnapshot ? sanitizeConfig(r.alternativeSnapshot, 'sandbox.lastRun.alternativeSnapshot', warn) : null,
+  };
+}
+
+export function parseProjectJson(text: string, opts: { now?: string } = {}): ImportResult {
+  if (text.length > IMPORT_LIMITS.maxBytes) return { ok: false, error: `File is larger than ${IMPORT_LIMITS.maxBytes / 1_000_000} MB.` };
+  let raw: unknown;
+  try { raw = JSON.parse(text); } catch { return { ok: false, error: 'The file is not valid JSON. It may be damaged or not a ModSim Essentials project file.' }; }
+  return importProjectObject(raw, opts);
+}
+
+export function importProjectObject(raw: unknown, opts: { now?: string } = {}): ImportResult {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return { ok: false, error: 'The file does not contain a project object.' };
+  if (!depthOk(raw)) return { ok: false, error: 'The file is nested too deeply to be a project file.' };
+  const o = raw as Record<string, unknown>;
+  const schemaName = o.schema;
+  const legacyName = schemaName === 'modsim101/project';
+  if (schemaName !== PASSPORT_SCHEMA && !legacyName) return { ok: false, error: 'This is not a ModSim Essentials project file (missing schema identifier).' };
+  const v = o.schemaVersion;
+  if (typeof v !== 'number' || !Number.isInteger(v) || v < 1) return { ok: false, error: 'The project file has an invalid schema version.' };
+  if (v > PASSPORT_SCHEMA_VERSION) {
+    return { ok: false, error: `This project was saved with a newer schema (version ${v}); this app supports version ${PASSPORT_SCHEMA_VERSION}. Open it in a newer version of ModSim Essentials. Nothing was changed.` };
+  }
+  const warnings: string[] = [];
+  const warn = (m: string) => { if (warnings.length < 200) warnings.push(m); };
+  const base = createProject({ now: opts.now });
+  const template = { ...base, sandbox: undefined, preservedUnknown: undefined } as Record<string, unknown>;
+  delete template.sandbox; delete template.preservedUnknown;
+  const doc = sanitize(o, template, ITEM_TEMPLATES, '', warn) as ProjectDoc;
+  const sb = (o.sandbox && typeof o.sandbox === 'object') ? o.sandbox as Record<string, unknown> : {};
+  doc.sandbox = {
+    baseline: sanitizeConfig(sb.baseline, 'sandbox.baseline', warn),
+    alternative: sb.alternative ? sanitizeConfig(sb.alternative, 'sandbox.alternative', warn) : null,
+    lastRun: sanitizeRun(sb.lastRun, warn),
+  };
+  doc.schema = PASSPORT_SCHEMA;
+  doc.schemaVersion = PASSPORT_SCHEMA_VERSION;
+  // Origin: validated kind, optional string reference (not in the default template).
+  const rawOrigin = (o.origin && typeof o.origin === 'object') ? o.origin as Record<string, unknown> : {};
+  const kinds = ['blank', 'first-problem', 'example', 'import', 'copy'] as const;
+  const kind = kinds.find((k) => k === rawOrigin.kind) ?? 'blank';
+  doc.origin = typeof rawOrigin.ref === 'string' && rawOrigin.ref ? { kind, ref: rawOrigin.ref.slice(0, 200) } : { kind };
+  // Enumerations
+  const p = doc.passport;
+  p.inputs.forEach((r) => { if (!EVIDENCE.has(r.sourceType)) r.sourceType = 'unspecified'; if (!r.id) r.id = newId('in'); });
+  p.assumptions.forEach((a) => { if (!EVIDENCE.has(a.evidenceKind)) a.evidenceKind = 'unspecified'; if (!a.id) a.id = newId('as'); });
+  p.outcomes.forEach((r) => { if (!r.id) r.id = newId('out'); if (!['', 'lower', 'higher', 'target'].includes(r.direction)) r.direction = ''; });
+  if (!CLAIMS.has(p.decision.claimType)) p.decision.claimType = '';
+  for (const k of Object.keys(p.review) as (keyof typeof p.review)[]) {
+    if (!REVIEW.has(p.review[k].status)) p.review[k].status = 'draft';
+    if (!['', 'self', 'teacher'].includes(p.review[k].feedbackSource)) p.review[k].feedbackSource = '';
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(p.review[k].due)) p.review[k].due = '';
+  }
+  // Dynamic-key maps (schema v2): copy only safe keys and bounded values.
+  const rawP = (o.passport && typeof o.passport === 'object') ? o.passport as Record<string, unknown> : {};
+  const KEY = /^[a-z0-9][a-z0-9-]{0,47}$/;
+  p.selfChecks = {};
+  const rawSC = rawP.selfChecks;
+  if (rawSC && typeof rawSC === 'object' && !Array.isArray(rawSC)) {
+    for (const [k, val] of Object.entries(rawSC as Record<string, unknown>).slice(0, 200)) if (KEY.test(k) && !FORBIDDEN.has(k) && typeof val === 'string') p.selfChecks[k] = val.slice(0, IMPORT_LIMITS.maxString);
+  }
+  const rawReview = (rawP.review && typeof rawP.review === 'object') ? rawP.review as Record<string, Record<string, unknown>> : {};
+  for (const k of Object.keys(p.review) as (keyof typeof p.review)[]) {
+    const rr = rawReview[k]?.rubric;
+    p.review[k].rubric = {};
+    if (rr && typeof rr === 'object' && !Array.isArray(rr)) {
+      for (const [ck, lv] of Object.entries(rr as Record<string, unknown>).slice(0, 20)) if (KEY.test(ck) && !FORBIDDEN.has(ck) && typeof lv === 'number' && Number.isInteger(lv) && lv >= 0 && lv <= 3) p.review[k].rubric[ck] = lv;
+    }
+  }
+  if (v === 1) warn('Project file from schema version 1 upgraded to version 2 (self-checks and rubrics start empty).');
+  const validMethod = (m: string) => m === '' || m in METHOD_BY_ID;
+  if (!validMethod(p.representation.primaryMethod)) { warn('Unknown primary method removed.'); p.representation.primaryMethod = ''; }
+  if (!validMethod(p.representation.alternativeMethod)) { warn('Unknown alternative method removed.'); p.representation.alternativeMethod = ''; }
+  doc.methods.shortlist = doc.methods.shortlist.filter((m) => m in METHOD_BY_ID);
+  if (doc.methods.answers !== null && typeof doc.methods.answers === 'object' && !Array.isArray(doc.methods.answers)) {
+    doc.methods.answers = sanitize(doc.methods.answers, emptyAnswers(), {}, 'methods.answers', warn) as ProjectDoc['methods']['answers'];
+  } else doc.methods.answers = null;
+  const nodeIds = new Set(p.representation.nodes.map((n) => n.id));
+  p.representation.relations = p.representation.relations.filter((r) => nodeIds.has(r.from) && nodeIds.has(r.to));
+  // Preserve unknown top-level fields
+  const known = new Set(Object.keys(base));
+  const unknown: Record<string, unknown> = {};
+  for (const k of Object.keys(o)) if (!known.has(k) && !FORBIDDEN.has(k) && k !== 'exportedBy') unknown[k] = o[k];
+  if (Object.keys(unknown).length) {
+    doc.preservedUnknown = JSON.parse(JSON.stringify(unknown));
+    warn(`Unrecognised fields preserved without use: ${Object.keys(unknown).join(', ')}.`);
+  }
+  const summary = [
+    `Title: ${p.identity.title || 'Untitled project'}`,
+    `${p.inputs.length} inputs, ${p.assumptions.length} assumptions, ${p.outcomes.length} outcomes`,
+    doc.sandbox.lastRun ? `Sandbox results: ${doc.sandbox.lastRun.completedReplications} replication(s), status ${doc.sandbox.lastRun.status}` : 'No sandbox results',
+  ];
+  return { ok: true, project: doc, warnings, summary };
+}

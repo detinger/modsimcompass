@@ -2,12 +2,24 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>ModSim101</title>
+    <meta name="description" content="ModSim Essentials — the introductory app for the master's course in Modelling and Simulation: frame problems, compare representations, test assumptions, evaluate evidence and prepare a model passport." />
+    <meta name="application-name" content="ModSim Essentials" />
+    <meta name="theme-color" content="#1f5f8b" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#0f141b" media="(prefers-color-scheme: dark)" />
+    <title>ModSim Essentials</title>
+    <script>
+      // Resolve the stored theme before first paint (STYLE §2.1). System preference applies when unset.
+      try {
+        var p = JSON.parse(localStorage.getItem('modsim101.prefs') || '{}');
+        if (p.theme === 'light' || p.theme === 'dark') document.documentElement.setAttribute('data-theme', p.theme);
+      } catch (e) {}
+    </script>
   </head>
   <body>
     <div id="root"></div>
-    <script type="module" src="/src/main.jsx"></script>
+    <noscript>ModSim Essentials needs JavaScript to run. All data stays in your browser.</noscript>
+    <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
