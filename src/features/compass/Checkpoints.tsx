@@ -8,7 +8,7 @@ import { Area, Choice, Txt } from '../project/fields';
 import { CHECKPOINT_TONE, SEVERITY, STATUS_CLASS, warningText } from './stepMeta';
 
 const STATUS_OPTIONS = (Object.keys(REVIEW_LABELS) as ReviewStatus[]).map((k) => ({ value: k, label: REVIEW_LABELS[k] }));
-const SOURCE_OPTIONS: { value: Checkpoint['feedbackSource']; label: string }[] = [{ value: 'self', label: 'Self-review' }, { value: 'teacher', label: 'Teacher feedback' }];
+const SOURCE_OPTIONS: { value: Checkpoint['feedbackSource']; label: string }[] = [{ value: 'self', label: 'Self-review' }, { value: 'teacher', label: 'Reviewer feedback' }];
 const stepRange = (steps: StepId[]) => {
   const n = steps.map((s) => STEP_BY_ID[s].number);
   return n.length === 1 ? `Step ${n[0]}` : `Steps ${n[0]}–${n[n.length - 1]}`;
@@ -32,6 +32,10 @@ function CheckpointCard({ def, index, open, onToggle }: { def: CheckpointDef; in
           <span className="cp-ck-n" aria-hidden="true">{index + 1}</span>
           <span className="cp-ck-name">{def.label}<small>{stepRange(def.steps)}</small></span>
           <span className="cp-ck-facts">
+            {r.due && (() => {
+              const late = r.due < new Date().toISOString().slice(0, 10) && (r.status === 'draft' || r.status === 'needs-revision');
+              return <span className={`cp-due${late ? ' late' : ''}`}>{late ? 'Was due' : 'Due'} {new Date(`${r.due}T00:00:00`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</span>;
+            })()}
             <span className={`cp-pill ${ready.length > 0 ? 'has-open' : 'calm'}`}>{ready.length > 0 ? `${ready.length} open` : 'Nothing open'}</span>
             <span className="cp-pill">{rated} of {def.rubric.length} rated</span>
             <span className={`cp-pill ${STATUS_CLASS[r.status]}`}>{REVIEW_LABELS[r.status]}</span>
@@ -96,6 +100,12 @@ function CheckpointCard({ def, index, open, onToggle }: { def: CheckpointDef; in
               <Choice label="Feedback source" value={r.feedbackSource} clearTo="" onChange={(v) => update((d) => { d.passport.review[def.id].feedbackSource = v; })}
                 options={SOURCE_OPTIONS} hint="Entered manually, not authenticated." />
             </div>
+            {(!readOnly || r.due) && (
+              <div className="field" style={{ maxWidth: 220 }}>
+                <label htmlFor={`due-${def.id}`}>Target date (optional)</label>
+                <input id={`due-${def.id}`} type="date" value={r.due ?? ''} disabled={readOnly} onChange={(e) => update((d) => { d.passport.review[def.id].due = e.target.value; })} />
+              </div>
+            )}
             {(!readOnly || r.reviewer.trim()) && <Txt label="Reviewer name (optional)" value={r.reviewer} onChange={(v) => update((d) => { d.passport.review[def.id].reviewer = v; })} />}
             {(!readOnly || r.notes.trim()) && <Area label="Notes" value={r.notes} onChange={(v) => update((d) => { d.passport.review[def.id].notes = v; })} rows={3} />}
           </section>

@@ -155,7 +155,7 @@ describe('Markdown passport: organised around the seven compass steps', () => {
     const md = passportMarkdown(d);
     for (const s of STEPS) {
       const part = section(md, stepHeading(s));
-      expect(part).toMatch(/\| Self-check question \| Answer in the student’s own words \|/);
+      expect(part).toMatch(/\| Self-check question \| Answer in the author’s own words \|/);
       for (const q of s.selfChecks) expect(part, q.id).toContain(`| ${q.question} |`);
     }
     expect(section(md, 'Step 1 — Frame')).toContain('| What would the stakeholder do differently depending on the answer? | Hire a part-time advisor, or invest in \\| triage. |');

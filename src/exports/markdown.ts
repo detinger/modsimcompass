@@ -10,7 +10,7 @@ import { describeRunStatus, fmt, runIsStale } from './runInfo';
 
 /**
  * Markdown exports, organised around the seven compass steps (docs/COMPASS-SPEC.md §3, §5):
- * step progress, the passport fields of each step with the student’s self-check answers,
+ * step progress, the passport fields of each step with the author’s self-check answers,
  * the warnings still open at export time and the checkpoint records. A reviewer can assess
  * from the file alone. Only learner-entered text is reported; nothing is filled in for them.
  */
@@ -208,7 +208,7 @@ function selfCheckLines(doc: ProjectDoc, step: StepDef): string[] {
   const answers = doc.passport.selfChecks ?? {};
   const answer = (id: string) => (Object.prototype.hasOwnProperty.call(answers, id) && typeof answers[id] === 'string' ? answers[id] : '');
   return [
-    '| Self-check question | Answer in the student’s own words |', '| --- | --- |',
+    '| Self-check question | Answer in the author’s own words |', '| --- | --- |',
     ...step.selfChecks.map((q) => `| ${cell(q.question)} | ${cell(answer(q.id), `_${NOT_ANSWERED}_`)} |`),
     '',
   ];
@@ -267,7 +267,7 @@ export function passportMarkdown(doc: ProjectDoc, opts: { includeAuthor?: boolea
   L.push(`Created ${doc.createdAt} · modified ${doc.updatedAt}`);
   if (opts.includeAuthor && filled(p.identity.author)) L.push(`Author: ${oneLine(p.identity.author)}`);
   L.push('', `> ${started.length} of ${STEPS.length} steps started. This counts steps with any content; it is not a measure of model validity or of review status.`, '');
-  L.push(`Learner-entered text only: unfilled fields are marked “${NOT_SPECIFIED}”. Self-check answers are the student’s own words and are never graded by the app.`, '');
+  L.push(`Learner-entered text only: unfilled fields are marked “${NOT_SPECIFIED}”. Self-check answers are the author’s own words and are never graded by the app.`, '');
 
   for (const step of STEPS) {
     L.push(`## ${stepHeading(step)}`, '', started.includes(step.id) ? 'Step status: started.' : 'Step status: not started.', '');

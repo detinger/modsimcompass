@@ -92,7 +92,7 @@ export const STEPS: StepDef[] = [
     weak: 'The simulation proves we must hire one more employee.',
     selfChecks: [
       { id: 'conclude-change', question: 'What new evidence would make you change the recommendation?' },
-      { id: 'conclude-repro', question: 'Could a classmate reproduce your result from this passport alone? What is missing?' },
+      { id: 'conclude-repro', question: 'Could someone else reproduce your result from this passport alone? What is missing?' },
     ],
   },
 ];

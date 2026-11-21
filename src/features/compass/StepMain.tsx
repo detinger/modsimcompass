@@ -1,4 +1,5 @@
 import { Component, type ReactNode } from 'react';
+import { MethodNeeds, MethodWatchOuts } from './MethodNeeds';
 import { ArrowRight, ChartNoAxesCombined, Dices, Download, FlaskConical, Milestone, Route, Shapes } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { Link } from '../../app/router';
@@ -56,6 +57,7 @@ export function StepMain({ step, onExport }: { step: StepId; onExport: () => voi
           <ToolLink to="/tools/distributions" icon={Shapes} title="Explore" text="a distribution" tone="tone-purple" />
           <ToolLink to="/tools/fitting" icon={ChartNoAxesCombined} title="Fit" text="a distribution" tone="tone-orange" />
         </div>
+        <MethodNeeds />
         <InputsForm />
         <AssumptionsForm />
       </>
@@ -63,6 +65,7 @@ export function StepMain({ step, onExport }: { step: StepId; onExport: () => voi
     case 'evaluation': return (
       <>
         <EvaluationFields />
+        <MethodWatchOuts />
         <Figure id="vv-cycle" />
         <div className="cp-tools">
           <ToolLink to="/tools/sandbox" icon={FlaskConical} title="Practise in the backlog sandbox" text="Try balance and drain checks on a small model." tone="tone-primary" />
