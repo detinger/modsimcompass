@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useState, type AnchorHTMLAttributes, type MouseEvent, type ReactNode } from 'react';
 
 /** Minimal history-API router. Static hosts need an SPA fallback (netlify.toml, server.mjs). */
-interface RouterValue { path: string; navigate: (to: string, opts?: { replace?: boolean }) => void }
+interface RouterValue { path: string; navigate: (to: string, opts?: { replace?: boolean; /** false: stay where the page is scrolled (an address that changes while the user is working). */ scroll?: boolean }) => void }
 const RouterCtx = createContext<RouterValue>({ path: '/', navigate: () => {} });
 
 export function RouterProvider({ children }: { children: ReactNode }) {
@@ -11,12 +11,12 @@ export function RouterProvider({ children }: { children: ReactNode }) {
     window.addEventListener('popstate', onPop);
     return () => window.removeEventListener('popstate', onPop);
   }, []);
-  const navigate = (to: string, opts?: { replace?: boolean }) => {
+  const navigate = (to: string, opts?: { replace?: boolean; scroll?: boolean }) => {
     if (to === window.location.pathname + window.location.search) return;
     if (opts?.replace) window.history.replaceState(null, '', to);
     else window.history.pushState(null, '', to);
     setPath(to);
-    window.scrollTo(0, 0);
+    if (opts?.scroll !== false) window.scrollTo(0, 0);
   };
   return <RouterCtx.Provider value={{ path, navigate }}>{children}</RouterCtx.Provider>;
 }

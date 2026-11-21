@@ -1,17 +1,20 @@
 import { newId, type ProjectDoc } from '../domain/passport/schema';
+import type { Artefact } from '../domain/artefacts/types';
 
 /**
  * Local-first persistence (PLAN §12).
  * - IndexedDB database `modsim101` (identifier kept from the original project name).
- * - Stores: projects, trash (recoverable deletes), backups (last-known-good per project).
+ * - Stores: projects, trash (recoverable deletes), backups (last-known-good per project), and, from database
+ *   version 2, artefacts (what the Toolbox tools produce; independent of any project).
  *   (A legacy `progress` store from v1 is kept in the schema but no longer used.)
+ * - Opening a version 1 database adds the missing store and leaves every existing record as it is.
  * - Saves are atomic per transaction and detect cross-tab revision conflicts.
  * - If IndexedDB is unavailable (private mode, quota, blocked), an in-memory store keeps the
  *   draft for this session and the UI reports that saving failed.
  */
 export const DB_NAME = 'modsim101';
-export const DB_VERSION = 1;
-export const STORES = ['projects', 'trash', 'backups', 'progress'] as const;
+export const DB_VERSION = 2;
+export const STORES = ['projects', 'trash', 'backups', 'progress', 'artefacts'] as const;
 type StoreName = (typeof STORES)[number];
 
 export type SaveResult =
@@ -42,6 +45,11 @@ export interface Repo {
   restoreProject(id: string): Promise<ProjectDoc | null>;
   purgeTrash(id: string): Promise<void>;
   getBackup(id: string): Promise<BackupEntry | null>;
+  /** Toolbox artefacts (key `id`). Saving replaces the stored artefact with the same id. */
+  listArtefacts(): Promise<Artefact[]>;
+  getArtefact(id: string): Promise<Artefact | null>;
+  saveArtefact(a: Artefact): Promise<void>;
+  deleteArtefact(id: string): Promise<void>;
 }
 
 function req<T>(r: IDBRequest<T>): Promise<T> {
@@ -67,7 +75,11 @@ export function openDatabase(factory: IDBFactory | undefined = globalThis.indexe
       const db = r.result;
       for (const s of STORES) if (!db.objectStoreNames.contains(s)) db.createObjectStore(s, { keyPath: 'id' });
     };
-    r.onsuccess = () => resolve(r.result);
+    r.onsuccess = () => {
+      // Let a later version of the app upgrade the database while this tab is still open.
+      r.result.onversionchange = () => r.result.close();
+      resolve(r.result);
+    };
     r.onerror = () => resolve(null);
     r.onblocked = () => resolve(null);
   });
@@ -143,6 +155,26 @@ export class IdbRepo implements Repo {
     const { s } = this.store('backups');
     return ((await req(s.get(id))) as BackupEntry | undefined) ?? null;
   }
+  async listArtefacts() {
+    const { s } = this.store('artefacts');
+    return (await req(s.getAll())) as Artefact[];
+  }
+  async getArtefact(id: string) {
+    const { s } = this.store('artefacts');
+    return ((await req(s.get(id))) as Artefact | undefined) ?? null;
+  }
+  async saveArtefact(a: Artefact) {
+    const { tx, s } = this.store('artefacts', 'readwrite');
+    s.put(a);
+    // Commit at once instead of when the request reports back: a save started while the page is closing still lands.
+    try { tx.commit?.(); } catch { /* already finishing */ }
+    await done(tx);
+  }
+  async deleteArtefact(id: string) {
+    const { tx, s } = this.store('artefacts', 'readwrite');
+    s.delete(id);
+    await done(tx);
+  }
 }
 
 /** Session-only fallback. Never presented as durable storage. */
@@ -151,6 +183,7 @@ export class MemoryRepo implements Repo {
   private projects = new Map<string, ProjectDoc>();
   private trash = new Map<string, TrashEntry>();
   private backups = new Map<string, BackupEntry>();
+  private artefacts = new Map<string, Artefact>();
   async listProjects() { return [...this.projects.values()].map((p) => structuredClone(p)); }
   async getProject(id: string) { const p = this.projects.get(id); return p ? structuredClone(p) : null; }
   async saveProject(doc: ProjectDoc, baseRevision: number | null, nowMs = Date.now()): Promise<SaveResult> {
@@ -174,6 +207,10 @@ export class MemoryRepo implements Repo {
   }
   async purgeTrash(id: string) { this.trash.delete(id); }
   async getBackup(id: string) { return this.backups.get(id) ?? null; }
+  async listArtefacts() { return [...this.artefacts.values()].map((a) => structuredClone(a)); }
+  async getArtefact(id: string) { const a = this.artefacts.get(id); return a ? structuredClone(a) : null; }
+  async saveArtefact(a: Artefact) { this.artefacts.set(a.id, structuredClone(a)); }
+  async deleteArtefact(id: string) { this.artefacts.delete(id); }
 }
 
 export async function createRepo(factory?: IDBFactory): Promise<Repo> {

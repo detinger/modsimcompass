@@ -9,6 +9,7 @@ import { pairedDifferences, summarise } from '../domain/sandbox/stats';
 import type { ReplicationSummary, RunRecord } from '../domain/sandbox/types';
 import { describeRunStatus, fmt, runIsStale } from './runInfo';
 import { APP_NAME } from './projectFile';
+import { NOT_SPECIFIED, filled, mdCell as cell, mdLine as oneLine, mdText as v } from './mdText';
 
 /**
  * Markdown exports, organised around the seven compass steps (docs/COMPASS-SPEC.md §3, §5):
@@ -17,7 +18,7 @@ import { APP_NAME } from './projectFile';
  * from the file alone. Only author-entered text is reported; nothing is filled in for them.
  */
 export { APP_NAME } from './projectFile';
-export const NOT_SPECIFIED = 'Not yet specified';
+export { NOT_SPECIFIED } from './mdText';
 export const NOT_ANSWERED = 'Not yet answered';
 export const NOT_RATED = 'Not rated';
 
@@ -29,16 +30,9 @@ const CLAIM_LABELS: Record<string, string> = {
 const AVAILABILITY_LABELS: Record<string, string> = { have: 'Have it', obtainable: 'Can get it', assume: 'Must assume' };
 const FEEDBACK_LABELS: Record<string, string> = { self: 'Self-assessment', teacher: 'Reviewer feedback (manual label)' };
 
-const filled = (s: string | undefined | null): s is string => typeof s === 'string' && s.trim().length > 0;
 /** Own-key lookup, so user-controlled keys can never reach Object.prototype members. */
 const pick = (map: Record<string, string>, key: string): string | undefined => (Object.prototype.hasOwnProperty.call(map, key) ? map[key] : undefined);
-const oneLine = (s: string) => s.replace(/\s*\r?\n\s*/g, ' ').trim();
 const sentence = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
-/** User text for a list item. Further lines are indented so they stay inside the item. */
-function v(s: string | undefined | null, indent = '  '): string {
-  if (!filled(s)) return `_${NOT_SPECIFIED}_`;
-  return s.split(/\r?\n/).map((l) => l.trim()).filter(Boolean).join(`\n${indent}`);
-}
 const evLabel = (k: string) => EVIDENCE_KINDS.find((e) => e.value === k)?.label ?? k;
 const methodName = (id: string) => (id && Object.hasOwn(METHOD_BY_ID, id) ? METHOD_BY_ID[id as keyof typeof METHOD_BY_ID].name : '');
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -50,10 +44,13 @@ export function humanDate(iso: string): string {
 }
 const title = (doc: ProjectDoc) => oneLine(doc.passport.identity.title) || 'Untitled project';
 
-/** Escape characters that would otherwise create Markdown structure from user text in tables. */
-function cell(s: string, empty = '—'): string {
-  return filled(s) ? s.trim().replace(/\|/g, '\\|').replace(/\s*\r?\n\s*/g, ' ') : empty;
-}
+/**
+ * The escaping helpers, for report sections written outside this file (artefact kinds). They are defined in
+ * `./mdText`; the kinds import them from there, which keeps the report writers out of the first page load.
+ * `mdText`: user text after a list label, further lines kept inside the item. `mdCell`: one table cell.
+ * `mdLine`: user text on a single line. Never start a line with user text.
+ */
+export { mdText, mdCell, mdLine } from './mdText';
 
 export const stepHeading = (s: StepDef) => `Step ${s.number} — ${s.title}`;
 

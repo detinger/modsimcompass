@@ -396,7 +396,7 @@ describe('checkpoint readiness', () => {
   });
 });
 
-describe('importer: schema v1 → v2, self-checks and rubrics', () => {
+describe('importer: schema v1 → v3, self-checks and rubrics', () => {
   const graded = () => {
     const d = workedExample();
     d.passport.review.proposal = { status: 'teacher-reviewed', notes: 'Clear question.', reviewer: 'Reviewer A', feedbackSource: 'teacher', due: '2026-12-01', rubric: { question: 3, problem: 2, boundary: 0 } };
@@ -412,11 +412,11 @@ describe('importer: schema v1 → v2, self-checks and rubrics', () => {
     const res = importProjectObject(raw);
     expect(res.ok).toBe(true);
     if (!res.ok) return;
-    expect(res.project.schemaVersion).toBe(2);
+    expect(res.project.schemaVersion).toBe(3);
     expect(res.project.passport.selfChecks).toEqual({});
     for (const cp of Object.values(res.project.passport.review)) expect(cp.rubric).toEqual({});
     expect(res.project.passport.review.proposal).toMatchObject({ status: 'teacher-reviewed', notes: 'Clear question.', reviewer: 'Reviewer A', feedbackSource: 'teacher' });
-    expect(res.warnings.join('\n')).toMatch(/schema version 1 upgraded to version 2/);
+    expect(res.warnings.join('\n')).toMatch(/schema version 1 upgraded to version 3/);
     // Everything else survives the upgrade, and the upgraded project only lacks the self-check answers.
     expect(res.project.passport.decision).toEqual(graded().passport.decision);
     expect(res.project.passport.inputs).toEqual(graded().passport.inputs);
@@ -432,7 +432,7 @@ describe('importer: schema v1 → v2, self-checks and rubrics', () => {
     expect(res.ok && res.project.passport.identity.title).toBe('Old project');
     expect(res.ok && res.project.passport.selfChecks).toEqual({});
   });
-  it('a v2 round trip preserves selfChecks, rubric and the sandbox run, with no upgrade note', () => {
+  it('a v3 round trip preserves selfChecks, rubric and the sandbox run, with no upgrade note', () => {
     const d = graded();
     const res = parseProjectJson(projectJson(d));
     expect(res.ok).toBe(true);
@@ -490,12 +490,12 @@ describe('importer: schema v1 → v2, self-checks and rubrics', () => {
     expect(Object.keys(res.project.passport.selfChecks).length).toBeLessThanOrEqual(200);
     for (const val of Object.values(res.project.passport.selfChecks)) expect(val.length).toBeLessThanOrEqual(20_000);
   });
-  it('schema version 3 is rejected with an explanation and nothing is imported', () => {
-    const raw = { ...JSON.parse(projectJson(workedExample())), schemaVersion: 3 };
+  it('schema version 4 is rejected with an explanation and nothing is imported', () => {
+    const raw = { ...JSON.parse(projectJson(workedExample())), schemaVersion: 4 };
     const res = importProjectObject(raw);
     expect(res.ok).toBe(false);
-    expect(!res.ok && res.error).toMatch(/newer schema \(version 3\)/);
-    expect(!res.ok && res.error).toMatch(/supports version 2/);
+    expect(!res.ok && res.error).toMatch(/newer schema \(version 4\)/);
+    expect(!res.ok && res.error).toMatch(/supports version 3/);
     for (const bad of [0, 1.5, '2', null]) expect(importProjectObject({ ...raw, schemaVersion: bad }).ok, String(bad)).toBe(false);
   });
 });

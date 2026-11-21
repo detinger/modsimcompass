@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { createProject, newId, type ProjectDoc } from '../domain/passport/schema';
+import { upgradeProject } from '../domain/passport/upgrade';
 import { configHash } from '../domain/sandbox/engine';
 import { createRepo, type Repo, type TrashEntry } from '../persistence/db';
 import { applyTheme, loadActiveId, loadPrefs, saveActiveId, savePrefs, type Prefs } from '../persistence/prefs';
@@ -11,6 +12,8 @@ export interface Toast { id: string; text: string; tone?: 'info' | 'success' | '
 interface Store {
   ready: boolean;
   repoKind: Repo['kind'] | null;
+  /** The storage of this device, shared with the artefact store. Null until it is open. */
+  repo: Repo | null;
   prefs: Prefs;
   setPrefs: (p: Partial<Prefs>) => void;
   projects: ProjectDoc[];
@@ -85,7 +88,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const refreshList = useCallback(async (r: Repo) => {
-    const list = await r.listProjects();
+    // Stored projects never pass through the importer: older ones are brought to the current schema here.
+    const list = (await r.listProjects()).map((p) => upgradeProject(p));
     list.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
     setProjects(list);
     return list;
@@ -148,7 +152,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       if (dirtyRef.current) timerRef.current = window.setTimeout(() => { void persist(); }, SAVE_DELAY);
     } else if ('conflict' in res) {
       dirtyRef.current = true;
-      setConflict({ mine: doc, theirs: res.conflict });
+      setConflict({ mine: doc, theirs: upgradeProject(res.conflict) });
       setSaveStatus('failed');
       setSaveError('Another tab saved a newer revision. Keep both versions or review the changes.');
     } else {
@@ -183,7 +187,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       const cur = activeRef.current;
       if (cur && cur.id === m.id && savedRevRef.current !== null && m.revision > savedRevRef.current) {
         if (!dirtyRef.current) {
-          const fresh = await repo.getProject(m.id);
+          const stored = await repo.getProject(m.id);
+          const fresh = stored && upgradeProject(stored);
           if (fresh) {
             activeRef.current = fresh; savedRevRef.current = fresh.projectRevision; setActive(fresh);
             toast('This project was updated in another tab; showing the newer revision.', 'info');
@@ -271,7 +276,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     if (!repo) return;
     if (!(await flushBeforeSwitch()) && activeRef.current && activeRef.current.id !== id) { toast(UNSAVED, 'error'); return; }
     const doc = await repo.getProject(id);
-    if (doc) setActiveDoc(doc, doc.projectRevision);
+    if (doc) setActiveDoc(upgradeProject(doc), doc.projectRevision);
   }, [repo, flushBeforeSwitch, setActiveDoc, toast]);
 
   /** Replaces a stored project. The version that is replaced goes to Recently deleted as a separate copy. */
@@ -296,8 +301,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const duplicate = useCallback(async (id: string) => {
     if (!repo) return;
     await flushBeforeSwitch();
-    const src = await repo.getProject(id);
-    if (!src) return;
+    const stored = await repo.getProject(id);
+    if (!stored) return;
+    const src = upgradeProject(stored);
     const t = now();
     const copy: ProjectDoc = { ...structuredClone(src), id: newId('prj'), createdAt: t, updatedAt: t, projectRevision: 1, origin: { kind: 'copy', ref: src.id } };
     copy.passport.identity.title = `${src.passport.identity.title} (copy)`;
@@ -352,7 +358,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, [persist]);
 
   const value = useMemo<Store>(() => ({
-    ready, repoKind: repo?.kind ?? null, prefs, setPrefs, projects, active, saveStatus, saveError, conflict, toasts, toast, dismissToast,
+    ready, repoKind: repo?.kind ?? null, repo, prefs, setPrefs, projects, active, saveStatus, saveError, conflict, toasts, toast, dismissToast,
     update, createAndActivate, activate, addProject, replaceProject, duplicate, trash, listTrash, restore, purge, resolveConflict, saveNow, getBackup,
   }), [ready, repo, prefs, setPrefs, projects, active, saveStatus, saveError, conflict, toasts, toast, dismissToast, update, createAndActivate,
     activate, addProject, replaceProject, duplicate, trash, listTrash, restore, purge, resolveConflict, saveNow, getBackup]);

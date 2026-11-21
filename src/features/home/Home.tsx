@@ -17,7 +17,7 @@ interface PendingImport { project: ProjectDoc; warnings: string[]; summary: stri
 
 const DOORS = [
   { to: '/project', title: 'Project', text: 'Seven steps, five checkpoints.', icon: Compass, tone: 'tone-primary' },
-  { to: '/tools', title: 'Tools', text: 'Sandbox, distributions, regression.', icon: Wrench, tone: 'tone-teal' },
+  { to: '/toolbox', title: 'Toolbox', text: 'Five tools. Each makes an artefact.', icon: Wrench, tone: 'tone-teal' },
   { to: '/example', title: 'Worked example', text: 'A finished project to learn from.', icon: BookOpenCheck, tone: 'tone-orange' },
 ];
 

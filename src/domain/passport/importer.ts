@@ -2,7 +2,9 @@ import { defaultConfig, MAX_HORIZON, MAX_REPLICATIONS } from '../sandbox/engine'
 import type { DailyRow, DailyTrace, PolicyResult, ReplicationSummary, RunRecord, SandboxConfig, TraceMetrics } from '../sandbox/types';
 import { METHOD_BY_ID } from '../methods/registry';
 import { emptyAnswers } from '../methods/rules';
+import { sanitizeInclusions } from '../artefacts/include';
 import { createProject, newId, PASSPORT_SCHEMA, PASSPORT_SCHEMA_VERSION, type ProjectDoc } from './schema';
+import { upgradeProject } from './upgrade';
 
 /**
  * Runtime import validation (PLAN §12). TypeScript types do not validate uploaded JSON.
@@ -10,6 +12,7 @@ import { createProject, newId, PASSPORT_SCHEMA, PASSPORT_SCHEMA_VERSION, type Pr
  * - no prototype pollution (only template keys are copied; __proto__ etc. ignored)
  * - future schema versions rejected with an explanation
  * - unknown top-level fields preserved in `preservedUnknown`
+ * - included artefacts (schema v3) rebuilt by the sanitizer of their kind; older files are upgraded
  */
 export const IMPORT_LIMITS = { maxBytes: 5_000_000, maxDepth: 24, maxString: 20_000, maxArray: 2_000 };
 
@@ -69,7 +72,7 @@ function sanitize(input: unknown, template: Tmpl, itemTemplates: Record<string, 
 }
 
 const ITEM_TEMPLATES: Record<string, Tmpl> = {
-  'passport.inputs': { id: '', name: '', value: '', unit: '', sourceType: 'unspecified', provenance: '', uncertainty: '', availability: '', plan: '' },
+  'passport.inputs': { id: '', name: '', value: '', unit: '', sourceType: 'unspecified', provenance: '', uncertainty: '', availability: '', plan: '', inclusion: '' },
   'passport.assumptions': { id: '', statement: '', rationale: '', consequenceIfWrong: '', plannedCheck: '', evidenceKind: 'unspecified', sourceNote: '' },
   'passport.outcomes': { id: '', metric: '', definition: '', unit: '', direction: '', aggregation: '', criterion: '' },
   'passport.representation.nodes': { id: '', type: 'entity', label: '', x: 0, y: 0 },
@@ -195,9 +198,9 @@ export function importProjectObject(raw: unknown, opts: { now?: string } = {}): 
   const warnings: string[] = [];
   const warn = (m: string) => { if (warnings.length < 200) warnings.push(m); };
   const base = createProject({ now: opts.now });
-  const template = { ...base, sandbox: undefined, preservedUnknown: undefined } as Record<string, unknown>;
-  delete template.sandbox; delete template.preservedUnknown;
-  const doc = sanitize(o, template, ITEM_TEMPLATES, '', warn) as ProjectDoc;
+  const template = { ...base, sandbox: undefined, artefacts: undefined, preservedUnknown: undefined } as Record<string, unknown>;
+  delete template.sandbox; delete template.artefacts; delete template.preservedUnknown;
+  let doc = sanitize(o, template, ITEM_TEMPLATES, '', warn) as ProjectDoc;
   const sb = (o.sandbox && typeof o.sandbox === 'object') ? o.sandbox as Record<string, unknown> : {};
   doc.sandbox = {
     baseline: sanitizeConfig(sb.baseline, 'sandbox.baseline', warn),
@@ -205,7 +208,9 @@ export function importProjectObject(raw: unknown, opts: { now?: string } = {}): 
     lastRun: sanitizeRun(sb.lastRun, warn),
   };
   doc.schema = PASSPORT_SCHEMA;
-  doc.schemaVersion = PASSPORT_SCHEMA_VERSION;
+  doc.schemaVersion = v; // raised to the current version by the upgrade below
+  // Included artefacts: each copy is rebuilt by the sanitizer of its kind; an invalid one is left out with a warning.
+  doc.artefacts = sanitizeInclusions(o.artefacts, warn, base.createdAt);
   // Origin: validated kind, optional string reference (not in the default template).
   const rawOrigin = (o.origin && typeof o.origin === 'object') ? o.origin as Record<string, unknown> : {};
   const kinds = ['blank', 'first-problem', 'example', 'import', 'copy'] as const;
@@ -219,7 +224,9 @@ export function importProjectObject(raw: unknown, opts: { now?: string } = {}): 
     for (const r of rows) { if (!r.id || seen.has(r.id)) r.id = newId(prefix); while (seen.has(r.id)) r.id = `${newId(prefix)}-${seen.size}`; seen.add(r.id); }
   };
   uniqueIds(p.inputs, 'in'); uniqueIds(p.assumptions, 'as'); uniqueIds(p.outcomes, 'out'); uniqueIds(p.representation.nodes, 'n'); uniqueIds(p.representation.relations, 'r'); uniqueIds(doc.lensNotes, 'note');
-  p.inputs.forEach((r) => { if (!EVIDENCE.has(r.sourceType)) r.sourceType = 'unspecified'; if (!['have', 'obtainable', 'assume'].includes(r.availability ?? '')) delete r.availability; if (!r.plan) delete r.plan; }); // optional fields: absent when empty
+  // A row may name the data-model copy that owns it; a link to anything else is removed.
+  const dataModels = new Set(doc.artefacts.filter((i) => i.kind === 'data-model').map((i) => i.id));
+  p.inputs.forEach((r) => { if (!EVIDENCE.has(r.sourceType)) r.sourceType = 'unspecified'; if (!['have', 'obtainable', 'assume'].includes(r.availability ?? '')) delete r.availability; if (!r.plan) delete r.plan; if (!r.inclusion || !dataModels.has(r.inclusion)) delete r.inclusion; }); // optional fields: absent when empty
   if (p.identity.stage !== 'planning') p.identity.stage = '';
   p.assumptions.forEach((a) => { if (!EVIDENCE.has(a.evidenceKind)) a.evidenceKind = 'unspecified'; });
   p.outcomes.forEach((r) => { if (!['', 'lower', 'higher', 'target'].includes(r.direction)) r.direction = ''; });
@@ -246,7 +253,8 @@ export function importProjectObject(raw: unknown, opts: { now?: string } = {}): 
       for (const [ck, lv] of Object.entries(rr as Record<string, unknown>).slice(0, 20)) if (KEY.test(ck) && !FORBIDDEN.has(ck) && typeof lv === 'number' && Number.isInteger(lv) && lv >= 0 && lv <= 3) p.review[k].rubric[ck] = lv;
     }
   }
-  if (v === 1) warn('Project file from schema version 1 upgraded to version 2 (self-checks and rubrics start empty).');
+  if (v === 1) warn(`Project file from schema version 1 upgraded to version ${PASSPORT_SCHEMA_VERSION} (self-checks and rubrics start empty).`);
+  else if (v < PASSPORT_SCHEMA_VERSION) warn(`Project file from schema version ${v} upgraded to version ${PASSPORT_SCHEMA_VERSION}.`);
   const validMethod = (m: string) => m === '' || Object.hasOwn(METHOD_BY_ID, m);
   if (!validMethod(p.representation.primaryMethod)) { warn('Unknown primary method removed.'); p.representation.primaryMethod = ''; }
   if (!validMethod(p.representation.alternativeMethod)) { warn('Unknown alternative method removed.'); p.representation.alternativeMethod = ''; }
@@ -268,11 +276,14 @@ export function importProjectObject(raw: unknown, opts: { now?: string } = {}): 
     doc.preservedUnknown = JSON.parse(JSON.stringify(unknown));
     warn(`Unrecognised fields preserved without use: ${Object.keys(unknown).map((k) => k.slice(0, 40)).slice(0, 20).join(', ')}.`);
   }
+  // Older files: the sketch, the method decision and the last sandbox run are kept as artefacts of the project.
+  doc = upgradeProject(doc, warn);
   const n = (k: number, word: string) => `${k} ${word}${k === 1 ? '' : 's'}`;
   const summary = [
     `Title: ${p.identity.title || 'Untitled project'}`,
     `${n(p.inputs.length, 'input')}, ${n(p.assumptions.length, 'assumption')}, ${n(p.outcomes.length, 'outcome')}`,
     doc.sandbox.lastRun ? `Sandbox results: ${doc.sandbox.lastRun.completedReplications} replication(s), status ${doc.sandbox.lastRun.status}` : 'No sandbox results',
+    ...(doc.artefacts.length ? [n(doc.artefacts.length, 'artefact')] : []),
   ];
   return { ok: true, project: doc, warnings, summary };
 }

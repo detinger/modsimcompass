@@ -2,10 +2,11 @@ import type { MethodId } from '../methods/registry';
 import type { MethodAnswers } from '../methods/rules';
 import type { RunRecord, SandboxConfig } from '../sandbox/types';
 import { defaultConfig } from '../sandbox/engine';
+import type { ArtefactData, ArtefactKind } from '../artefacts/types';
 
 /** Versioned model passport (PLAN §9). Completeness ≠ validity ≠ review status. */
 export const PASSPORT_SCHEMA = 'modsim-essentials/project';
-export const PASSPORT_SCHEMA_VERSION = 2;
+export const PASSPORT_SCHEMA_VERSION = 3;
 
 export type EvidenceKind = 'observed' | 'literature' | 'expert' | 'assumed' | 'synthetic' | 'unspecified';
 export const EVIDENCE_KINDS: { value: EvidenceKind; label: string }[] = [
@@ -36,6 +37,8 @@ export interface InputRow {
   availability?: Availability;
   /** For data still to be obtained: who gets it, from where, by when. */
   plan?: string;
+  /** Id of the data-model copy (`ProjectDoc.artefacts`) that owns this row (schema v3). */
+  inclusion?: string;
 }
 export interface OutcomeRow { id: string; metric: string; definition: string; unit: string; direction: '' | 'lower' | 'higher' | 'target'; aggregation: string; criterion: string }
 export interface MapNode { id: string; type: 'entity' | 'variable' | 'stakeholder'; label: string; x: number; y: number }
@@ -79,6 +82,19 @@ export interface StartProgress {
   firstSessionDone: Record<string, boolean>;
 }
 
+/**
+ * A Toolbox artefact as it was added to a project (schema v3, docs/TOOLBOX-SPEC.md §3.1).
+ * The project keeps this copy, so its report is complete on its own; the copy remembers its source.
+ */
+export type Inclusion<K extends ArtefactKind = ArtefactKind> = { [P in K]: {
+  /** Id of this copy inside the project. */
+  id: string;
+  /** Id and revision of the Toolbox artefact it was copied from. */
+  sourceId: string; sourceRevision: number;
+  kind: P; title: string; addedAt: string;
+  data: ArtefactData[P];
+} }[K];
+
 export interface ProjectDoc {
   schema: typeof PASSPORT_SCHEMA;
   schemaVersion: number;
@@ -92,8 +108,11 @@ export interface ProjectDoc {
   origin: { kind: 'blank' | 'first-problem' | 'example' | 'import' | 'copy'; ref?: string };
   passport: Passport;
   start: StartProgress;
+  /** Legacy (schema v1 and v2): the backlog sandbox. New screens do not read it; its last run is copied into `artefacts` on upgrade. */
   sandbox: { baseline: SandboxConfig; alternative: SandboxConfig | null; lastRun: RunRecord | null };
   methods: MethodDecision;
+  /** Copies of the Toolbox artefacts added to this project (schema v3). */
+  artefacts: Inclusion[];
   lensNotes: LensNote[];
   /** Unknown fields preserved from an import, never silently discarded. */
   preservedUnknown?: Record<string, unknown>;
@@ -168,6 +187,7 @@ export function createProject(opts: { title?: string; origin?: ProjectDoc['origi
     start: { step: 0, classification: {}, prediction: '', predictionNote: '', firstSessionDone: {} },
     sandbox: { baseline: defaultConfig(), alternative: null, lastRun: null },
     methods: { ruleVersion: null, answers: null, answersKey: null, shortlist: [], decidedAt: null },
+    artefacts: [],
     lensNotes: [],
   };
 }

@@ -5,7 +5,7 @@ import '../../styles/tools.css';
 const AREAS = [
   { to: '/', title: 'Home', text: 'Your projects. Start, import, back up.', icon: House, tone: 'tone-orange' },
   { to: '/project', title: 'Project', text: 'Seven steps with warnings and checkpoints.', icon: Compass, tone: 'tone-primary' },
-  { to: '/tools', title: 'Tools', text: 'Try ideas, then send them to your project.', icon: Wrench, tone: 'tone-teal' },
+  { to: '/toolbox', title: 'Toolbox', text: 'Make artefacts, then add them to your project.', icon: Wrench, tone: 'tone-teal' },
 ];
 
 const NOT = [

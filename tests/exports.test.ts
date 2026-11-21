@@ -374,7 +374,7 @@ describe('HTML report', () => {
     for (const id of ['open-items', 'checkpoints', 'appendix']) { expect(html).toContain(`href="#${id}"`); expect(html).toContain(`<section id="${id}" class="sec">`); }
     expect(html.match(/<section /g)!.length).toBe(html.match(/<\/section>/g)!.length);
     expect(html).toContain('created 21 Nov 2026, 00:00 UTC');
-    expect(html).toMatch(/<em>For reference: project ID <code>worked-example<\/code> · schema v2 · project revision 1 · model revision 1\.<\/em>/);
+    expect(html).toMatch(/<em>For reference: project ID <code>worked-example<\/code> · schema v3 · project revision 1 · model revision 1\.<\/em>/);
     // an unframed project has no question block, and the hostile-text test above covers escaping of the question
     expect(passportHtml(createProject())).not.toContain('class="lead"');
   });
@@ -445,7 +445,7 @@ describe('CSV and ZIP exports', () => {
     expect(manifest.compassRulesVersion).toBe('compass-rules-v2');
     expect(manifest.compassRulesVersion).toBe(COMPASS_RULES_VERSION);
     expect(manifest.methodRuleVersion).toBe('method-rules-v1');
-    expect(manifest.schemaVersion).toBe(2);
+    expect(manifest.schemaVersion).toBe(3);
     expect(manifest.stepsStarted).toEqual({ started: 2, total: 7 });
     expect(manifest.generatedAt).toBe(OPTS.generatedAt);
     // The files in the archive are the same text the single-file exports produce.

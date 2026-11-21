@@ -317,3 +317,51 @@ Each package's page stylesheet is imported from its own entry component, not fro
 - **Code:** TypeScript strict; no new dependencies without asking (the coordinator has added `@xyflow/react`); pure logic in `src/domain/**` with tests; lazy-load heavy screens.
 - **Checks before reporting:** `npx tsc -p tsconfig.json` clean for your files, `npx vitest run` passing for your tests, `npm run lint` clean, and your screens looked at in a browser in light and dark at 1280 px. Other packages are changing the tree at the same time: fix only your own files and report anything else.
 - **Do not commit, push, or start anything on port 4319.** Stop your dev server when done.
+
+## 10. Foundation as built
+
+The foundation is in place and tested. Where this section differs from the text above, this section is what the code does.
+
+**Types and helpers**
+
+- `Inclusion<K>` is a discriminated union: narrowing on `inc.kind` types `inc.data`.
+- `ProjectDoc.sandbox` is still a required field. Package F decides how it is retired.
+- `src/domain/artefacts/clean.ts` has the sanitizer helpers (`LIMITS`, `isObj`, `isId`, `isNum`, `own`, `text`, `oneOf`, `numOrNull`, `items`, `numbers`, `sameData`). Use them.
+- `kinds.ts` also exports `KIND_ORDER`, `isArtefactKind(k)` and `kindDef(k)`.
+- `file.ts` also exports `storable`, `defaultTitle`, `ARTEFACT_FILE_SUFFIX`.
+- `include.ts` also exports `inclusionOf(doc, artefactId)` and `sanitizeInclusions`.
+- Escaping helpers for Markdown are `mdText`, `mdCell`, `mdLine` in `src/exports/mdText.ts`. Kind files import from there, not from `markdown.ts`.
+
+**Revisions**
+
+- `createArtefact` returns `revision: 0`; stored artefacts have revision ≥ 1. The editor bumps `revision` and `updatedAt` on every change, at once.
+
+**React API**
+
+- `useArtefacts()` also has `put(a)`: stores exactly as given, no bump.
+- `useArtefactEditor`: with no id in the address, the address is replaced by the most recent artefact's id. The first change saves immediately.
+- `useAddToProject(): { state(a): 'no-project' | 'absent' | 'current' | 'outdated'; add(a): void }`.
+- `navigate(to, { replace?, scroll? })`; `scroll: false` keeps the scroll position.
+- Tool page components take `{ id?: string }`. `Learn` takes `{ page?: string; id?: string }`.
+
+**Screen parts**
+
+- `ToolPage<K>({ kind, editor, exports?, intro?, children })` with `ToolExport = { id; label; run }`. It exports `downloadArtefact(a)`. Add to project is disabled while `KINDS[kind].isEmpty(data)`.
+- `ArtefactCard` also takes `to`, `status`, `dateLabel` and `headingLevel`.
+- `SvgFigure({ svg, label?, className? })` and `isSafeSvg(svg)`. A figure must start with `<svg` and end with `</svg>`. It is refused if it contains scripts, `foreignObject`, embedded content, event attributes, `javascript:`, `@import`, any `url(` that is not `#…`, or any `href` that does not start with `#`.
+- `TOOL_META[kind] = { name, short, tagline, icon, tone }` in `src/features/toolbox/toolMeta.ts`.
+- `MenuButton` in `src/features/toolbox/Menu.tsx` is the keyboard-operable menu.
+
+**Data rules worth knowing**
+
+- A data model's `data` is emptied whenever `keepData` is false: in `sanitize`, in files, in storage and in project copies. Raw rows that are not kept live in component state only.
+- `dataModel.ts` exports `lawFields`, `describeModel`, `paramsFit`, `withoutUnkeptData`. The `categorical` and `empirical` families take 1 to 256 parameters.
+- A comparison's `paired` is forced to false when the two lists differ in length.
+- `checkPlan.ts` exports `checkLines(d, group)`. A group with no lines leaves the project's own text untouched.
+- Upgraded projects get copies with fixed ids `inc-from-sketch`, `inc-from-method`, `inc-from-sandbox`; their state is `source-missing`.
+
+**Routes**
+
+- `src/app/redirects.ts` holds `redirectFor(path)`.
+- Sidebar labels come from `TOOL_META.short`; step labels are Frame, Scope, Method, Inputs, Check, Experiment, Conclude.
+- Stub pages exist for every tool and for Learn. `src/features/toolbox/StubTool.tsx` is removed by the coordinator once all stubs are replaced.

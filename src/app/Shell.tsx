@@ -1,10 +1,13 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import {
-  AlertTriangle, CheckCircle2, ChevronsLeft, ChevronsRight, CircleHelp, Compass, House, Loader2, Menu, Settings as SettingsIcon, Wrench, X,
+  AlertTriangle, BookOpen, CheckCircle2, ChevronsLeft, ChevronsRight, CircleHelp, Compass, House, Loader2, Menu, Settings as SettingsIcon, Wrench, X,
 } from 'lucide-react';
 import { Link, useRouter } from './router';
 import { useStore } from './store';
 import { Dialog } from '../ui/controls';
+import { KIND_ORDER, KINDS } from '../domain/artefacts/kinds';
+import { STEPS, type StepId } from '../domain/passport/compass';
+import { TOOL_META } from '../features/toolbox/toolMeta';
 
 export function BrandMark({ size = 20 }: { size?: number }) {
   // A frame holding two alternative representations: a small node graph and a stock bar.
@@ -21,32 +24,71 @@ export function BrandMark({ size = 20 }: { size?: number }) {
   );
 }
 
-const CORE = [
-  { to: '/', label: 'Home', icon: House },
-  { to: '/project', label: 'Project', icon: Compass },
-  { to: '/tools', label: 'Tools', icon: Wrench },
+/** The menu (docs/TOOLBOX-SPEC.md §1, §4.3): four sections, each with its pages always in view on a desktop. */
+interface SubLink { to: string; label: string; /** Step number, shown before the label. */ num?: number; /** Current only on exactly this address. */ exact?: boolean }
+interface Section { to: string; label: string; icon: typeof Compass; links: SubLink[]; /** Other address prefixes that belong to the section. */ also?: string[] }
+
+const STEP_SHORT: Record<StepId, string> = { frame: 'Frame', scope: 'Scope', method: 'Method', inputs: 'Inputs', evaluation: 'Check', experiment: 'Experiment', conclude: 'Conclude' };
+const SECTIONS: Section[] = [
+  { to: '/', label: 'Home', icon: House, links: [] },
+  { to: '/learn', label: 'Learn', icon: BookOpen, links: [
+    { to: '/learn/process', label: 'Process' }, { to: '/learn/methods', label: 'Methods' }, { to: '/learn/ideas', label: 'Key ideas' },
+  ] },
+  { to: '/toolbox', label: 'Toolbox', icon: Wrench, links: [
+    ...KIND_ORDER.map((k) => ({ to: KINDS[k].toolPath, label: TOOL_META[k].short })),
+    { to: '/toolbox/artefacts', label: 'My artefacts' },
+  ] },
+  { to: '/project', label: 'Project', icon: Compass, also: ['/example'], links: [
+    { to: '/project', label: 'Overview', exact: true },
+    ...STEPS.map((s) => ({ to: `/project/${s.id}`, label: STEP_SHORT[s.id], num: s.number })),
+    { to: '/project/checkpoints', label: 'Checkpoints' },
+  ] },
 ];
 const UTILITY = [
   { to: '/help', label: 'Help', icon: CircleHelp },
   { to: '/settings', label: 'Settings', icon: SettingsIcon },
 ];
 
-function isCurrent(path: string, to: string) {
-  const p = path.split(/[?#]/)[0];
-  if (to === '/') return p === '/';
-  if (to === '/project') return p.startsWith('/project') || p.startsWith('/example');
-  return p === to || p.startsWith(`${to}/`);
-}
+const clean = (path: string) => path.split(/[?#]/)[0].replace(/\/+$/, '') || '/';
+const under = (p: string, to: string) => (to === '/' ? p === '/' : p === to || p.startsWith(`${to}/`));
+const onLink = (p: string, l: SubLink) => (l.exact ? p === l.to : under(p, l.to));
 
-function NavItem({ to, label, icon: Icon, count, onNav }: { to: string; label: string; icon: typeof Compass; count?: number; onNav: () => void }) {
+function NavItem({ to, label, icon: Icon, onNav }: { to: string; label: string; icon: typeof Compass; onNav: () => void }) {
   const { path } = useRouter();
-  const cur = isCurrent(path, to);
   return (
-    <Link to={to} className="nav-item" aria-current={cur ? 'page' : undefined} data-label={label} onClick={onNav}>
+    <Link to={to} className="nav-item" aria-current={under(clean(path), to) ? 'page' : undefined} data-label={label} onClick={onNav}>
       <Icon size={18} aria-hidden="true" />
       <span className="nav-text">{label}</span>
-      {count !== undefined && <span className="nav-num" aria-label={`${count} items`}>{count}</span>}
     </Link>
+  );
+}
+
+/** A section and its pages. The section itself is the current page only when none of its pages is. */
+function NavSection({ section, onNav }: { section: Section; onNav: () => void }) {
+  const { path } = useRouter();
+  const p = clean(path);
+  const Icon = section.icon;
+  const inside = under(p, section.to) || (section.also ?? []).some((a) => under(p, a));
+  const onPage = section.links.some((l) => onLink(p, l));
+  return (
+    <li className="nav-section">
+      <Link to={section.to} className={`nav-item${inside ? ' within' : ''}`} aria-current={inside && !onPage && p === section.to ? 'page' : undefined} data-label={section.label} onClick={onNav}>
+        <Icon size={18} aria-hidden="true" />
+        <span className="nav-text">{section.label}</span>
+      </Link>
+      {section.links.length > 0 && (
+        <ul className="nav-sub" aria-label={`${section.label} pages`}>
+          {section.links.map((l) => (
+            <li key={`${l.to}-${l.label}`}>
+              <Link to={l.to} className="nav-sub-item" aria-current={onLink(p, l) ? 'page' : undefined} onClick={onNav}>
+                {l.num !== undefined && <span className="nav-sub-num" aria-hidden="true">{l.num}</span>}
+                <span>{l.num !== undefined && <span className="sr-only">Step {l.num}: </span>}{l.label}</span>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      )}
+    </li>
   );
 }
 
@@ -117,13 +159,12 @@ export function Shell({ children }: { children: ReactNode }) {
           </Link>
           <button className="btn ghost small mobile-only" onClick={closeDrawer} aria-label="Close navigation"><X size={16} /></button>
         </div>
-        <div className="nav-group">{CORE.map((n) => <NavItem key={n.to} {...n} onNav={closeDrawer} />)}</div>
+        <ul className="nav-sections">{SECTIONS.map((sec) => <NavSection key={sec.to} section={sec} onNav={closeDrawer} />)}</ul>
         <div className="nav-group sidebar-bottom">
           {UTILITY.map((n) => <NavItem key={n.to} {...n} onNav={closeDrawer} />)}
-          <button type="button" className="nav-item desktop-only" data-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-            aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'} onClick={() => setPrefs({ sidebarCollapsed: !collapsed })}>
+          <button type="button" className="nav-item nav-collapse desktop-only" data-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'} title={collapsed ? undefined : 'Collapse sidebar'} onClick={() => setPrefs({ sidebarCollapsed: !collapsed })}>
             {collapsed ? <ChevronsRight size={18} aria-hidden="true" /> : <ChevronsLeft size={18} aria-hidden="true" />}
-            <span className="nav-text">Collapse</span>
           </button>
         </div>
       </nav>
