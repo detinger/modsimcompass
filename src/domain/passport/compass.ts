@@ -1,14 +1,19 @@
+import type { ArtefactKind } from '../artefacts/types';
 import { METHOD_BY_ID, type MethodId } from '../methods/registry';
 import { answersKey } from '../methods/rules';
-import { runHash } from '../sandbox/experiment';
-import type { CheckpointId, Passport, ProjectDoc } from './schema';
+import type { CheckpointId, Inclusion, Passport, ProjectDoc } from './schema';
 
 /**
  * The Project Compass (docs/COMPASS-SPEC.md): seven steps over the model passport, with
  * guidance, self-check questions, deterministic warnings and checkpoint rubrics.
  * Warnings explain themselves and never mark written reasoning right or wrong.
+ *
+ * Version 3 (docs/TOOLBOX-SPEC.md §7) knows the artefacts a project includes: a check plan with a failed check,
+ * a comparison with too few replications. The backlog sandbox is no longer part of a project and has no rules.
+ * Whether a copy still matches its Toolbox original is not a rule: it needs the artefacts of the device, so the
+ * step screens show it on the copy's card.
  */
-export const COMPASS_RULES_VERSION = 'compass-rules-v2';
+export const COMPASS_RULES_VERSION = 'compass-rules-v3';
 
 export type StepId = 'frame' | 'scope' | 'method' | 'inputs' | 'evaluation' | 'experiment' | 'conclude';
 
@@ -101,8 +106,17 @@ export const isStepId = (s: string): s is StepId => Object.hasOwn(STEP_BY_ID, s)
 
 const filled = (s: unknown) => typeof s === 'string' && s.trim().length > 0;
 
-/** A step counts as started when any of its own fields has content. Completeness ≠ validity. */
-export function stepStarted(p: Passport, id: StepId): boolean {
+/** The step each kind of artefact belongs to (the same as `KINDS[kind].step`; kept here so the rules stay free of the kind files). */
+export const KIND_STEP: Record<ArtefactKind, StepId> = {
+  'concept-model': 'scope', 'method-choice': 'method', 'data-model': 'inputs', 'check-plan': 'evaluation', 'comparison': 'experiment',
+};
+
+/**
+ * A step counts as started when any of its own fields has content, or when an artefact is included in it.
+ * Completeness ≠ validity. `artefacts` is the project's list of copies; without it only the fields count.
+ */
+export function stepStarted(p: Passport, id: StepId, artefacts: readonly Inclusion[] = []): boolean {
+  if (artefacts.some((i) => KIND_STEP[i.kind] === id)) return true;
   switch (id) {
     case 'frame': return [p.decision.stakeholder, p.decision.problem, p.decision.levers, p.decision.outcome, p.decision.question].some(filled) || !!p.decision.claimType;
     case 'scope': return Object.values(p.scope).some(filled) || p.representation.nodes.length > 0;
@@ -113,7 +127,7 @@ export function stepStarted(p: Passport, id: StepId): boolean {
     case 'conclude': return Object.values(p.conclusion).some(filled);
   }
 }
-export function stepsStarted(p: Passport): StepId[] { return STEPS.filter((s) => stepStarted(p, s.id)).map((s) => s.id); }
+export function stepsStarted(p: Passport, artefacts: readonly Inclusion[] = []): StepId[] { return STEPS.filter((s) => stepStarted(p, s.id, artefacts)).map((s) => s.id); }
 
 export type Severity = 'gap' | 'check' | 'tip';
 export interface Warning { id: string; step: StepId; severity: Severity; message: string }
@@ -130,6 +144,8 @@ export function compassWarnings(doc: ProjectDoc): Warning[] {
   const p = doc.passport, out: Warning[] = [];
   const add = (step: StepId, severity: Severity, id: string, message: string) => out.push({ id, step, severity, message });
   const primary = p.representation.primaryMethod, alt = p.representation.alternativeMethod;
+  const copies = Array.isArray(doc.artefacts) ? doc.artefacts : [];
+  const quote = (t: string, fallback: string) => `“${t.trim() || fallback}”`;
 
   // 1 Frame
   if (!filled(p.decision.stakeholder)) add('frame', 'gap', 'stakeholder', 'No stakeholder yet: who will use the result?');
@@ -151,7 +167,7 @@ export function compassWarnings(doc: ProjectDoc): Warning[] {
   if (filled(p.scope.horizon) && !filled(p.scope.timeUnit)) add('scope', 'check', 'timeunit', 'You gave a horizon but no time unit (day, hour, event-driven…).');
   if (filled(p.scope.boundary) && !filled(p.scope.exclusions)) add('scope', 'check', 'exclusions', 'Nothing is listed as excluded. Every model leaves something out: name it.');
   if (!filled(p.scope.detail)) add('scope', 'gap', 'detail', 'Level of detail not stated: individuals, groups or totals?');
-  if (p.representation.nodes.length === 0) add('scope', 'tip', 'sketch', 'Suggestion: sketch the main elements and how they relate.');
+  if (p.representation.nodes.length === 0 && !copies.some((i) => i.kind === 'concept-model')) add('scope', 'tip', 'sketch', 'Suggestion: draw the conceptual model in the Toolbox and add it to this step.');
   const bare = p.representation.relations.filter((r) => !filled(r.label)).length;
   if (bare > 0) add('scope', 'tip', 'relation-label', `Suggestion: ${bare} arrow${bare === 1 ? '' : 's'} in the sketch ${bare === 1 ? 'has' : 'have'} no label. An arrow means only what its label says.`);
 
@@ -188,6 +204,9 @@ export function compassWarnings(doc: ProjectDoc): Warning[] {
   if (!filled(p.evaluation.verification)) add('evaluation', 'gap', 'verification', 'No verification checks planned (units, conservation, known simple cases).');
   if (!filled(p.evaluation.validation)) add('evaluation', 'gap', 'validation', 'No validation evidence planned.');
   if (filled(p.evaluation.calibration) && !filled(p.evaluation.validation)) add('evaluation', 'check', 'calibration-only', 'You describe calibration but no validation. Fitting the tuning data is not validation: keep some evidence aside.');
+  // An included check plan records what the checks showed. A failed one needs an answer, not silence.
+  const failed = copies.reduce((n, i) => n + (i.kind === 'check-plan' && Array.isArray(i.data?.checks) ? i.data.checks.filter((c) => c?.status === 'failed').length : 0), 0);
+  if (failed > 0) add('evaluation', 'check', 'plan-failed', `Your check plan has ${failed} failed check${failed === 1 ? '' : 's'}. Say what you changed, or why the model is still fit for the question.`);
 
   // 6 Outcomes and experiment
   if (p.outcomes.length === 0) add('experiment', 'gap', 'outcomes', 'No outcome metric defined.');
@@ -201,15 +220,17 @@ export function compassWarnings(doc: ProjectDoc): Warning[] {
   if (!filled(p.experiment.alternatives)) add('experiment', 'gap', 'alternatives', 'No alternative to compare with the baseline.');
   if (!filled(p.experiment.comparison)) add('experiment', 'gap', 'comparison', 'Comparison logic not described: what stays identical between policies?');
   if (!filled(p.experiment.runSettings)) add('experiment', 'gap', 'run-settings', 'Run settings (horizon, replications, seed) are not recorded.');
-  // Random elements come from a stochastic method or from random demand in a sandbox run.
-  const stochasticMethod = !!primary && STOCHASTIC_METHODS.includes(primary);
-  const randomSandbox = !!doc.sandbox.lastRun && doc.sandbox.baseline.demand.mode === 'random';
-  const who = stochasticMethod ? `${METHOD_BY_ID[primary as MethodId].name} is stochastic` : 'Your sandbox model has random demand';
-  if ((stochasticMethod || randomSandbox) && filled(p.experiment.runSettings) && !/replic|run/i.test(p.experiment.runSettings)) add('experiment', 'check', 'replications', `${who}, but the run settings mention no replications. One run cannot compare policies.`);
-  if ((stochasticMethod || randomSandbox) && filled(p.experiment.runSettings) && !/seed/i.test(p.experiment.runSettings)) add('experiment', 'tip', 'seed', 'Suggestion: record the random seed so the result can be reproduced.');
-  const run = doc.sandbox.lastRun;
-  if (run && run.modelHash !== runHash(doc.sandbox.baseline, doc.sandbox.alternative)) add('experiment', 'check', 'stale-run', 'The sandbox results use earlier settings. Run again before reporting them.');
-  if (run && run.status === 'partial') add('experiment', 'check', 'partial-run', 'The last sandbox run was cancelled: its results are partial.');
+  // A stochastic method needs replications and a seed; one run cannot compare policies.
+  const stochastic = !!primary && STOCHASTIC_METHODS.includes(primary);
+  if (stochastic && filled(p.experiment.runSettings) && !/replic|run/i.test(p.experiment.runSettings)) add('experiment', 'check', 'replications', `${METHOD_BY_ID[primary as MethodId].name} is stochastic, but the run settings mention no replications. One run cannot compare policies.`);
+  if (stochastic && filled(p.experiment.runSettings) && !/seed/i.test(p.experiment.runSettings)) add('experiment', 'tip', 'seed', 'Suggestion: record the random seed so the result can be reproduced.');
+  // Included comparisons: each policy needs at least two replications before a difference means anything.
+  const comparisons = copies.filter((i) => i.kind === 'comparison');
+  const runs = (xs: unknown) => (Array.isArray(xs) ? xs.length : 0);
+  for (const c of comparisons) {
+    if (runs(c.data?.baseline) < 2 || runs(c.data?.alternative) < 2) add('experiment', 'check', `cmp-reps-${c.id}`, `The comparison ${quote(String(c.title ?? ''), 'Untitled')} has fewer than two replications for a policy. One run cannot tell a real difference from chance.`);
+  }
+  if (comparisons.length === 0 && filled(p.conclusion.results)) add('experiment', 'tip', 'no-comparison', 'Suggestion: step 7 reports results, but no comparison is included here. Add one from the Toolbox so a reader can check the numbers.');
 
   // 7 Conclude
   // While a project is being planned, results are not expected: they are due later, not missing.

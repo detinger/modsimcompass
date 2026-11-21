@@ -173,3 +173,83 @@ export function histogram(xs: number[], binCount = 12): { from: number; to: numb
   }
   return bins;
 }
+
+// ── Two independent samples ──────────────────────────────────────────────
+
+export interface DifferenceInterval {
+  /** Replications of the baseline and of the alternative. */
+  n1: number;
+  n2: number;
+  /** Mean of the alternative minus mean of the baseline. NaN when a sample is empty. */
+  mean: number;
+  /** Standard error of the difference of means. */
+  se: number | null;
+  /** Welch–Satterthwaite degrees of freedom (usually not a whole number). */
+  df: number | null;
+  halfWidth: number | null;
+  lower: number | null;
+  upper: number | null;
+  /** Explanation shown instead of an interval when unavailable. */
+  unavailableReason: string | null;
+}
+
+/**
+ * Approximate 95% two-sample (Welch) interval for the difference of two means, alternative − baseline.
+ * For samples that are NOT paired: the two variances are not pooled, and the degrees of freedom follow
+ * Welch–Satterthwaite. Needs at least two replications of each policy.
+ */
+export function welchInterval(baseline: number[], alternative: number[], level = 0.95): DifferenceInterval {
+  const n1 = baseline.length, n2 = alternative.length;
+  const m = mean(alternative) - mean(baseline);
+  if (n1 < 2 || n2 < 2) {
+    const reason = n1 === 0 || n2 === 0 ? 'Interval unavailable: a policy has no replications.' : 'Interval unavailable: a policy has one replication.';
+    return { n1, n2, mean: m, se: null, df: null, halfWidth: null, lower: null, upper: null, unavailableReason: reason };
+  }
+  const v1 = sampleSD(baseline) ** 2 / n1, v2 = sampleSD(alternative) ** 2 / n2;
+  const se = Math.sqrt(v1 + v2);
+  // No spread at all in either sample: the interval collapses to the difference itself.
+  if (se === 0) return { n1, n2, mean: m, se: 0, df: n1 + n2 - 2, halfWidth: 0, lower: m, upper: m, unavailableReason: null };
+  const df = (v1 + v2) ** 2 / (v1 ** 2 / (n1 - 1) + v2 ** 2 / (n2 - 1));
+  const hw = tQuantile(1 - (1 - level) / 2, df) * se;
+  return { n1, n2, mean: m, se, df, halfWidth: hw, lower: m - hw, upper: m + hw, unavailableReason: null };
+}
+
+/** Above this the search stops: the answer is “far more than is practical”. */
+export const REPLICATIONS_CAP = 1_000_000;
+
+/** Smallest whole n in [2, cap] for which `wide(n)` is false; `wide` must be true below some n and false from there on. */
+function smallestEnough(wide: (n: number) => boolean): number {
+  if (!wide(2)) return 2;
+  let lo = 2, hi = 4; // wide(lo) is true throughout
+  while (hi < REPLICATIONS_CAP && wide(hi)) { lo = hi; hi *= 2; }
+  if (hi >= REPLICATIONS_CAP) { hi = REPLICATIONS_CAP; if (wide(hi)) return REPLICATIONS_CAP; }
+  while (hi - lo > 1) { const mid = Math.floor((lo + hi) / 2); if (wide(mid)) lo = mid; else hi = mid; }
+  return hi;
+}
+
+/**
+ * Smallest number of replications n (at least 2) for which the t interval of a mean has a half-width of at most
+ * `halfWidth`, assuming the standard deviation stays at `sd`:  t(n − 1) · sd / √n ≤ halfWidth.
+ * For paired data, `sd` is the standard deviation of the paired differences and n counts pairs.
+ * An estimate only: `sd` is itself estimated from the runs so far. Null when the inputs make no sense.
+ * Never more than `REPLICATIONS_CAP`.
+ */
+export function replicationsNeeded(sd: number, halfWidth: number, level = 0.95): number | null {
+  if (!Number.isFinite(sd) || !Number.isFinite(halfWidth) || sd < 0 || halfWidth <= 0) return null;
+  if (sd === 0) return 2;
+  const p = 1 - (1 - level) / 2;
+  return smallestEnough((n) => (tQuantile(p, n - 1) * sd) / Math.sqrt(n) > halfWidth);
+}
+
+/**
+ * The same for two samples that are not paired, with n replications of each policy:
+ * t(df) · √((sd1² + sd2²) / n) ≤ halfWidth, with Welch–Satterthwaite degrees of freedom for equal sample sizes.
+ */
+export function replicationsNeededTwoSample(sd1: number, sd2: number, halfWidth: number, level = 0.95): number | null {
+  if (![sd1, sd2, halfWidth].every(Number.isFinite) || sd1 < 0 || sd2 < 0 || halfWidth <= 0) return null;
+  const s2 = sd1 ** 2 + sd2 ** 2;
+  if (s2 === 0) return 2;
+  const p = 1 - (1 - level) / 2;
+  const dfPer = s2 ** 2 / (sd1 ** 4 + sd2 ** 4); // the degrees of freedom are (n − 1) times this
+  return smallestEnough((n) => tQuantile(p, (n - 1) * dfPer) * Math.sqrt(s2 / n) > halfWidth);
+}

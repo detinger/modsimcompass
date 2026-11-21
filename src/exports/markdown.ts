@@ -4,18 +4,18 @@ import {
   CHECKPOINT_DEFS, COMPASS_RULES_VERSION, RUBRIC_LEVELS, STEPS, checkpointReadiness, compassWarnings, dataReadiness, stepsStarted,
   type Severity, type StepDef, type StepId, type Warning,
 } from '../domain/passport/compass';
-import { EVIDENCE_KINDS, REVIEW_LABELS, type Checkpoint, type ProjectDoc } from '../domain/passport/schema';
-import { pairedDifferences, summarise } from '../domain/sandbox/stats';
-import type { ReplicationSummary, RunRecord } from '../domain/sandbox/types';
-import { describeRunStatus, fmt, runIsStale } from './runInfo';
+import { inclusionsFor } from '../domain/artefacts/include';
+import { isArtefactKind, kindDef } from '../domain/artefacts/kinds';
+import { EVIDENCE_KINDS, REVIEW_LABELS, type Checkpoint, type Inclusion, type ProjectDoc } from '../domain/passport/schema';
 import { APP_NAME } from './projectFile';
 import { NOT_SPECIFIED, filled, mdCell as cell, mdLine as oneLine, mdText as v } from './mdText';
 
 /**
  * Markdown exports, organised around the seven compass steps (docs/COMPASS-SPEC.md §3, §5):
- * step progress, the passport fields of each step with the author’s self-check answers,
- * the warnings still open at export time and the checkpoint records. A reviewer can assess
- * from the file alone. Only author-entered text is reported; nothing is filled in for them.
+ * step progress, the fields of each step with the author’s self-check answers, the artefacts included
+ * in the step as they were added (docs/TOOLBOX-SPEC.md §7), the warnings still open at export time and
+ * the checkpoint records. A reviewer can assess from the file alone. Only author-entered text is
+ * reported; nothing is filled in for them.
  */
 export { APP_NAME } from './projectFile';
 export { NOT_SPECIFIED } from './mdText';
@@ -43,6 +43,7 @@ export function humanDate(iso: string): string {
   return m && month ? `${Number(m[3])} ${month} ${m[1]}, ${m[4]}:${m[5]} UTC` : oneLine(String(iso ?? ''));
 }
 const title = (doc: ProjectDoc) => oneLine(doc.passport.identity.title) || 'Untitled project';
+const has = (doc: ProjectDoc, kind: Inclusion['kind']) => (doc.artefacts ?? []).some((i) => i.kind === kind);
 
 /**
  * The escaping helpers, for report sections written outside this file (artefact kinds). They are defined in
@@ -89,19 +90,23 @@ function scopeLines(doc: ProjectDoc): string[] {
     `- **Boundary:** ${v(s.boundary)}`, `- **Exclusions:** ${v(s.exclusions)}`, `- **Horizon:** ${v(s.horizon)}`,
     `- **Time unit:** ${v(s.timeUnit)}`, `- **Level of detail:** ${v(s.detail)}`, `- **Constraints:** ${v(s.constraints)}`, '',
   ];
-  if (!rep.nodes.length) L.push(`Conceptual sketch: _${NOT_SPECIFIED}_`, '');
-  else {
-    L.push('Conceptual sketch (not executable, not a causal certificate):', '', '| Element | Type |', '| --- | --- |');
-    rep.nodes.forEach((n) => L.push(`| ${cell(n.label)} | ${n.type} |`));
-    L.push('');
-    if (rep.relations.length) {
-      const name = (id: string) => rep.nodes.find((n) => n.id === id)?.label ?? id;
-      L.push('| From | Relation | To | Directed |', '| --- | --- | --- | --- |');
-      rep.relations.forEach((r) => L.push(`| ${cell(name(r.from))} | ${cell(r.label)} | ${cell(name(r.to))} | ${r.directed ? 'yes' : 'no'} |`));
+  // An included conceptual model is the record of the concept; it is reported as an artefact of this step.
+  // Without one, an earlier sketch of the project is still listed.
+  if (!has(doc, 'concept-model')) {
+    if (!rep.nodes.length) L.push(`Conceptual model: _${NOT_SPECIFIED}_`, '');
+    else {
+      L.push('Conceptual sketch (not executable, not a causal certificate):', '', '| Element | Type |', '| --- | --- |');
+      rep.nodes.forEach((n) => L.push(`| ${cell(n.label)} | ${n.type} |`));
       L.push('');
+      if (rep.relations.length) {
+        const name = (id: string) => rep.nodes.find((n) => n.id === id)?.label ?? id;
+        L.push('| From | Relation | To | Directed |', '| --- | --- | --- | --- |');
+        rep.relations.forEach((r) => L.push(`| ${cell(name(r.from))} | ${cell(r.label)} | ${cell(name(r.to))} | ${r.directed ? 'yes' : 'no'} |`));
+        L.push('');
+      }
     }
   }
-  if (filled(rep.notes)) L.push(`- **Sketch notes:** ${v(rep.notes)}`, '');
+  if (filled(rep.notes)) L.push(`- **Notes on the concept:** ${v(rep.notes)}`, '');
   return L;
 }
 
@@ -113,7 +118,7 @@ function methodLines(doc: ProjectDoc): string[] {
   ];
   if (m.ruleVersion) {
     L.push(`- **Method chooser:** rule table ${oneLine(m.ruleVersion)}; shortlist: ${m.shortlist.map(methodName).filter(Boolean).join(', ') || '—'}`);
-    const answered = m.answers ? Object.entries(m.answers).filter(([, a]) => filled(String(a ?? ''))) : [];
+    const answered = m.answers && !has(doc, 'method-choice') ? Object.entries(m.answers).filter(([, a]) => filled(String(a ?? ''))) : [];
     if (answered.length) {
       L.push('', 'Recorded chooser answers:', '', '| Chooser question | Answer |', '| --- | --- |');
       for (const [k, a] of answered) {
@@ -159,40 +164,6 @@ function evaluationLines(doc: ProjectDoc): string[] {
   ];
 }
 
-/** Compact replication-level summary of the last sandbox run, with its status and caveats. */
-function runLines(doc: ProjectDoc, run: RunRecord): string[] {
-  const stale = runIsStale(doc);
-  const L = [
-    `Sandbox run \`${oneLine(run.id)}\`: ${describeRunStatus(run)}${stale ? ' — **From earlier settings: inputs have changed since this run.**' : ''}`,
-    `Engine ${run.engineVersion}, RNG ${run.rngVersion}, seed \`${oneLine(run.seed)}\`, model revision ${run.modelRevision}, comparison: ${run.comparisonKind}.`,
-    'The sandbox is a daily aggregate model; it does not estimate individual waiting times.', '',
-  ];
-  const policies = [run.baseline, ...(run.alternative ? [run.alternative] : [])].filter((pol) => pol.summaries.length > 0);
-  if (!policies.length) return L;
-  const metrics: [string, (s: ReplicationSummary) => number][] = [
-    ['Average end-of-day backlog', (s) => s.averageEndBacklog],
-    ['Terminal backlog', (s) => s.terminalBacklog],
-  ];
-  L.push('| Outcome (request-equivalents) | Policy | Mean | Outcome 5th–95th pct. | 95% interval of the mean | n |', '| --- | --- | --- | --- | --- | --- |');
-  for (const [label, get] of metrics) for (const pol of policies) {
-    const s = summarise(pol.summaries.map(get));
-    L.push(`| ${label} | ${cell(pol.label)} | ${fmt(s.mean)} | ${s.n > 1 ? `${fmt(s.p05)} to ${fmt(s.p95)}` : '—'} | ${s.ci.unavailableReason ?? `${fmt(s.ci.lower)} to ${fmt(s.ci.upper)}`} | ${s.n} |`);
-  }
-  L.push('');
-  if (run.alternative && run.alternative.summaries.length && run.baseline.summaries.length) {
-    const paired = run.comparisonKind === 'paired-policy';
-    L.push(paired ? 'Same arrival traces in each policy pair.' : '**Scenario comparison: inputs differ.** Differences are not an isolated policy effect.', '');
-    const kind = paired ? 'Paired difference' : 'Difference';
-    for (const [label, get] of metrics) {
-      const d = pairedDifferences(run.baseline.summaries.map(get), run.alternative.summaries.map(get));
-      const s = summarise(d);
-      L.push(`- ${kind} in ${label.toLowerCase()} (alternative − baseline): mean ${fmt(s.mean)}; ${s.ci.unavailableReason ?? `approximate 95% t interval ${fmt(s.ci.lower)} to ${fmt(s.ci.upper)}`} (n = ${d.length}).`);
-    }
-    L.push('');
-  }
-  return L;
-}
-
 function experimentLines(doc: ProjectDoc): string[] {
   const p = doc.passport, L: string[] = [];
   if (!p.outcomes.length) L.push(`Outcome metrics: _${NOT_SPECIFIED}_`, '');
@@ -203,8 +174,6 @@ function experimentLines(doc: ProjectDoc): string[] {
   }
   L.push(`- **Baseline:** ${v(p.experiment.baseline)}`, `- **Alternatives:** ${v(p.experiment.alternatives)}`,
     `- **Comparison logic:** ${v(p.experiment.comparison)}`, `- **Run settings:** ${v(p.experiment.runSettings)}`, '');
-  const run = doc.sandbox.lastRun;
-  if (run) L.push(...runLines(doc, run));
   return L;
 }
 
@@ -275,32 +244,70 @@ function checkpointLines(doc: ProjectDoc): string[] {
   return L;
 }
 
-export function passportMarkdown(doc: ProjectDoc, opts: { includeAuthor?: boolean } = {}): string {
+// ── Included artefacts ───────────────────────────────────────────────────
+
+export const ARTEFACT_HEADING = 'Included artefact';
+
+/** The copies of a project that can be reported: a known kind with data. Anything else is passed over. */
+export function reportableCopies(doc: ProjectDoc): Inclusion[] {
+  return (Array.isArray(doc.artefacts) ? doc.artefacts : []).filter((i) => !!i && isArtefactKind(i.kind) && !!i.data && typeof i.data === 'object');
+}
+
+/**
+ * One included copy as a report block: a heading with its kind and title, when it was added, then the kind's own
+ * section. The kind escapes the user text it prints; a kind that fails leaves a line saying so instead of breaking
+ * the whole report.
+ */
+export function artefactMarkdown(inc: Inclusion): string[] {
+  const def = kindDef(inc.kind);
+  const name = oneLine(String(inc.title ?? '')) || 'Untitled';
+  const L = [`### ${ARTEFACT_HEADING} — ${def.label}: ${name}`, '', `Added ${humanDate(String(inc.addedAt ?? ''))}. This is the copy kept in the project, as it was when it was added.`, ''];
+  let body: string[];
+  try { body = def.markdown(inc.data); } catch { body = ['_This artefact could not be shown._', '']; }
+  // A kind returns lists, tables and paragraphs. A line that would open a section of the report is escaped out of that role.
+  L.push(...body.map((l) => (/^#{1,6} /.test(l) ? `\\${l}` : l)));
+  if (L[L.length - 1] !== '') L.push('');
+  return L;
+}
+
+/** The report in parts, so the HTML report can place a picture after each artefact. */
+export interface ReportSection {
+  heading: string;
+  /** The step this section reports, or null for the closing sections. */
+  step: StepDef | null;
+  md: string;
+  /** The copies included in the step, each with its own Markdown block (placed after `md`). */
+  artefacts: { inclusion: Inclusion; md: string }[];
+}
+export interface ReportOutline { head: string; sections: ReportSection[]; foot: string }
+
+export function reportOutline(doc: ProjectDoc, opts: { includeAuthor?: boolean } = {}): ReportOutline {
   const p = doc.passport;
-  const started = stepsStarted(p);
-  const L: string[] = [];
-  L.push(`# ${title(doc)} — project report`, '');
-  L.push(`Generated by ${APP_NAME} · created ${humanDate(doc.createdAt)} · modified ${humanDate(doc.updatedAt)}`);
-  if (opts.includeAuthor && filled(p.identity.author)) L.push(`Author: ${oneLine(p.identity.author)}`);
-  if (p.identity.stage === 'planning') L.push('Stage: planning. The model has not been run yet, so step 7 is not expected to be filled.');
-  L.push('', `> ${started.length} of ${STEPS.length} steps started. This counts steps with any content; it is not a measure of model validity or of review status.`, '');
-  L.push(`Author-entered text only: unfilled fields are marked “${NOT_SPECIFIED}”. Self-check answers are the author’s own words and are never graded by the app.`, '');
+  const copies = reportableCopies(doc);
+  const started = stepsStarted(p, copies);
+  const H: string[] = [];
+  H.push(`# ${title(doc)} — project report`, '');
+  H.push(`Generated by ${APP_NAME} · created ${humanDate(doc.createdAt)} · modified ${humanDate(doc.updatedAt)}`);
+  if (opts.includeAuthor && filled(p.identity.author)) H.push(`Author: ${oneLine(p.identity.author)}`);
+  if (p.identity.stage === 'planning') H.push('Stage: planning. The model has not been run yet, so step 7 is not expected to be filled.');
+  H.push('', `> ${started.length} of ${STEPS.length} steps started. This counts steps with any content; it is not a measure of model validity or of review status.`, '');
+  H.push(`Author-entered text only: unfilled fields are marked “${NOT_SPECIFIED}”. Self-check answers are the author’s own words and are never graded by the app.`, '');
 
-  for (const step of STEPS) {
-    L.push(`## ${stepHeading(step)}`, '', started.includes(step.id) ? 'Step status: started.' : 'Step status: not started.', '');
-    L.push(...STEP_BODY[step.id](doc));
-    L.push(...selfCheckLines(doc, step));
-  }
-
-  if (doc.lensNotes.length) {
-    L.push('## Additional notes', '');
-    doc.lensNotes.forEach((n) => L.push(`- (${oneLine(n.lensId)}) ${oneLine(n.text)}`));
-    L.push('');
-  }
-
-  L.push(...openItemLines(compassWarnings(doc)));
-  L.push(...checkpointLines(doc));
+  const sections: ReportSection[] = STEPS.map((step) => ({
+    heading: stepHeading(step), step,
+    md: [`## ${stepHeading(step)}`, '', started.includes(step.id) ? 'Step status: started.' : 'Step status: not started.', '', ...STEP_BODY[step.id](doc), ...selfCheckLines(doc, step)].join('\n'),
+    artefacts: inclusionsFor({ ...doc, artefacts: copies }, step.id).map((inclusion) => ({ inclusion, md: artefactMarkdown(inclusion).join('\n') })),
+  }));
+  const closing = (lines: string[]) => sections.push({ heading: lines[0].slice(3), step: null, md: lines.join('\n'), artefacts: [] });
+  if (doc.lensNotes.length) closing(['## Additional notes', '', ...doc.lensNotes.map((n) => `- (${oneLine(n.lensId)}) ${oneLine(n.text)}`), '']);
+  closing(openItemLines(compassWarnings(doc)));
+  closing(checkpointLines(doc));
   // Identifiers a reader does not need up front, kept for anyone who has to trace the file.
-  L.push(`_For reference: project ID \`${doc.id}\` · schema v${doc.schemaVersion} · project revision ${doc.projectRevision} · model revision ${doc.modelRevision}._`, '');
-  return L.join('\n');
+  const foot = `_For reference: project ID \`${doc.id}\` · schema v${doc.schemaVersion} · project revision ${doc.projectRevision}._`;
+  return { head: H.join('\n'), sections, foot };
+}
+
+export function passportMarkdown(doc: ProjectDoc, opts: { includeAuthor?: boolean } = {}): string {
+  const { head, sections, foot } = reportOutline(doc, opts);
+  return [head, ...sections.flatMap((s) => [s.md, ...s.artefacts.map((a) => a.md)]), foot, ''].join('\n');
 }

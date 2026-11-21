@@ -1,48 +1,61 @@
+import type { CheckPlan, Comparison, ConceptModel, DataModel, MethodChoice } from '../domain/artefacts/types';
 import { RULE_VERSION, answersKey, emptyAnswers, evaluateRules, type MethodAnswers } from '../domain/methods/rules';
-import { createProject, type ProjectDoc } from '../domain/passport/schema';
+import { createProject, type Inclusion, type ProjectDoc } from '../domain/passport/schema';
 import { defaultConfig, ENGINE_VERSION } from '../domain/sandbox/engine';
 import { runAll } from '../domain/sandbox/experiment';
 import { RNG_VERSION } from '../domain/sandbox/rng';
-import type { RunRecord, SandboxConfig } from '../domain/sandbox/types';
+import type { SandboxConfig } from '../domain/sandbox/types';
 
 /**
- * The worked example (docs/COMPASS-SPEC.md §3): a complete passport for a university
- * student-support office with a growing backlog. Students compare their own work with it
- * step by step, so every field is written the way a good project would write it.
+ * The worked example (docs/COMPASS-SPEC.md §3, docs/TOOLBOX-SPEC.md §7): a complete project for a university
+ * student-support office with a growing backlog. Readers compare their own work with it step by step, so every
+ * field is written the way a good project would write it, and it includes one artefact of each kind.
  *
- * All inputs are synthetic teaching values and are labelled as such. The numbers quoted
- * in the conclusion come from the sandbox run below (100 paired replications, seed
- * “compass-example”); tests/compass.test.ts recomputes them, so the text cannot drift
- * from the engine unnoticed.
+ * All inputs are synthetic teaching values and are labelled as such. The numbers quoted in the conclusion come
+ * from the comparison below: the daily backlog model, 100 paired replications, seed “compass-example”.
+ * tests/compass.test.ts recomputes them, so the text cannot drift from the engine unnoticed.
  */
 export const WORKED_EXAMPLE_ID = 'worked-example';
 const NOW = '2026-11-21T00:00:00.000Z';
 const SEED = 'compass-example';
 const UNIT = 'request-equivalents';
 
-function baselineConfig(): SandboxConfig {
-  const c = defaultConfig();
-  c.horizon = 30;
-  c.initialBacklog = 0;
-  c.demand.mode = 'random'; // default law: 8, 12 or 16 with probabilities 0.25, 0.5, 0.25
-  c.capacity.mode = 'direct';
-  c.capacity.direct = 10;
-  c.replications = 100;
-  c.seed = SEED;
-  return c;
+/**
+ * The copies of the example. Their ids are fixed, and their sources are not artefacts of any Toolbox:
+ * on a reader's device every copy reads “Original no longer in the Toolbox”.
+ */
+export const EXAMPLE_COPIES = {
+  'concept-model': { id: 'inc-example-concept', sourceId: 'example-concept-model', title: 'Student support backlog: conceptual model' },
+  'method-choice': { id: 'inc-example-method', sourceId: 'example-method-choice', title: 'Method choice for the backlog question' },
+  'data-model': { id: 'inc-example-arrivals', sourceId: 'example-data-arrivals', title: 'Daily arrivals' },
+  'check-plan': { id: 'inc-example-checks', sourceId: 'example-check-plan', title: 'Checks for the backlog model' },
+  'comparison': { id: 'inc-example-comparison', sourceId: 'example-comparison', title: 'Capacity 10 versus 12' },
+} as const;
+
+/** The two policies of the example as settings of the daily backlog model: capacity 10 and capacity 12, same arrivals. */
+export function exampleConfigs(): { baseline: SandboxConfig; alternative: SandboxConfig } {
+  const baseline = defaultConfig();
+  baseline.horizon = 30;
+  baseline.initialBacklog = 0;
+  baseline.demand.mode = 'random'; // default law: 8, 12 or 16 with probabilities 0.25, 0.5, 0.25
+  baseline.capacity.mode = 'direct';
+  baseline.capacity.direct = 10;
+  baseline.replications = 100;
+  baseline.seed = SEED;
+  const alternative = structuredClone(baseline);
+  alternative.capacity.direct = 12;
+  return { baseline, alternative };
 }
 
-function alternativeConfig(): SandboxConfig {
-  const c = baselineConfig();
-  c.capacity.direct = 12;
-  return c;
-}
-
-/** The run is deterministic, so it is computed once and cloned for every caller. */
-let cachedRun: RunRecord | null = null;
-function exampleRun(): RunRecord {
-  cachedRun ??= runAll(baselineConfig(), alternativeConfig(), { id: 'run-example', projectId: WORKED_EXAMPLE_ID, modelRevision: 1, createdAt: NOW });
-  return structuredClone(cachedRun);
+/** Average end-of-day backlog per replication, for both policies. Deterministic, so it is computed once. */
+let cachedOutcomes: { baseline: number[]; alternative: number[] } | null = null;
+function exampleOutcomes(): { baseline: number[]; alternative: number[] } {
+  if (!cachedOutcomes) {
+    const { baseline, alternative } = exampleConfigs();
+    const run = runAll(baseline, alternative, { id: 'run-example', projectId: WORKED_EXAMPLE_ID, modelRevision: 1, createdAt: NOW });
+    cachedOutcomes = { baseline: run.baseline.summaries.map((s) => s.averageEndBacklog), alternative: (run.alternative?.summaries ?? []).map((s) => s.averageEndBacklog) };
+  }
+  return { baseline: [...cachedOutcomes.baseline], alternative: [...cachedOutcomes.alternative] };
 }
 
 function methodAnswers(): MethodAnswers {
@@ -131,7 +144,8 @@ export function workedExample(): ProjectDoc {
     { id: 'in-arrivals', name: 'Daily arrivals', value: '8, 12 or 16 with probabilities 0.25, 0.5 and 0.25 (mean 12)', unit: `${UNIT}/day`, sourceType: 'synthetic',
       provenance: 'Synthetic teaching data (ticket-system style): shaped like the daily request counts of the first 30 working days of a term, library-forwarded requests included. Not real records.',
       uncertainty: 'Daily range 8–16. The mean is the fragile part: one more request-equivalent per day adds about 30 to the baseline backlog by day 30.',
-      availability: 'obtainable', plan: 'Ticket-system export of daily request counts for the first 30 working days; the office administrator, before the Design checkpoint.' },
+      availability: 'obtainable', plan: 'Ticket-system export of daily request counts for the first 30 working days; the office administrator, before the Design checkpoint.',
+      inclusion: EXAMPLE_COPIES['data-model'].id },
     { id: 'in-capacity', name: 'Daily handling capacity (baseline)', value: '10', unit: `${UNIT}/day`, sourceType: 'synthetic',
       provenance: 'Synthetic teaching data (ticket-system style): typical number of requests closed per working day by the current team. Not real records.',
       uncertainty: 'About ±1 per day (absences, unusually long cases). Held constant in the model.',
@@ -192,7 +206,7 @@ export function workedExample(): ProjectDoc {
     baseline: 'Capacity 10 request-equivalents per day; arrivals 8, 12 or 16 per day with probabilities 0.25, 0.5 and 0.25; initial backlog 0; no abandonment and no feedback; the office is open on each of the 30 days.',
     alternatives: 'Capacity 12 request-equivalents per day (one additional part-time advisor); everything else as in the baseline. Triage, self-service and opening hours are not simulated here; they are follow-up experiments.',
     comparison: 'Paired comparison: in each replication both policies face the same sequence of daily arrivals, so only capacity differs. The difference (alternative − baseline) is computed within each pair and summarised by its mean and an approximate 95% t interval.',
-    runSettings: `Horizon 30 days, time step 1 day, 100 replications, seed “${SEED}”. Backlog sandbox, engine ${ENGINE_VERSION}, random-number generator ${RNG_VERSION}.`,
+    runSettings: `Horizon 30 days, time step 1 day, 100 replications, seed “${SEED}”. Daily backlog model, engine ${ENGINE_VERSION}, random-number generator ${RNG_VERSION}.`,
   };
 
   // ── 7 Conclude and share ─────────────────────────────────────────────────
@@ -218,11 +232,89 @@ export function workedExample(): ProjectDoc {
     'exp-fair': 'Identical: the arrival sequences, initial backlog, horizon, seed and all rules. Different: only daily capacity, 10 versus 12.',
     'exp-noise': 'By the paired difference over 100 replications: its 95% interval is far from zero and the alternative is lower in every pair, so the effect is larger than the run-to-run variation.',
     'conclude-change': 'Real ticket counts with mean arrivals above 12 per day, a held-out period the model cannot reproduce, or evidence that students abandon requests or send them again.',
-    'conclude-repro': 'Yes for the sandbox result: inputs, horizon, replications, seed and engine version are recorded. A real study would also need the data extract and the rule for converting requests into request-equivalents.',
+    'conclude-repro': 'Yes for the simulated result: inputs, horizon, replications, seed and engine version are recorded. A real study would also need the data extract and the rule for converting requests into request-equivalents.',
   };
 
-  // ── Sandbox: baseline 10 vs alternative 12, same arrival sequences ───────
-  doc.sandbox = { baseline: baselineConfig(), alternative: alternativeConfig(), lastRun: exampleRun() };
+  // ── Artefacts: one copy of each kind, as the Toolbox would have added them ─
+  const arrivals = p.inputs[0];
+  const concept: ConceptModel = {
+    objectives: 'Show how the average end-of-day backlog over 30 working days changes when daily handling capacity rises from 10 to 12 request-equivalents per day.',
+    assumptions: 'Unused capacity is lost. Daily arrivals are independent from day to day and do not react to the backlog. Capacity is constant at its nominal value. No request leaves the backlog unanswered.',
+    simplifications: 'Daily totals only: no individual requests, students or advisors. Every request counts as the same effort. No weekly or deadline pattern. Only the staffing lever is represented.',
+    nodes: [
+      { id: 'c-students', type: 'actor', label: 'Students and library desk', x: 60, y: 60, zone: 'inputs' },
+      { id: 'c-arrivals', type: 'variable', label: 'Daily arrivals', x: 60, y: 180, zone: 'inputs' },
+      { id: 'c-capacity', type: 'lever', label: 'Daily handling capacity (10 or 12)', x: 60, y: 300, zone: 'inputs' },
+      { id: 'c-backlog', type: 'stock', label: 'Open backlog', x: 330, y: 180, zone: 'content' },
+      { id: 'c-handling', type: 'activity', label: 'Requests handled per day', x: 330, y: 300, zone: 'content' },
+      { id: 'c-advisors', type: 'resource', label: 'Advisors', x: 330, y: 60, zone: 'content' },
+      { id: 'c-average', type: 'outcome', label: 'Average end-of-day backlog', x: 600, y: 140, zone: 'outputs' },
+      { id: 'c-terminal', type: 'outcome', label: 'Backlog on day 30', x: 600, y: 260, zone: 'outputs' },
+      { id: 'c-helpdesk', type: 'external', label: 'IT helpdesk', x: 200, y: 430, zone: 'outside' },
+      { id: 'c-enrolment', type: 'external', label: 'Enrolment office', x: 440, y: 430, zone: 'outside' },
+      { id: 'c-note', type: 'note', label: 'Individual waiting times are not represented: the model follows totals.', x: 600, y: 380, zone: 'outputs' },
+    ],
+    edges: [
+      { id: 'ce-send', from: 'c-students', to: 'c-arrivals', kind: 'flow', sign: '', label: 'send requests' },
+      { id: 'ce-in', from: 'c-arrivals', to: 'c-backlog', kind: 'flow', sign: '', label: 'adds to' },
+      { id: 'ce-out', from: 'c-backlog', to: 'c-handling', kind: 'flow', sign: '', label: 'is cleared by' },
+      { id: 'ce-limit', from: 'c-capacity', to: 'c-handling', kind: 'influence', sign: '+', label: 'limits' },
+      { id: 'ce-staff', from: 'c-advisors', to: 'c-capacity', kind: 'influence', sign: '+', label: 'provide' },
+      { id: 'ce-average', from: 'c-backlog', to: 'c-average', kind: 'information', sign: '', label: 'measured as' },
+      { id: 'ce-terminal', from: 'c-backlog', to: 'c-terminal', kind: 'information', sign: '', label: 'measured as' },
+    ],
+  };
+  const choice: MethodChoice = {
+    answers: { ...answers }, ruleVersion: RULE_VERSION, shortlist: [...doc.methods.shortlist],
+    primary: 'system-dynamics', alternative: 'des',
+    justification: p.representation.justification, alternativeJustification: p.representation.alternativeJustification,
+  };
+  const arrivalModel: DataModel = {
+    name: arrivals.name, unit: arrivals.unit,
+    family: 'categorical', params: [0.25, 0.5, 0.25], origin: 'described',
+    provenance: `${arrivals.provenance} The three categories stand for a quiet day (8), a typical day (12) and a busy day (16).`,
+    uncertainty: arrivals.uncertainty, availability: 'obtainable', plan: arrivals.plan ?? '',
+    summary: null, fit: null, generator: { seed: SEED, n: 30 }, keepData: false, data: [],
+  };
+  const verification: [string, string][] = [
+    ['Conservation: on every day, start backlog + arrivals − served − end backlog = 0.', 'The largest residual is below 0.000000001 in all 100 replications of both policies.'],
+    ['Units: flows in request-equivalents per day, the stock in request-equivalents, time step one day.', 'Read through every equation of the daily balance.'],
+    ['Balanced case: constant arrivals of 10 per day and capacity 10 from an empty start keep the backlog at 0.', 'Backlog 0 on each of the 30 days.'],
+    ['Drain case: start at 20, arrivals 5 per day, capacity 10 reaches 0 at the end of day 4 and stays there.', 'Backlog 15, 10, 5, 0, then 0 to day 30.'],
+    ['Accumulation case: constant arrivals of 12 per day and capacity 10 give a backlog of 2 × day.', 'Backlog 2 on day 1 and 60 on day 30.'],
+    ['Repeatability: the same seed gives the same result.', 'Two runs with seed “compass-example” agree in every replication.'],
+  ];
+  const plan: CheckPlan = {
+    method: 'system-dynamics',
+    checks: [
+      ...verification.map(([text, evidence], i) => ({ id: `ck-verify-${i + 1}`, group: 'verification' as const, text, status: 'passed' as const, evidence })),
+      { id: 'ck-validate-1', group: 'validation', status: 'planned', evidence: '',
+        text: 'Run the baseline with the recorded arrivals of the held-out 30 working days and compare simulated with recorded end-of-day backlog: same direction of trend, 30-day mean within the tolerance.' },
+      { id: 'ck-validate-2', group: 'validation', status: 'planned', evidence: '',
+        text: 'Expert review: walk the head of the office and two advisors through the daily table and ask where it contradicts their experience.' },
+      { id: 'ck-calibrate-1', group: 'calibration', status: 'planned', evidence: '',
+        text: 'Estimate the arrival distribution and the baseline capacity from the first 30 working days only. If validation fails, review the structure before changing a number.' },
+    ],
+    validation: { measure: 'Mean end-of-day backlog over the held-out 30 working days, simulated against recorded', tolerancePct: 20, observed: [], simulated: [] },
+    calibration: {
+      parameters: 'Arrival distribution; baseline daily handling capacity',
+      tunedOn: 'Ticket-system records of the first 30 working days',
+      validatedOn: 'The following 30 working days, which are never used for tuning',
+    },
+  };
+  const outcomes = exampleOutcomes();
+  const comparison: Comparison = {
+    outcome: 'Average end-of-day backlog', unit: UNIT, direction: 'lower',
+    baselineLabel: 'Capacity 10', alternativeLabel: 'Capacity 12',
+    baseline: outcomes.baseline, alternative: outcomes.alternative, paired: true,
+    minimumDifference: 10, targetHalfWidth: null, origin: 'imported',
+    note: `Daily backlog model, engine ${ENGINE_VERSION}, random-number generator ${RNG_VERSION}, seed “${SEED}”: 30 days, 100 replications. In each replication both policies face the same sequence of daily arrivals. Synthetic teaching inputs, not office records.`,
+  };
+  const copy = <K extends keyof typeof EXAMPLE_COPIES>(kind: K, data: Extract<Inclusion, { kind: K }>['data']): Inclusion =>
+    ({ ...EXAMPLE_COPIES[kind], sourceRevision: 1, kind, addedAt: NOW, data }) as Inclusion;
+  doc.artefacts = [
+    copy('concept-model', concept), copy('method-choice', choice), copy('data-model', arrivalModel), copy('check-plan', plan), copy('comparison', comparison),
+  ];
 
   // ── Checkpoints: an honest self-review. No reviewer is named; the ratings show how to argue a level, not a mark.
   const self = (rubric: Record<string, number>, notes: string) => ({ status: 'self-reviewed' as const, feedbackSource: 'self' as const, reviewer: '', due: '', rubric, notes });

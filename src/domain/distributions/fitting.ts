@@ -217,12 +217,25 @@ export function qqPairs(law: Law, xs: number[]): { theoretical: number; sample: 
   return s.map((x, i) => ({ theoretical: law.inv((i + 0.5) / n), sample: x }));
 }
 
+/** Akaike weights: relative support among these candidates only. They add up to 1. */
+export function akaikeWeights(fits: { aic: number }[]): number[] {
+  if (!fits.length) return [];
+  const best = Math.min(...fits.map((f) => f.aic));
+  const w = fits.map((f) => Math.exp(-(f.aic - best) / 2));
+  const total = w.reduce((a, b) => a + b, 0);
+  return w.map((x) => x / total);
+}
+
+/** The most pieces of pasted text that are read. Anything beyond is counted in `truncated`, never dropped unseen. */
+export const PASTE_MAX_VALUES = 100_000;
+
 /**
  * Numbers separated by spaces, new lines, semicolons or commas. A comma between two digits is ambiguous
  * (“1,5” may be one and a half, or 1 and 5): when the text has no other use for commas they are read as
  * decimal commas; otherwise they separate values and the doubtful pieces are reported in `decimalCommas`.
+ * Pieces that are not finite numbers are listed in `rejected` (hexadecimal and similar spellings included).
  */
-export function parseData(text: string): { values: number[]; rejected: string[]; decimalCommas: string[]; commaIsDecimal: boolean } {
+export function parseData(text: string): { values: number[]; rejected: string[]; decimalCommas: string[]; commaIsDecimal: boolean; truncated: number } {
   const tight = text.match(/\d,(?=\d)/g)?.length ?? 0;            // commas squeezed between digits
   const loose = (text.match(/,/g)?.length ?? 0) - tight;            // commas used as separators (followed by a space, etc.)
   const asDecimal = text.replace(/(\d),(?=\d)/g, '$1.').split(/[\s;]+/).filter(Boolean);
@@ -231,9 +244,9 @@ export function parseData(text: string): { values: number[]; rejected: string[];
   const decimalCommas = commaIsDecimal || tight === 0 || loose === 0 ? [] : (text.match(/\d+,\d+/g) ?? []).slice(0, 5);
   const parts = commaIsDecimal ? asDecimal : text.split(/[\s,;]+/).filter(Boolean);
   const values: number[] = [], rejected: string[] = [];
-  for (const p of parts.slice(0, 5000)) {
-    const v = Number(p);
+  for (const p of parts.slice(0, PASTE_MAX_VALUES)) {
+    const v = /^[-+\u2212]?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?$/.test(p) ? Number(p.replace(/^\u2212/, '-')) : NaN;
     if (Number.isFinite(v)) values.push(v); else rejected.push(p);
   }
-  return { values, rejected, decimalCommas, commaIsDecimal };
+  return { values, rejected, decimalCommas, commaIsDecimal, truncated: Math.max(0, parts.length - PASTE_MAX_VALUES) };
 }

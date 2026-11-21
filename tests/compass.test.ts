@@ -1,14 +1,18 @@
 import { describe, expect, it } from 'vitest';
-import { workedExample } from '../src/content/workedExample';
+import { EXAMPLE_COPIES, exampleConfigs, workedExample } from '../src/content/workedExample';
+import { inclusionState, inclusionsFor } from '../src/domain/artefacts/include';
+import { KIND_ORDER, KINDS, kindDef } from '../src/domain/artefacts/kinds';
+import type { ArtefactKind } from '../src/domain/artefacts/types';
 import type { MethodId } from '../src/domain/methods/registry';
 import { RULE_VERSION, answersKey, evaluateRules } from '../src/domain/methods/rules';
 import {
-  CHECKPOINT_DEFS, COMPASS_RULES_VERSION, STEPS, checkpointReadiness, compassWarnings, dataReadiness, stepStarted, stepsStarted, warningsFor,
+  CHECKPOINT_DEFS, COMPASS_RULES_VERSION, KIND_STEP, STEPS, checkpointReadiness, compassWarnings, dataReadiness, stepStarted, stepsStarted, warningsFor,
   type StepId,
 } from '../src/domain/passport/compass';
 import { importProjectObject, parseProjectJson } from '../src/domain/passport/importer';
-import { PASSPORT_SCHEMA_VERSION, createProject, type ProjectDoc } from '../src/domain/passport/schema';
-import { runHash } from '../src/domain/sandbox/experiment';
+import { PASSPORT_SCHEMA_VERSION, createProject, type Inclusion, type ProjectDoc } from '../src/domain/passport/schema';
+import { simulateTrace } from '../src/domain/sandbox/engine';
+import { runAll } from '../src/domain/sandbox/experiment';
 import { mean, pairedDifferences, tInterval } from '../src/domain/sandbox/stats';
 import { projectJson } from '../src/exports/bundle';
 
@@ -18,6 +22,9 @@ const severityOf = (doc: ProjectDoc, id: string) => compassWarnings(doc).find((w
 /** The worked example with one change: the cleanest way to see a single rule fire. */
 const mutated = (change: (d: ProjectDoc) => void) => { const d = workedExample(); change(d); return d; };
 const doc0 = workedExample();
+/** The copy of one kind in a project (the worked example holds exactly one of each). */
+const copyOf = <K extends ArtefactKind>(d: ProjectDoc, kind: K) => d.artefacts.find((i): i is Extract<Inclusion, { kind: K }> => i.kind === kind)!;
+const without = (d: ProjectDoc, kind: ArtefactKind) => { d.artefacts = d.artefacts.filter((i) => i.kind !== kind); };
 
 describe('worked example', () => {
   const doc = workedExample();
@@ -43,7 +50,8 @@ describe('worked example', () => {
     expect(doc.createdAt).toBe(doc.updatedAt);
     expect(doc.schemaVersion).toBe(PASSPORT_SCHEMA_VERSION);
     expect(workedExample()).toEqual(doc);
-    expect(workedExample().sandbox.lastRun).not.toBe(doc.sandbox.lastRun); // callers get their own copy
+    // Callers get their own copy, down to the lists of numbers.
+    expect(copyOf(workedExample(), 'comparison').data.baseline).not.toBe(copyOf(doc, 'comparison').data.baseline);
     expect(p.identity.author).toBe('');
     // Reviewed by its own author only: no reviewer is named, every criterion is rated, and not everything is Strong.
     for (const def of CHECKPOINT_DEFS) {
@@ -96,26 +104,119 @@ describe('worked example', () => {
     expect(p.experiment.runSettings).toMatch(/replications/i);
     expect(p.experiment.runSettings).toMatch(/seed/i);
   });
-  it('carries a complete sandbox run that is not stale', () => {
-    const { baseline, alternative, lastRun: run } = doc.sandbox;
+  it('includes one copy of each kind, with fixed ids and sources that are in no Toolbox', () => {
+    expect(doc.artefacts.map((i) => i.kind)).toEqual(KIND_ORDER);
+    for (const kind of KIND_ORDER) {
+      const c = copyOf(doc, kind);
+      expect(c).toMatchObject({ ...EXAMPLE_COPIES[kind], sourceRevision: 1, addedAt: doc.createdAt });
+      expect(c.id).toMatch(/^inc-example-/);
+      expect(c.sourceId).toMatch(/^example-/);
+      expect(c.title.trim().length, kind).toBeGreaterThan(8);
+      expect(inclusionState(c, undefined)).toBe('source-missing');
+      expect(inclusionsFor(doc, KINDS[kind].step)).toEqual([c]);
+      expect(KINDS[kind].isEmpty(c.data as never), kind).toBe(false);
+    }
+    // The example is a project of this version: nothing of the earlier sandbox is carried along.
+    expect((doc as { sandbox?: { lastRun?: unknown } }).sandbox?.lastRun ?? null).toBeNull();
+  });
+  it('every copy passes the sanitizer of its kind unchanged, and its card and report text can be made', () => {
+    for (const c of doc.artefacts) {
+      const def = kindDef(c.kind);
+      expect(def.sanitize(JSON.parse(JSON.stringify(c.data)), (m) => { throw new Error(`${c.kind}: ${m}`); }), c.kind).toEqual(c.data);
+      expect(def.summary(c.data).join('').trim(), c.kind).not.toBe('');
+      expect(def.markdown(c.data).join('').trim(), c.kind).not.toBe('');
+      expect(() => def.figure(c.data), c.kind).not.toThrow();
+    }
+  });
+  it('the conceptual model places its elements in zones: levers and inputs, content, outcomes, and what is left out', () => {
+    const m = copyOf(doc, 'concept-model').data;
+    const ofType = (t: string) => m.nodes.filter((n) => n.type === t);
+    expect(ofType('lever').map((n) => n.zone)).toEqual(['inputs']);
+    expect(ofType('outcome').length).toBeGreaterThanOrEqual(2);
+    expect(ofType('outcome').every((n) => n.zone === 'outputs')).toBe(true);
+    expect(ofType('stock').map((n) => n.zone)).toEqual(['content']);
+    expect(ofType('external').length).toBeGreaterThanOrEqual(1);
+    expect(ofType('external').every((n) => n.zone === 'outside')).toBe(true);
+    expect(new Set(m.nodes.map((n) => n.zone))).toEqual(new Set(['inputs', 'content', 'outputs', 'outside']));
+    const idsOf = new Set(m.nodes.map((n) => n.id));
+    expect(idsOf.size).toBe(m.nodes.length);
+    for (const e of m.edges) { expect(idsOf.has(e.from) && idsOf.has(e.to), e.id).toBe(true); expect(e.label).not.toBe(''); }
+    for (const t of [m.objectives, m.assumptions, m.simplifications]) expect(t.trim().length).toBeGreaterThan(40);
+    // What is outside the boundary in the picture is what the scope lists as excluded.
+    for (const n of ofType('external')) expect(p.scope.exclusions).toContain(n.label);
+  });
+  it('the method choice is the decision the project records', () => {
+    const c = copyOf(doc, 'method-choice').data;
+    expect(c).toMatchObject({ primary: p.representation.primaryMethod, alternative: p.representation.alternativeMethod, ruleVersion: RULE_VERSION });
+    expect(c.justification).toBe(p.representation.justification);
+    expect(c.alternativeJustification).toBe(p.representation.alternativeJustification);
+    expect(c.answers).toEqual(doc.methods.answers);
+    expect(c.answers).not.toBe(doc.methods.answers);
+    expect(c.shortlist).toEqual(doc.methods.shortlist);
+  });
+  it('the data model owns the arrivals row and describes it without inventing data', () => {
+    const c = copyOf(doc, 'data-model');
+    const rows = p.inputs.filter((r) => r.inclusion);
+    expect(rows.map((r) => [r.id, r.inclusion])).toEqual([['in-arrivals', c.id]]);
+    expect(c.data).toMatchObject({ name: rows[0].name, unit: rows[0].unit, family: 'categorical', params: [0.25, 0.5, 0.25], origin: 'described', availability: rows[0].availability, plan: rows[0].plan });
+    expect(c.data).toMatchObject({ summary: null, fit: null, keepData: false, data: [] });
+    expect(c.data.provenance).toMatch(/synthetic/i);
+    expect(c.data.provenance).toMatch(/\(8\).*\(12\).*\(16\)/);
+  });
+  it('the check plan mirrors the six verification checks, with honest statuses and nothing failed', () => {
+    const c = copyOf(doc, 'check-plan').data;
+    const group = (g: string) => c.checks.filter((k) => k.group === g);
+    expect(group('verification')).toHaveLength(6);
+    expect(p.evaluation.verification.split('\n')).toHaveLength(6);
+    for (const k of group('verification')) { expect(k.status).toBe('passed'); expect(k.evidence.trim()).not.toBe(''); }
+    // Validation and calibration are plans in this teaching case: nothing is claimed that was not done.
+    expect(group('validation').length).toBeGreaterThanOrEqual(2);
+    for (const k of [...group('validation'), ...group('calibration')]) { expect(k.status).toBe('planned'); expect(k.evidence).toBe(''); }
+    expect(c.checks.some((k) => k.status === 'failed')).toBe(false);
+    expect(new Set(c.checks.map((k) => k.id)).size).toBe(c.checks.length);
+    expect(c.validation).toEqual({ measure: expect.stringMatching(/held-out/), tolerancePct: 20, observed: [], simulated: [] });
+    expect(p.evaluation.validation).toMatch(/within 20%/);
+    for (const t of Object.values(c.calibration)) expect(t.trim()).not.toBe('');
+    expect(c.method).toBe(p.representation.primaryMethod);
+  });
+  it('the verification evidence is true of the daily backlog model', () => {
+    const { baseline } = exampleConfigs();
+    const run = (change: (c: typeof baseline) => void) => { const c = structuredClone(baseline); c.demand.mode = 'constant'; change(c); return simulateTrace(c, new Array(c.horizon).fill(c.demand.constant)).rows.map((r) => r.endBacklog); };
+    // Balanced case: arrivals 10, capacity 10, empty start → 0 on each of the 30 days.
+    expect(run((c) => { c.demand.constant = 10; })).toEqual(new Array(30).fill(0));
+    // Drain case: start 20, arrivals 5, capacity 10 → 15, 10, 5, 0, then 0.
+    const drain = run((c) => { c.initialBacklog = 20; c.demand.constant = 5; });
+    expect(drain.slice(0, 5)).toEqual([15, 10, 5, 0, 0]);
+    expect(drain[29]).toBe(0);
+    // Accumulation case: arrivals 12, capacity 10 → 2 × day.
+    expect(run((c) => { c.demand.constant = 12; })).toEqual(Array.from({ length: 30 }, (_, i) => 2 * (i + 1)));
+    const text = copyOf(doc, 'check-plan').data.checks.map((k) => k.evidence).join(' ');
+    expect(text).toMatch(/Backlog 15, 10, 5, 0/);
+    expect(text).toMatch(/Backlog 2 on day 1 and 60 on day 30/);
+  });
+  it('the comparison is the paired run of the daily backlog model, and it reproduces', () => {
+    const c = copyOf(doc, 'comparison').data;
+    const { baseline, alternative } = exampleConfigs();
     expect(baseline.demand).toMatchObject({ mode: 'random', values: [8, 12, 16], probs: [0.25, 0.5, 0.25] });
     expect(baseline).toMatchObject({ horizon: 30, replications: 100, seed: 'compass-example', capacity: { mode: 'direct', direct: 10 } });
     expect(alternative).toEqual({ ...baseline, capacity: { ...baseline.capacity, direct: 12 } });
-    expect(run).not.toBeNull();
-    expect(run!.status).toBe('complete');
-    expect(run!.completedReplications).toBe(100);
-    expect(run!.requestedReplications).toBe(100);
-    expect(run!.comparisonKind).toBe('paired-policy');
-    expect(run!.modelHash).toBe(runHash(baseline, alternative));
-    expect(run!.modelRevision).toBe(doc.modelRevision);
-    expect(run!.projectId).toBe(doc.id);
-    expect(has(doc, 'stale-run')).toBe(false);
-    expect(has(doc, 'partial-run')).toBe(false);
+    const run = runAll(baseline, alternative, { id: 'r', projectId: doc.id, modelRevision: 1, createdAt: doc.createdAt });
+    expect(run.comparisonKind).toBe('paired-policy');
+    expect(c.baseline).toEqual(run.baseline.summaries.map((s) => s.averageEndBacklog));
+    expect(c.alternative).toEqual(run.alternative!.summaries.map((s) => s.averageEndBacklog));
+    // Repeatability, as the check plan says: a second run with the same seed agrees in every replication.
+    expect(runAll(baseline, alternative, { id: 'r2', projectId: doc.id, modelRevision: 1, createdAt: doc.createdAt }).baseline.summaries).toEqual(run.baseline.summaries);
+    expect(c).toMatchObject({ paired: true, direction: 'lower', unit: 'request-equivalents', baselineLabel: 'Capacity 10', alternativeLabel: 'Capacity 12', minimumDifference: 10 });
+    expect(c.baseline).toHaveLength(100);
+    expect(c.alternative).toHaveLength(100);
+    expect(c.note).toMatch(/seed “compass-example”/);
+    expect(c.note).toMatch(/same sequence of daily arrivals/);
+    expect(p.experiment.runSettings).toMatch(/100 replications, seed “compass-example”/);
+    expect(has(doc, 'no-comparison')).toBe(false);
+    expect(has(doc, `cmp-reps-${copyOf(doc, 'comparison').id}`)).toBe(false);
   });
-  it('quotes results that match what the run actually produces', () => {
-    const run = doc.sandbox.lastRun!;
-    const base = run.baseline.summaries, alt = run.alternative!.summaries;
-    const avgB = base.map((s) => s.averageEndBacklog), avgA = alt.map((s) => s.averageEndBacklog);
+  it('quotes results that match what the comparison holds', () => {
+    const { baseline: avgB, alternative: avgA } = copyOf(doc, 'comparison').data;
     const diff = pairedDifferences(avgB, avgA);
     const round = (x: number | null) => Math.round(x!);
     const text = p.conclusion.results;
@@ -133,7 +234,12 @@ describe('worked example', () => {
     expect(round(tInterval(diff).upper)).toBe(-23);
     expect(diff.every((d) => d < 0)).toBe(true);
     expect(text).toMatch(/about −24 request-equivalents \(95% interval roughly −25 to −23\), and the alternative was lower in all 100 pairs/);
-    // “averaged about 59 on day 30; at capacity 12 it averaged about 10”
+    // The funding criterion: the interval of the paired difference lies below zero and the reduction is at least 10.
+    expect(tInterval(diff).upper!).toBeLessThan(-10);
+    // “averaged about 59 on day 30; at capacity 12 it averaged about 10”: from the same run, which the copy does not store.
+    const { baseline, alternative } = exampleConfigs();
+    const run = runAll(baseline, alternative, { id: 'r', projectId: doc.id, modelRevision: 1, createdAt: doc.createdAt });
+    const base = run.baseline.summaries, alt = run.alternative!.summaries;
     expect(round(mean(base.map((s) => s.terminalBacklog)))).toBe(59);
     expect(round(mean(alt.map((s) => s.terminalBacklog)))).toBe(10);
     expect(text).toMatch(/about 59 on day 30; at capacity 12 it averaged about 10 on day 30/);
@@ -185,13 +291,24 @@ describe('empty project', () => {
   });
   it('every warning has a non-empty message and a known step', () => {
     for (const w of compassWarnings(doc)) { expect(w.message.trim()).not.toBe(''); expect(STEPS.some((s) => s.id === w.step)).toBe(true); }
-    expect(COMPASS_RULES_VERSION).toBe('compass-rules-v2');
+    expect(COMPASS_RULES_VERSION).toBe('compass-rules-v3');
   });
   it('a step counts as started as soon as one of its fields has content', () => {
     const d = createProject();
     d.passport.scope.boundary = 'The central office';
     d.passport.selfChecks['frame-decide'] = 'An answer alone does not start a step.';
     expect(stepsStarted(d.passport)).toEqual(['scope']);
+  });
+  it('an included artefact starts its step, even when it writes no field', () => {
+    const d = createProject();
+    d.artefacts = [copyOf(doc0, 'comparison')];
+    expect(stepsStarted(d.passport)).toEqual([]);
+    expect(stepStarted(d.passport, 'experiment', d.artefacts)).toBe(true);
+    expect(stepsStarted(d.passport, d.artefacts)).toEqual(['experiment']);
+    expect(stepsStarted(doc0.passport, doc0.artefacts)).toHaveLength(7);
+    // The rules place each kind at the step its definition names.
+    for (const k of KIND_ORDER) expect(KIND_STEP[k], k).toBe(KINDS[k].step);
+    expect(Object.keys(KIND_STEP).sort()).toEqual([...KIND_ORDER].sort());
   });
 });
 
@@ -280,12 +397,11 @@ describe('compass rules fire and clear', () => {
     d.passport.experiment.runSettings = 'Horizon 30 days, 100 replications, seed “a”.';
     expect(has(d, 'replications')).toBe(false);
     expect(has(d, 'seed')).toBe(false);
-    // Random demand in a sandbox run also counts as stochastic, whatever the chosen method.
-    const randomSandbox = mutated((x) => { x.passport.experiment.runSettings = 'Horizon 30 days.'; });
-    expect(severityOf(randomSandbox, 'replications')).toBe('check');
-    // A deterministic representation without a random sandbox run is not asked for replications.
-    const sd = mutated((x) => { x.passport.experiment.runSettings = 'Horizon 30 days.'; x.sandbox.lastRun = null; });
+    expect(compassWarnings(mutated((x) => { x.passport.representation.primaryMethod = 'des'; x.passport.representation.alternativeMethod = 'system-dynamics'; x.passport.experiment.runSettings = 'Horizon 30 days.'; })).find((w) => w.id === 'replications')!.message).toMatch(/^Discrete-event simulation is stochastic/);
+    // A method that is not stochastic by nature is not asked for replications or a seed.
+    const sd = mutated((x) => { x.passport.experiment.runSettings = 'Horizon 30 days.'; });
     expect(has(sd, 'replications')).toBe(false);
+    expect(has(sd, 'seed')).toBe(false);
     const empty = mutated((x) => { x.passport.representation.primaryMethod = 'des'; x.passport.representation.alternativeMethod = 'abm'; x.passport.experiment.runSettings = ''; });
     expect(has(empty, 'replications')).toBe(false);
     expect(severityOf(empty, 'run-settings')).toBe('gap');
@@ -343,25 +459,78 @@ describe('compass rules fire and clear', () => {
     expect(severityOf(d, 'overclaim')).toBe('tip');
     expect(severityOf(d, 'question-mark')).toBe('tip');
     expect(compassWarnings(d).filter((w) => w.severity !== 'tip')).toEqual([]);
-    const noSketch = mutated((x) => { x.passport.representation.nodes = []; x.passport.representation.relations = []; });
-    expect(severityOf(noSketch, 'sketch')).toBe('tip');
   });
   it('problem and lever with the same text', () => {
     const d = mutated((x) => { x.passport.decision.problem = 'Hire more staff'; x.passport.decision.levers = '  hire more STAFF '; });
     expect(severityOf(d, 'lever-is-problem')).toBe('check');
   });
-  it('stale or partial sandbox run', () => {
-    const d = mutated((x) => { x.sandbox.baseline.capacity.direct = 11; });
-    expect(severityOf(d, 'stale-run')).toBe('check');
-    d.sandbox.baseline.capacity.direct = 10;
-    expect(has(d, 'stale-run')).toBe(false);
-    // Changing the alternative, or removing it, also makes the run stale.
-    expect(has(mutated((x) => { x.sandbox.alternative!.capacity.direct = 13; }), 'stale-run')).toBe(true);
-    expect(has(mutated((x) => { x.sandbox.alternative = null; }), 'stale-run')).toBe(true);
-    // No run at all is not an error.
-    expect(has(mutated((x) => { x.sandbox.baseline.capacity.direct = 11; x.sandbox.lastRun = null; }), 'stale-run')).toBe(false);
-    const partial = mutated((x) => { x.sandbox.lastRun!.status = 'partial'; });
-    expect(severityOf(partial, 'partial-run')).toBe('check');
+});
+
+describe('rules added in compass-rules-v3: included artefacts', () => {
+  it('a failed check in the included check plan asks for an answer', () => {
+    const d = mutated((x) => { copyOf(x, 'check-plan').data.checks[0].status = 'failed'; });
+    expect(severityOf(d, 'plan-failed')).toBe('check');
+    expect(compassWarnings(d).find((w) => w.id === 'plan-failed')).toMatchObject({ step: 'evaluation', message: 'Your check plan has 1 failed check. Say what you changed, or why the model is still fit for the question.' });
+    expect(checkpointReadiness(d, 'baseline').map((w) => w.id)).toEqual(['plan-failed']);
+    copyOf(d, 'check-plan').data.checks[7].status = 'failed';
+    expect(compassWarnings(d).find((w) => w.id === 'plan-failed')!.message).toMatch(/^Your check plan has 2 failed checks\. /);
+    // Planned, done and passed checks are not open items; neither is a plan that is no longer included.
+    for (const c of copyOf(d, 'check-plan').data.checks) c.status = c.status === 'failed' ? 'done' : c.status;
+    expect(has(d, 'plan-failed')).toBe(false);
+    const removed = mutated((x) => { copyOf(x, 'check-plan').data.checks[0].status = 'failed'; without(x, 'check-plan'); });
+    expect(has(removed, 'plan-failed')).toBe(false);
+    expect(compassWarnings(removed)).toEqual([]); // the step's own text still stands
+  });
+  it('a comparison with fewer than two replications in either policy', () => {
+    const id = `cmp-reps-${EXAMPLE_COPIES.comparison.id}`;
+    const one = mutated((x) => { copyOf(x, 'comparison').data.alternative = [6]; copyOf(x, 'comparison').data.paired = false; });
+    expect(severityOf(one, id)).toBe('check');
+    expect(compassWarnings(one).find((w) => w.id === id)).toMatchObject({ step: 'experiment', message: 'The comparison “Capacity 10 versus 12” has fewer than two replications for a policy. One run cannot tell a real difference from chance.' });
+    expect(checkpointReadiness(one, 'evaluation').map((w) => w.id)).toEqual([id]);
+    copyOf(one, 'comparison').data.alternative = [6, 7];
+    expect(has(one, id)).toBe(false);
+    expect(has(mutated((x) => { copyOf(x, 'comparison').data.baseline = [30]; }), id)).toBe(true);
+    expect(has(mutated((x) => { Object.assign(copyOf(x, 'comparison').data, { baseline: [], alternative: [] }); }), id)).toBe(true);
+    // Every included comparison is looked at on its own; an untitled one is still named.
+    const two = mutated((x) => { x.artefacts.push({ ...structuredClone(copyOf(x, 'comparison')), id: 'inc-second', title: '  ', data: { ...copyOf(x, 'comparison').data, baseline: [1], alternative: [2] } }); });
+    expect(ids(two).filter((i) => i.startsWith('cmp-reps-'))).toEqual(['cmp-reps-inc-second']);
+    expect(compassWarnings(two).find((w) => w.id === 'cmp-reps-inc-second')!.message).toMatch(/^The comparison “Untitled” has fewer/);
+  });
+  it('results without an included comparison are a suggestion, never a missing item', () => {
+    const d = mutated((x) => { without(x, 'comparison'); });
+    expect(severityOf(d, 'no-comparison')).toBe('tip');
+    expect(compassWarnings(d).find((w) => w.id === 'no-comparison')).toMatchObject({ step: 'experiment', message: expect.stringMatching(/^Suggestion: step 7 reports results, but no comparison is included here\. Add one from the Toolbox/) });
+    expect(compassWarnings(d).filter((w) => w.severity !== 'tip')).toEqual([]);
+    expect(checkpointReadiness(d, 'evaluation')).toEqual([]);
+    d.passport.conclusion.results = ' ';
+    expect(has(d, 'no-comparison')).toBe(false); // nothing is reported yet, so nothing needs backing
+    expect(has(createProject(), 'no-comparison')).toBe(false);
+  });
+  it('step 2 with neither a conceptual model nor an earlier sketch points to the Toolbox', () => {
+    const neither = mutated((x) => { without(x, 'concept-model'); x.passport.representation.nodes = []; x.passport.representation.relations = []; });
+    expect(severityOf(neither, 'sketch')).toBe('tip');
+    expect(compassWarnings(neither).find((w) => w.id === 'sketch')!.message).toBe('Suggestion: draw the conceptual model in the Toolbox and add it to this step.');
+    // Either one is enough.
+    expect(has(mutated((x) => { without(x, 'concept-model'); }), 'sketch')).toBe(false);
+    expect(has(mutated((x) => { x.passport.representation.nodes = []; x.passport.representation.relations = []; }), 'sketch')).toBe(false);
+  });
+  it('the rules never look at the earlier sandbox, and survive a copy that is not what its kind promises', () => {
+    const d = workedExample() as Partial<ProjectDoc> as ProjectDoc;
+    delete (d as Partial<ProjectDoc>).sandbox;
+    expect(compassWarnings(d)).toEqual([]);
+    for (const id of ['stale-run', 'partial-run']) expect(ids(mutated((x) => { x.passport.experiment.runSettings = 'Horizon 30 days.'; })), id).not.toContain(id);
+    // A project stored on the device never passed the importer: a damaged copy must not stop the rules.
+    const damaged = mutated((x) => {
+      x.artefacts = [
+        { ...copyOf(x, 'check-plan'), data: null }, { ...copyOf(x, 'check-plan'), id: 'b', data: { checks: [null, { status: 'failed' }] } },
+        { ...copyOf(x, 'comparison'), id: 'c', title: undefined, data: {} }, { ...copyOf(x, 'comparison'), id: 'd', data: null },
+      ] as unknown as Inclusion[];
+    });
+    expect(() => compassWarnings(damaged)).not.toThrow();
+    expect(ids(damaged)).toEqual(expect.arrayContaining(['plan-failed', 'cmp-reps-c', 'cmp-reps-d']));
+    const noList = mutated((x) => { (x as Partial<ProjectDoc>).artefacts = undefined; });
+    expect(() => compassWarnings(noList)).not.toThrow();
+    expect(ids(noList)).toEqual(['no-comparison']);
   });
 });
 
@@ -432,7 +601,7 @@ describe('importer: schema v1 → v3, self-checks and rubrics', () => {
     expect(res.ok && res.project.passport.identity.title).toBe('Old project');
     expect(res.ok && res.project.passport.selfChecks).toEqual({});
   });
-  it('a v3 round trip preserves selfChecks, rubric and the sandbox run, with no upgrade note', () => {
+  it('a v3 round trip preserves selfChecks, rubric and the included artefacts, with no upgrade note', () => {
     const d = graded();
     const res = parseProjectJson(projectJson(d));
     expect(res.ok).toBe(true);
@@ -441,7 +610,7 @@ describe('importer: schema v1 → v3, self-checks and rubrics', () => {
     expect(res.project.passport.review).toEqual(d.passport.review);
     expect(res.project.passport).toEqual(d.passport);
     expect(res.project.methods).toEqual(d.methods);
-    expect(res.project.sandbox).toEqual(d.sandbox);
+    expect(res.project.artefacts).toEqual(d.artefacts);
     expect(res.project.id).toBe('worked-example');
     expect(res.project.origin.kind).toBe('example'); // origin.ref is not carried by the importer (reported to the domain owner)
     expect(res.warnings).toEqual([]);

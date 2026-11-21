@@ -48,6 +48,10 @@ export interface MethodRecord {
   name: string;
   family: MethodFamily;
   summary: string;
+  /** What the method is for, in one sentence (Learn cards and the comparison table). */
+  purpose: string;
+  /** One typical question the method answers well. */
+  exampleQuestion: string;
   suitableQuestions: string[];
   representation: string;
   time: string;
@@ -64,6 +68,8 @@ export const METHODS: MethodRecord[] = [
   {
     id: 'path-analysis', name: 'Path analysis', family: 'relationships',
     summary: 'Systems of regression equations among observed variables.',
+    purpose: 'Tests whether a hypothesised web of direct and indirect links between measured variables fits the data.',
+    exampleQuestion: 'Does training raise satisfaction directly, or through better skills?',
     suitableQuestions: ['How strongly are observed variables associated, directly and indirectly?', 'Is a hypothesised pattern of relationships consistent with the data?'],
     representation: 'Observed variables connected by directed paths', time: 'Usually static (cross-sectional)', randomness: 'Statistical error terms', aggregation: 'Variables measured on individuals or units',
     assumptions: ['Correct model specification and direction of paths', 'No important omitted confounders for any causal reading', 'Adequate measurement of each observed variable'],
@@ -75,6 +81,8 @@ export const METHODS: MethodRecord[] = [
   {
     id: 'cb-sem', name: 'CB-SEM', family: 'relationships',
     summary: 'Covariance-based structural equation modelling of a measurement and structural model.',
+    purpose: 'Tests a theory about hidden constructs, each measured by several indicators, against the observed covariances.',
+    exampleQuestion: 'Does perceived usefulness explain the intention to use a new system?',
     suitableQuestions: ['Is a theory-specified measurement and structural model consistent with the observed covariance structure?'],
     representation: 'Latent constructs measured by indicators; structural paths between constructs', time: 'Usually static', randomness: 'Measurement and structural error', aggregation: 'Individuals or units in a sample',
     assumptions: ['Theory-driven specification', 'Model identification', 'Distributional assumptions of the chosen estimator'],
@@ -86,6 +94,8 @@ export const METHODS: MethodRecord[] = [
   {
     id: 'pls-sem', name: 'PLS-SEM', family: 'relationships',
     summary: 'Component-based estimation of relationships between constructs and indicators.',
+    purpose: 'Estimates how composite constructs relate, and how well they predict an outcome in new data.',
+    exampleQuestion: 'Which drivers best predict customer loyalty in next year’s survey?',
     suitableQuestions: ['How do composite constructs relate, and how well does the model predict out of sample?'],
     representation: 'Constructs as weighted composites of indicators; structural paths', time: 'Usually static', randomness: 'Estimation uncertainty (often via bootstrap)', aggregation: 'Individuals or units in a sample',
     assumptions: ['Composite or measurement model appropriate to the constructs', 'Purpose stated: explanation versus prediction'],
@@ -97,6 +107,8 @@ export const METHODS: MethodRecord[] = [
   {
     id: 'petri-nets', name: 'Petri nets', family: 'processes',
     summary: 'Places, transitions and tokens for concurrency, synchronisation and blocking.',
+    purpose: 'Shows whether a process with parallel steps and shared resources can block, and what must wait for what.',
+    exampleQuestion: 'Can two orders that need the same approval and the same machine block each other?',
     suitableQuestions: ['Can the process deadlock?', 'Which steps can happen concurrently and which must synchronise?'],
     representation: 'Places, transitions, arcs and tokens', time: 'Logical (untimed) unless a timed extension is used', randomness: 'None in the basic form', aggregation: 'Tokens represent resources, cases or conditions',
     assumptions: ['Firing rules represent the real process logic', 'Token meaning is clearly defined'],
@@ -108,6 +120,8 @@ export const METHODS: MethodRecord[] = [
   {
     id: 'monte-carlo', name: 'Monte Carlo simulation', family: 'uncertainty',
     summary: 'Propagates uncertain inputs through a calculation by repeated sampling.',
+    purpose: 'Turns uncertain inputs into a distribution of outcomes, so you can state the chance of each result.',
+    exampleQuestion: 'How likely is the project to overrun its budget?',
     suitableQuestions: ['How uncertain is this outcome given uncertain inputs?', 'What is the probability that cost exceeds a threshold?'],
     representation: 'Input distributions feeding a deterministic calculation', time: 'Often static; can wrap a dynamic model', randomness: 'Explicit input distributions', aggregation: 'Depends on the underlying calculation',
     assumptions: ['Input distributions and their dependence are justified', 'Enough replications for the precision needed'],
@@ -119,6 +133,8 @@ export const METHODS: MethodRecord[] = [
   {
     id: 'markov-chains', name: 'Markov chains', family: 'uncertainty',
     summary: 'Probabilistic movement between a finite set of states.',
+    purpose: 'Tracks how cases move between a few states, step by step, and where they settle in the long run.',
+    exampleQuestion: 'What share of subscribers will still be active after twelve months?',
     suitableQuestions: ['What share of cases will be in each state after k steps?', 'How long until absorption?'],
     representation: 'States and a transition probability matrix', time: 'Discrete steps (or continuous-time variant)', randomness: 'Transition probabilities', aggregation: 'Individuals or cohort shares',
     assumptions: ['Next state depends only on the current state (memoryless)', 'Transition probabilities stable over the horizon unless modelled otherwise'],
@@ -130,6 +146,8 @@ export const METHODS: MethodRecord[] = [
   {
     id: 'system-dynamics', name: 'System dynamics', family: 'processes',
     summary: 'Stocks, flows, delays and feedback loops at an aggregate level.',
+    purpose: 'Explains how accumulation, delay and feedback shape the behaviour of a whole system over time.',
+    exampleQuestion: 'Why does the backlog keep growing after hiring, and when will it level off?',
     suitableQuestions: ['How do accumulation and feedback shape behaviour over time?', 'Which policy avoids overshoot or collapse?'],
     representation: 'Stocks, flows, auxiliaries and feedback loops', time: 'Continuous (numerically integrated) or small time steps', randomness: 'Usually deterministic; can add noise', aggregation: 'Aggregate quantities',
     assumptions: ['Aggregation is acceptable for the question', 'Feedback structure and delays are justified', 'Units are consistent'],
@@ -141,6 +159,8 @@ export const METHODS: MethodRecord[] = [
   {
     id: 'queueing-theory', name: 'Queueing theory', family: 'processes',
     summary: 'Analytical formulas for waiting and congestion in stylised service systems.',
+    purpose: 'Gives quick formulas for waiting and congestion in a simple, steady service system.',
+    exampleQuestion: 'How long is the average wait with three servers at 85% utilisation?',
     suitableQuestions: ['What is the expected wait in a simple stationary service system?', 'Is the system stable at this utilisation?'],
     representation: 'Arrival process, service process, servers and discipline', time: 'Continuous time, steady state', randomness: 'Stochastic arrivals and service', aggregation: 'Long-run averages',
     assumptions: ['Stationarity and stability (utilisation below one)', 'Specific arrival/service distributions (e.g. Poisson/exponential)'],
@@ -152,6 +172,8 @@ export const METHODS: MethodRecord[] = [
   {
     id: 'des', name: 'Discrete-event simulation', family: 'processes',
     summary: 'Entities, events and resources over simulated time.',
+    purpose: 'Follows individual items through queues and resources to reveal waiting times and bottlenecks.',
+    exampleQuestion: 'Which staffing schedule keeps nine in ten waits under ten minutes?',
     suitableQuestions: ['What waiting-time distribution will individuals experience under this schedule?', 'Which staffing rule meets a service level?'],
     representation: 'Entities flowing through activities that use resources; event list', time: 'Event-driven', randomness: 'Stochastic arrivals, service times and routing', aggregation: 'Individual entities',
     assumptions: ['Event logic and routing match the process', 'Input distributions justified', 'Warm-up and run length appropriate'],
@@ -163,6 +185,8 @@ export const METHODS: MethodRecord[] = [
   {
     id: 'cellular-automata', name: 'Cellular automata', family: 'emergence',
     summary: 'Local update rules on a spatial grid.',
+    purpose: 'Shows how simple rules between neighbouring cells create patterns that spread across space.',
+    exampleQuestion: 'How fast does a fire spread through a forest of a given density?',
     suitableQuestions: ['How do local spatial rules produce global patterns?', 'How fast does something spread across space?'],
     representation: 'Grid of cells with states and a neighbourhood rule', time: 'Discrete steps', randomness: 'Deterministic or stochastic rules', aggregation: 'Spatial cells',
     assumptions: ['Neighbourhood and update scheme justified', 'Boundary condition chosen deliberately'],
@@ -174,6 +198,8 @@ export const METHODS: MethodRecord[] = [
   {
     id: 'abm', name: 'Agent-based modelling', family: 'emergence',
     summary: 'Heterogeneous agents following behavioural rules and interacting.',
+    purpose: 'Shows how the choices and interactions of different individuals add up to system-wide outcomes.',
+    exampleQuestion: 'How do individual route choices add up to a traffic jam?',
     suitableQuestions: ['How does heterogeneous, adaptive behaviour create system outcomes?', 'Who is affected differently by a policy?'],
     representation: 'Agents with attributes and rules in an environment', time: 'Discrete steps or events', randomness: 'Usually stochastic', aggregation: 'Individual agents',
     assumptions: ['Behavioural rules supported by evidence', 'Interaction structure justified', 'Calibration separated from validation'],
