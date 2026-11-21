@@ -1,0 +1,50 @@
+/* ModSimCompass — method and family pictograms (glyphs.tsx). Shared by the method chooser and the checks tool.
+   Colour comes from `currentColor`; a parent sets it from the family tone. A pictogram acts out its idea while an
+   ancestor with `.mt-anim` is hovered, focused or pressed, and never when the reader prefers reduced motion. */
+
+/* ── Pictograms ─────────────────────────────────────── */
+.mg { display: block; overflow: visible; }
+.mg .mg-line { fill: none; stroke: currentColor; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
+.mg .mg-fill { fill: color-mix(in srgb, currentColor 22%, var(--bg-elevated)); stroke: currentColor; stroke-width: 2.2; stroke-linejoin: round; }
+.mg .mg-line.mg-fill { stroke-width: 2.5; }
+.mg .mg-solid { fill: currentColor; }
+.mg .mg-cell { fill: color-mix(in srgb, currentColor 18%, var(--bg-elevated)); }
+.mg .mg-thin { stroke-width: 1.8; }
+.mg .mg-dash { stroke-dasharray: 3 4; }
+.mg .mg-next { opacity: 0; }
+.mg-m-cellular-automata .mg-spread { opacity: .55; }
+
+/* Each pictogram acts out its idea while its card is hovered, focused or selected; never with reduced motion. */
+@media (prefers-reduced-motion: no-preference) {
+  .mt-anim:is(:hover, :focus-within, [aria-pressed="true"]) .mg-draw { stroke-dasharray: 40; animation: mg-draw 0.8s ease-out both; }
+  .mt-anim:is(:hover, :focus-within, [aria-pressed="true"]) .mg-drops circle { transform-box: fill-box; transform-origin: center; animation: mg-drop 0.5s ease-out both; }
+  .mt-anim .mg-drops circle:nth-child(2) { animation-delay: 0.12s; }
+  .mt-anim .mg-drops circle:nth-child(3) { animation-delay: 0.24s; }
+  .mt-anim .mg-drops circle:nth-child(4) { animation-delay: 0.36s; }
+  .mt-anim:is(:hover, :focus-within, [aria-pressed="true"]) .mg-queue { animation: mg-queue 0.9s ease-in-out 2; }
+  .mt-anim:is(:hover, :focus-within, [aria-pressed="true"]) .mg-now { animation: mg-off 1.6s 2; }
+  .mt-anim:is(:hover, :focus-within, [aria-pressed="true"]) .mg-next { animation: mg-on 1.6s 2; }
+  .mt-anim:is(:hover, :focus-within, [aria-pressed="true"]) .mg-token { animation: mg-token 1.4s ease-in-out 2; }
+  .mt-anim:is(:hover, :focus-within, [aria-pressed="true"]) .mg-state { animation: mg-state 1.5s ease-in-out 2; }
+  .mt-anim .mg-s2 { animation-delay: 0.5s !important; }
+  .mt-anim .mg-s3 { animation-delay: 1s !important; }
+  .mt-anim:is(:hover, :focus-within, [aria-pressed="true"]) .mg-level { transform-box: fill-box; transform-origin: bottom; animation: mg-level 1.2s ease-out both; }
+  .mt-anim:is(:hover, :focus-within, [aria-pressed="true"]) .mg-bar { transform-box: fill-box; transform-origin: bottom; animation: mg-level 0.7s ease-out both; }
+  .mt-anim:is(:hover, :focus-within, [aria-pressed="true"]) .mg-hop { animation: mg-hop 1.6s steps(1, end) 2; }
+  .mt-anim:is(:hover, :focus-within, [aria-pressed="true"]) .mg-spread { animation: mg-spread 1.2s ease-out 2; }
+  .mt-anim:is(:hover, :focus-within, [aria-pressed="true"]) .mg-agent { animation: mg-wiggle 0.9s ease-in-out 2; }
+  .mt-anim .mg-a2 { animation-delay: 0.2s !important; }
+  .mt-anim .mg-a3 { animation-delay: 0.4s !important; }
+}
+@keyframes mg-draw { from { stroke-dashoffset: 40; } to { stroke-dashoffset: 0; } }
+@keyframes mg-drop { from { opacity: 0; transform: translateY(-14px); } to { opacity: 1; transform: none; } }
+@keyframes mg-queue { 50% { transform: translateX(5px); } }
+@keyframes mg-off { 0%, 40% { opacity: 1; } 50%, 90% { opacity: 0; } 100% { opacity: 1; } }
+@keyframes mg-on { 0%, 40% { opacity: 0; } 50%, 90% { opacity: 1; } 100% { opacity: 0; } }
+@keyframes mg-token { 0%, 15% { transform: none; } 55%, 85% { transform: translateX(28px); } 100% { transform: none; } }
+@keyframes mg-state { 0%, 100% { fill: color-mix(in srgb, currentColor 22%, var(--bg-elevated)); } 30% { fill: currentColor; } }
+@keyframes mg-level { from { transform: scaleY(0.2); } to { transform: none; } }
+@keyframes mg-hop { 0% { transform: none; } 25% { transform: translateX(9px); } 50% { transform: translateX(23px); } 75% { transform: translateX(33px); } }
+@keyframes mg-spread { from { opacity: 0; } to { opacity: .55; } }
+@keyframes mg-wiggle { 50% { transform: translateY(-2px); } }
+

@@ -1,0 +1,100 @@
+/* Fair comparison (docs/LEARN-TOOLBOX-PLAN.md §5.5). Colours only through tokens and the page's tone (tone-orange).
+   Baseline and alternative keep their app-wide colours (--ms-baseline, --ms-alternative). Imported by CompareTool.tsx. */
+
+.cmp-doors { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-bottom: 16px; }
+.cmp-door { display: flex; align-items: center; gap: 14px; padding: 14px 16px; border: 2px solid var(--border); border-radius: var(--radius-xl); background: var(--bg-elevated); color: var(--text); font: inherit; text-align: left; cursor: pointer; box-shadow: var(--tile-shadow); min-width: 0; }
+.cmp-door:hover { border-color: var(--tone); }
+.cmp-door[aria-pressed="true"] { border-color: var(--tone); background: linear-gradient(120deg, var(--tone-soft), var(--bg-elevated) 80%); box-shadow: inset 0 0 0 1px var(--tone), var(--tile-shadow); }
+.cmp-door > span:last-child { display: grid; min-width: 0; }
+.cmp-door strong { font-size: 16px; }
+.cmp-door small { font-size: 13px; color: var(--text-muted); }
+.cmp-door-icon { flex: none; width: 46px; height: 46px; border-radius: 15px; display: grid; place-items: center; background: var(--tone-soft); color: var(--text); border: 1px solid var(--tone); }
+.cmp-door[aria-pressed="true"] .cmp-door-icon { background: var(--tone); color: var(--bg-elevated); }
+
+.cmp-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr); gap: 16px; align-items: start; margin-bottom: 16px; }
+.cmp-card { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: var(--radius-xl); box-shadow: var(--tile-shadow); padding: 16px 18px 18px; min-width: 0; }
+.cmp-card.cmp-wide { margin-bottom: 16px; }
+.cmp-card > h2 { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; font-size: 18px; margin: 0 0 14px; }
+.cmp-num { flex: none; width: 30px; height: 30px; border-radius: 10px; display: grid; place-items: center; background: var(--tone-soft); border: 1px solid var(--tone); font-size: 15px; font-weight: 750; }
+.cmp-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 190px), 1fr)); gap: 0 14px; align-items: start; }
+.cmp-fields.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.cmp-card .seg { align-self: flex-start; }
+
+.cmp-boxes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.cmp-box textarea { font-family: var(--font-mono); font-size: 13px; resize: vertical; min-height: 150px; }
+.cmp-box > label { display: flex; align-items: center; gap: 7px; overflow-wrap: anywhere; }
+.cmp-box.is-baseline textarea { border-left: 4px solid var(--ms-baseline); }
+.cmp-box.is-alternative textarea { border-left: 4px solid var(--ms-alternative); }
+.cmp-key { flex: none; width: 12px; height: 12px; border-radius: 50%; display: inline-block; }
+.cmp-key.is-baseline { background: var(--ms-baseline); }
+.cmp-key.is-alternative { background: var(--ms-alternative); border-radius: 3px; }
+.cmp-paired { margin: 2px 0 12px; padding: 10px 12px 12px; border-radius: var(--radius-lg); background: var(--bg-subtle); border: 1px solid var(--border); min-width: 0; }
+.cmp-paired legend { float: left; width: 100%; padding: 0; font-size: 13.5px; font-weight: 650; }
+.cmp-paired .hint { clear: both; margin: 2px 0 8px; }
+.cmp-paired-options { display: flex; flex-wrap: wrap; gap: 6px 18px; }
+.cmp-paired-options label { display: inline-flex; align-items: center; gap: 7px; min-height: 32px; font-size: 13.5px; cursor: pointer; }
+.cmp-paired-options input { width: 18px; height: 18px; margin: 0; accent-color: var(--primary); }
+.cmp-paired.is-off .cmp-paired-options label:last-child { color: var(--text-muted); cursor: default; }
+.cmp-paired.is-off > .hint:last-child { margin-bottom: 0; }
+.cmp-import { display: grid; gap: 10px; }
+.cmp-file { position: relative; justify-self: start; overflow: hidden; }
+.cmp-file:focus-within { outline: 2px solid var(--ms-focus); outline-offset: 2px; box-shadow: var(--focus-ring); }
+.cmp-file-input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
+.cmp-import-pick { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 4px 12px; padding: 12px; border-radius: var(--radius-lg); border: 1px dashed var(--border-strong); background: var(--bg-subtle); }
+.cmp-import-pick .field { margin-bottom: 0; }
+.cmp-import-pick .btn { margin-bottom: 0; }
+.cmp-import-name { flex-basis: 100%; display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; overflow-wrap: anywhere; }
+
+/* ── The answer ─────────────────────────────────────── */
+.cmp-answer { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; min-width: 0; }
+.cmp-answer > *, .cmp-fold > * { min-width: 0; }
+.cmp-empty { display: grid; justify-items: center; text-align: center; gap: 2px; padding: 24px 16px; border: 2px dashed var(--border-strong); border-radius: var(--radius-xl); background: var(--bg-subtle); color: var(--text-muted); }
+.cmp-empty p { margin: 0; }
+.cmp-empty strong { color: var(--text); }
+.cmp-verdict { display: flex; gap: 14px; align-items: flex-start; padding: 14px 16px; border-radius: var(--radius-lg); border: 1px solid var(--border); border-left: 5px solid var(--info); background: var(--info-soft); }
+.cmp-verdict.is-success { border-left-color: var(--success); background: var(--success-soft); }
+.cmp-verdict.is-warning { border-left-color: var(--warning); background: var(--warning-soft); }
+.cmp-verdict strong { font-size: 16px; }
+.cmp-verdict p { margin: 4px 0 0; }
+.cmp-verdict .cmp-scope { font-size: 12px; color: var(--text-muted); }
+.cmp-verdict-icon { flex: none; width: 42px; height: 42px; border-radius: 50%; display: grid; place-items: center; background: var(--bg-elevated); border: 1px solid var(--border); color: var(--text); }
+.cmp-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 170px), 1fr)); gap: 10px; margin: 0; }
+.cmp-tile { padding: 10px 12px; border-radius: var(--radius-lg); background: var(--bg-subtle); min-width: 0; }
+.cmp-tile dt { font-size: 11.5px; font-weight: 600; color: var(--text-muted); overflow-wrap: anywhere; }
+.cmp-tile dd { margin: 2px 0 0; font-size: 20px; font-weight: 650; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.cmp-tile dd small { font-size: 12px; font-weight: 500; color: var(--text-muted); }
+.cmp-tile dd.cmp-tile-sub { font-size: 12px; font-weight: 400; color: var(--text-muted); }
+.cmp-welch { margin: 0; font-size: 13px; padding: 8px 12px; border-radius: var(--radius); background: var(--warning-soft); border: 1px solid var(--border); }
+.cmp-figure { margin: 0; padding: 10px 12px 6px; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--canvas-bg); min-width: 0; overflow: hidden; }
+.cmp-figure-cap { font-size: 12px; font-weight: 650; color: var(--text-muted); margin-bottom: 4px; }
+.cmp-svg svg { max-height: none; width: 100%; height: auto; }
+.cmp-fold > summary { font-size: 13px; color: var(--text-muted); cursor: pointer; padding: 4px 0; }
+.cmp-fold[open] { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; }
+.cmp-fold tbody th { font-weight: 600; }
+.cmp-meter { height: 8px; border-radius: 4px; background: var(--bg-sunken); overflow: hidden; margin: 0 0 14px; max-width: 420px; }
+.cmp-meter span { display: block; height: 100%; border-radius: 4px; background: var(--tone); }
+
+/* ── Why the same inputs matter ─────────────────────── */
+.cmp-lesson { padding: 14px 18px 12px; margin-bottom: 16px; border-radius: var(--radius-xl); border: 1px solid var(--border); border-top: 4px solid var(--tone); background: linear-gradient(160deg, var(--tone-soft), var(--bg-elevated) 55%); box-shadow: var(--tile-shadow); }
+.cmp-lesson-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px 16px; margin-bottom: 6px; }
+.cmp-lesson-head h2 { margin: 0; font-size: 17px; }
+.cmp-lesson svg { display: block; max-width: 100%; height: auto; }
+.cmp-l-zero { stroke: var(--text-muted); stroke-width: 1.5; stroke-dasharray: 3 4; }
+.cmp-l-min { stroke: var(--warning); stroke-width: 1.5; stroke-dasharray: 7 3; }
+.cmp-l-axis { stroke: var(--chart-axis); }
+.cmp-l-tick { font-size: 11px; fill: var(--text-muted); }
+.cmp-l-label { font-size: 12.5px; font-weight: 650; fill: var(--text); }
+.cmp-l-bar { stroke-width: 10; stroke-linecap: round; }
+.cmp-l-bar.is-paired { stroke: var(--primary); }
+.cmp-l-bar.is-welch { stroke: var(--text-muted); }
+.cmp-l-dot { fill: var(--bg-elevated); stroke: var(--text); stroke-width: 2; }
+.is-off .cmp-l-bar, .is-off .cmp-l-label { opacity: .45; }
+.cmp-lesson-facts { list-style: none; margin: 4px 0 6px; padding: 0; display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 13px; color: var(--text-muted); }
+.cmp-lesson-facts li.is-on { color: var(--text); }
+.cmp-lesson .hint { margin: 0; }
+
+@media (max-width: 1100px) { .cmp-grid { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 640px) {
+  .cmp-doors, .cmp-boxes, .cmp-fields.two { grid-template-columns: minmax(0, 1fr); }
+  .cmp-card { padding: 14px; }
+}
