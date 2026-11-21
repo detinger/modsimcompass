@@ -22,7 +22,7 @@ export function StockFlowScene({ trace, label }: { trace: DailyTrace | null; lab
   }, [playing, day, n, speed, trace]);
   if (!trace || n === 0) {
     return (
-      <div className="diagram-wrap" aria-label="Stock-and-flow diagram">
+      <div className="diagram-wrap" role="group" aria-label="Stock-and-flow diagram" tabIndex={0}>
         <svg className="diagram" viewBox="0 0 560 150" role="img" aria-label="Arrivals flow into the backlog stock; served and abandoned requests flow out.">
           <Static />
         </svg>
@@ -35,7 +35,7 @@ export function StockFlowScene({ trace, label }: { trace: DailyTrace | null; lab
   const level = Math.min(1, r.endBacklog / maxB);
   return (
     <div>
-      <div className="diagram-wrap">
+      <div className="diagram-wrap" role="group" aria-label="Stock-and-flow diagram" tabIndex={0}>
         <svg className="diagram" viewBox="0 0 560 170" role="img" aria-label={`Day ${r.day}: start ${fmt(r.startBacklog)}, arrivals ${fmt(r.arrivals)}, served ${fmt(r.served)}, abandoned ${fmt(r.abandoned)}, end ${fmt(r.endBacklog)} request-equivalents.`}>
           <defs>
             <marker id="sf-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--model-stroke)" /></marker>

@@ -26,7 +26,7 @@ export function ConceptMap() {
   return (
     <div>
       {nodes.length > 0 && (
-        <div className="diagram-wrap" style={{ marginBottom: 12 }}>
+        <div className="diagram-wrap" style={{ marginBottom: 12 }} role="group" aria-label="Concept map (scrolls sideways on small screens)" tabIndex={0}>
           <svg className="diagram" viewBox={`0 0 ${W} ${H}`} role="img" aria-label={`Conceptual sketch with ${nodes.length} elements and ${relations.length} relations; the table below lists them.`}>
             <defs><marker id="cm-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--ms-relation)" /></marker></defs>
             {relations.map((r) => {

@@ -12,7 +12,7 @@ import { defaultConfig } from '../src/domain/sandbox/engine';
 import { APP_VERSION, EXPORT_PARTS, buildExportZip, buildManifest, projectJson, renderPart, slugify } from '../src/exports/bundle';
 import { csvText, runToCsv } from '../src/exports/csv';
 import { markdownToHtml, passportHtml } from '../src/exports/html';
-import { APP_NAME, briefMarkdown, passportMarkdown, stepHeading } from '../src/exports/markdown';
+import { APP_NAME, briefMarkdown, humanDate, passportMarkdown, stepHeading } from '../src/exports/markdown';
 import { crc32 } from '../src/exports/zip';
 
 function sampleDoc() {
@@ -129,7 +129,8 @@ describe('Markdown passport: organised around the seven compass steps', () => {
     expect(section(md, 'Step 3 — Choose a method')).toContain('- **Primary method:** System dynamics');
     expect(section(md, 'Step 3 — Choose a method')).toContain('- **Alternative method:** Discrete-event simulation');
     expect(section(md, 'Step 3 — Choose a method')).toMatch(/rule table method-rules-v1; shortlist: System dynamics, Discrete-event simulation/);
-    expect(section(md, 'Step 3 — Choose a method')).toMatch(/Recorded chooser answers:.*granularity: aggregate/);
+    expect(section(md, 'Step 3 — Choose a method')).toContain('| At what level must the outcome be reported? | Aggregate totals or averages |');
+    expect(section(md, 'Step 3 — Choose a method')).not.toMatch(/granularity: aggregate/);
     expect(section(md, 'Step 4 — Inputs and assumptions')).toMatch(/\| Daily arrivals \| 8, 12 or 16 .* \| request-equivalents\/day \| Synthetic \/ teaching fixture \| Synthetic teaching data/);
     expect(section(md, 'Step 4 — Inputs and assumptions')).toMatch(/1\. \*\*Unused capacity is lost.*\*\* \(Declared assumption\)\n {3}- Rationale: /);
     expect(section(md, 'Step 5 — Verification and validation')).toMatch(/- \*\*Calibration \(kept separate from validation\):\*\* Kept separate/);
@@ -357,6 +358,26 @@ describe('HTML report', () => {
     expect(html).toContain('on 2026-11-20T12:00:00.000Z');
     // Balanced markup for the block elements the renderer emits.
     for (const tag of ['table', 'ul', 'ol', 'li', 'p', 'tr', 'h2', 'h3']) expect(html.match(new RegExp(`<${tag}[ >]`, 'g'))!.length, tag).toBe(html.match(new RegExp(`</${tag}>`, 'g'))!.length);
+  });
+  it('opens with a cover (question, counts), a contents list and one section per heading', () => {
+    const d = workedExample();
+    const html = passportHtml(d, OPTS);
+    expect(html).toContain(`<div class="lead"><span>Question</span><p>${d.passport.decision.question}</p></div>`);
+    expect(html).toContain('<li><b>7 of 7</b> steps started</li><li>Method: <b>System dynamics</b></li><li>Open items: <b>0</b> missing · <b>0</b> to check</li>');
+    for (const s of STEPS) {
+      expect(html).toContain(`<li class="t${s.number}"><a href="#step-${s.number}"><i>${s.number}</i>${s.title}</a></li>`);
+      expect(html).toContain(`<section id="step-${s.number}" class="sec t${s.number}">\n<h2>Step ${s.number} — ${s.title}</h2>`);
+    }
+    for (const id of ['open-items', 'checkpoints', 'appendix']) { expect(html).toContain(`href="#${id}"`); expect(html).toContain(`<section id="${id}" class="sec">`); }
+    expect(html.match(/<section /g)!.length).toBe(html.match(/<\/section>/g)!.length);
+    expect(html).toContain('Created 21 Nov 2026, 00:00 UTC');
+    // an unframed project has no question block, and the hostile-text test above covers escaping of the question
+    expect(passportHtml(createProject())).not.toContain('class="lead"');
+  });
+  it('formats ISO timestamps and passes anything else through on one line', () => {
+    expect(humanDate('2026-03-05T09:07:11.000Z')).toBe('5 Mar 2026, 09:07 UTC');
+    expect(humanDate('not a date\nsecond')).toBe('not a date second');
+    expect(humanDate('2026-13-05T09:07:11.000Z')).toBe('2026-13-05T09:07:11.000Z');
   });
   it('an empty project renders every placeholder and all open items', () => {
     const html = passportHtml(createProject());

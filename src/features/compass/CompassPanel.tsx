@@ -58,7 +58,7 @@ export function CompassPanel({ step, warnings, example }: { step: StepDef; warni
   const peek = example ? stepSummary(example, step.id) : [];
   const peekChecks = example ? step.selfChecks.filter((q) => (example.passport.selfChecks?.[q.id] ?? '').trim()) : [];
   return (
-    <aside className={`cp-panel ${STEP_META[step.id].tone}`} aria-label="Compass guidance for this step">
+    <aside className={`cp-panel ${STEP_META[step.id].tone}`} aria-label="Compass guidance for this step" tabIndex={readOnly ? 0 : undefined}>
       <div className="cp-panel-head"><Dial n={step.number} /><div><strong>Compass</strong><span>Guidance for step {step.number}</span></div></div>
 
       <section className="cp-sec cp-why" aria-labelledby="why-h">

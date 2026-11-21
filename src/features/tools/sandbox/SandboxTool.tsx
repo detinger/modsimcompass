@@ -141,8 +141,8 @@ function SandboxWorkspace({ doc }: { doc: ProjectDoc }) {
             <span id="sb-preset-hint" className="hint">{FIXTURES[preset].description} Loading replaces the current sandbox settings.</span>
           </div>
 
-          <div className="btn-row policy-tabs" role="tablist" aria-label="Policy being edited">
-            <div className="seg">
+          <div className="btn-row policy-tabs">
+            <div className="seg" role="tablist" aria-label="Policy being edited">
               <button role="tab" aria-selected={tab === 'baseline'} onClick={() => setTab('baseline')}>Baseline</button>
               <button role="tab" aria-selected={tab === 'alternative'} disabled={!sandbox.alternative} onClick={() => setTab('alternative')}>Alternative</button>
             </div>
