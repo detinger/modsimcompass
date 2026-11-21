@@ -4,7 +4,7 @@ import { Link } from '../../app/router';
 import { kindDef } from '../../domain/artefacts/kinds';
 import type { ArtefactKind } from '../../domain/artefacts/types';
 import { CALIBRATION_NOTE } from '../../domain/methods/profiles';
-import { effectiveProfile, evaluationFields, experimentFields, type StepId, type StepProfile } from '../../domain/passport/compass';
+import { effectiveProfile, evaluationFields, experimentFields, setStillPlanning, stillPlanning, type StepId, type StepProfile } from '../../domain/passport/compass';
 import type { ProjectDoc } from '../../domain/passport/schema';
 import { ArtefactCard } from '../toolbox/ArtefactCard';
 import { ArtefactSlot, MeasurementInvite } from '../project/ArtefactSlot';
@@ -106,8 +106,26 @@ function AnalysisPointer() {
 }
 
 /** The main column of a step: the artefact slot first (steps 2, 3, 5, 6), then the step's questions, worded for the method. */
+/**
+ * “Still planning”, on every step: the step comes later, so while it is empty nothing in it counts as missing
+ * (compass.ts `stillPlanning`). Once something is written in it, the usual open items come back.
+ */
+export function StillPlanning({ step }: { step: StepId }) {
+  const { doc, update, readOnly } = usePassport();
+  if (readOnly) return null;
+  const id = step === 'conclude' ? 'stage-planning' : `still-planning-${step}`;
+  const help = step === 'conclude' ? 'nothing has been run yet, so this step is due later.' : 'this step comes later. Until you write in it, nothing here counts as missing.';
+  return (
+    <div className="cp-stage">
+      <input id={id} type="checkbox" aria-describedby={`${id}-help`} checked={stillPlanning(doc.passport, step)}
+        onChange={(e) => update((d) => setStillPlanning(d.passport, step, e.target.checked))} />
+      <span><label htmlFor={id}><strong>Still planning</strong></label><span id={`${id}-help`}> — {help}</span></span>
+    </div>
+  );
+}
+
 export function StepMain({ step, onExport }: { step: StepId; onExport: () => void }) {
-  const { doc, update, readOnly, base } = usePassport();
+  const { doc, readOnly, base } = usePassport();
   const p = doc.passport, rep = p.representation;
   const profile = effectiveProfile(doc);
   const calibrationNote = profile.known ? CALIBRATION_NOTE[profile.calibration] : null;
@@ -153,12 +171,6 @@ export function StepMain({ step, onExport }: { step: StepId; onExport: () => voi
     );
     case 'conclude': return (
       <>
-        {!readOnly && (
-          <div className="cp-stage">
-            <input id="stage-planning" type="checkbox" aria-describedby="stage-planning-help" checked={p.identity.stage === 'planning'} onChange={(e) => update((d) => { d.passport.identity.stage = e.target.checked ? 'planning' : ''; })} />
-            <span><label htmlFor="stage-planning"><strong>Still planning</strong></label><span id="stage-planning-help"> — nothing has been run yet, so this step is due later.</span></span>
-          </div>
-        )}
         <FromExperiment />
         <ConclusionFields />
         <section className="cp-finish">

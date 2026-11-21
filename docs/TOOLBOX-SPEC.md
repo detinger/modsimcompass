@@ -23,7 +23,8 @@ Left menu, top to bottom. Sub-links are always visible on desktop.
 | | `/toolbox/checks[/:id]` | Verification, validation, calibration |
 | | `/toolbox/compare[/:id]` | Fair comparison |
 | | `/toolbox/artefacts` | My artefacts |
-| Project | `/project` | Compass overview |
+| Project | `/project` | Projects: your projects, and the examples (the worked example and the templates in `src/content/templates/`) |
+| | `/project/overview` | Overview of the open project on the compass |
 | | `/project/:step` | Step (`frame`, `scope`, `method`, `inputs`, `evaluation`, `experiment`, `conclude`) |
 | | `/project/checkpoints` | Checkpoints |
 | | `/example[/:step]` | Worked example, read only |
@@ -245,7 +246,7 @@ The project fields stay the source for the compass rules and remain editable. Th
 </ToolPage>
 ```
 
-Renders, in this order: tool name and one-line purpose; the artefact bar; the optional intro (collapsible, open on first visit); the tool.
+Renders, in this order, kept slim so the tool gets the height: one line with the tool name, one-line purpose and an **About this tool** button; the artefact bar on one line; the optional intro (open on the first visit, then behind the About button); the tool.
 
 The artefact bar holds: editable title; save state; **New**; **Open** (this kind's artefacts); **Duplicate**; **Export** (the tool's own items, then "Artefact file"); and the primary action **Add to project**:
 
@@ -281,7 +282,7 @@ Requirements are in the plan, section 4. Method text comes from `src/domain/meth
 
 ## 7. Project builder
 
-- `/project` shows the compass overview: the seven stops with started state, open items and included artefacts, checkpoints as flags. It replaces opening on the last step.
+- `/project/overview` shows the compass overview of the open project (`/project` is the Project page: projects and examples): the seven stops with started state, open items and included artefacts, checkpoints as flags. It replaces opening on the last step.
 - Steps 2, 3, 5 and 6 show an **artefact slot** first: the included copy as a card (summary, figure, date, state, "Open in Toolbox", "Update", "Remove"), or an invitation to make one, plus "Choose from My artefacts". The step's own fields sit under "Write it here instead" (open when no copy is included and the fields have content).
 - Step 4 lists input rows; rows owned by a data model show its card. Manual rows and assumptions stay as they are.
 - The embedded sketch editor, method chooser and tool links are removed from the steps.

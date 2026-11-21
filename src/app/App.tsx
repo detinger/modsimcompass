@@ -12,6 +12,7 @@ import { TOOL_META } from '../features/toolbox/toolMeta';
 
 // The project screens, Learn and the Toolbox are loaded when first opened.
 const Compass = lazy(() => import('../features/compass/Compass'));
+const Projects = lazy(() => import('../features/compass/Projects'));
 const Learn = lazy(() => import('../features/learn/Learn'));
 const Toolbox = lazy(() => import('../features/toolbox/Toolbox'));
 const Artefacts = lazy(() => import('../features/toolbox/Artefacts'));
@@ -58,7 +59,9 @@ function Routes() {
     const Tool = TOOL_PAGES[m.tool];
     return <Suspense fallback={<Loading what="the tool" />}><Tool key={m.tool} id={m.id} /></Suspense>;
   }
-  if ((m = match('/project', p)) || (m = match('/project/:step', p))) return <Suspense fallback={<Loading what="the project" />}><Compass step={m.step} /></Suspense>;
+  // `/project` is the Project page (projects and examples); the open project lives at `/project/overview` and its steps.
+  if (p === '/project') return <Suspense fallback={<Loading what="your projects" />}><Projects /></Suspense>;
+  if ((m = match('/project/:step', p))) return <Suspense fallback={<Loading what="the project" />}><Compass step={m.step} /></Suspense>;
   if ((m = match('/example', p)) || (m = match('/example/:step', p))) return <Suspense fallback={<Loading what="the worked example" />}><Compass step={m.step} example /></Suspense>;
   return <NotFound />;
 }

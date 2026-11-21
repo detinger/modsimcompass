@@ -1,0 +1,54 @@
+/* ModSimCompass — the Project page (Projects.tsx): the reader's projects and the examples.
+   Colours only via tokens and tone-* classes; method pictograms take the card's tone through currentColor. */
+
+.prj-head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px 24px; margin-bottom: 22px; }
+.prj-head h1 { margin: 0 0 4px; }
+.prj-head .lede { margin: 0; }
+.prj-head .clip { display: inline-block; max-width: min(32ch, 60vw); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: bottom; }
+
+/* Examples */
+.prj-examples { margin-top: 34px; scroll-margin-top: 76px; }
+.prj-sub { margin: -4px 0 16px; font-size: 14px; color: var(--text-muted); max-width: 72ch; }
+.tpl-grid { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 16px; }
+.tpl-grid > li { display: flex; }
+
+.tpl-card {
+  flex: 1; display: flex; flex-direction: column; min-width: 0; overflow: hidden;
+  background: var(--bg-elevated); border: 1px solid var(--border); border-radius: var(--radius-xl); box-shadow: var(--tile-shadow);
+}
+.tpl-card:hover, .tpl-card:focus-within { border-color: var(--tone); box-shadow: var(--shadow); }
+
+/* The coloured head: the method's pictogram, the area of IT, and a badge for the finished example. */
+.tpl-art {
+  position: relative; display: flex; align-items: center; gap: 12px; padding: 16px 18px;
+  background: linear-gradient(135deg, var(--tone-soft), color-mix(in srgb, var(--tone-soft) 35%, var(--bg-elevated)));
+  border-bottom: 1px solid color-mix(in srgb, var(--tone) 22%, var(--border));
+}
+.tpl-glyph { width: 64px; height: 64px; flex: none; display: grid; place-items: center; border-radius: 18px; background: var(--bg-elevated); color: var(--tone); box-shadow: var(--shadow-sm); }
+.tpl-area { font-size: 12px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--text); }
+.tpl-badge { margin-left: auto; display: inline-flex; align-items: center; gap: 4px; height: 22px; padding: 0 9px; border-radius: 999px; background: var(--bg-elevated); border: 1px solid var(--border); font-size: 11px; font-weight: 600; color: var(--text-muted); }
+
+.tpl-body { flex: 1; display: flex; flex-direction: column; gap: 10px; padding: 14px 18px 4px; }
+.tpl-body h3 { margin: 0; font-size: 18px; line-height: 1.25; }
+.tpl-pitch { margin: 0; font-size: 14px; line-height: 1.45; color: var(--text-muted); }
+.tpl-facts { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 3px 12px; margin: 0; font-size: 13px; }
+.tpl-facts > div { display: contents; }
+.tpl-facts dt { font-weight: 600; color: var(--text-muted); }
+.tpl-facts dd { margin: 0; color: var(--text); }
+.tpl-shows { list-style: none; margin: 0; padding: 10px 0 0; border-top: 1px dashed var(--border); display: grid; gap: 5px; font-size: 13px; }
+.tpl-shows li { display: flex; align-items: flex-start; gap: 7px; }
+.tpl-shows svg { flex: none; margin-top: 2px; color: var(--tone); }
+
+.tpl-foot { padding: 14px 18px 16px; display: flex; }
+.tpl-foot .btn { flex: 1; justify-content: center; }
+
+@media (prefers-reduced-motion: no-preference) {
+  .tpl-card { transition: border-color 160ms, box-shadow 160ms, transform 160ms; }
+  .tpl-card:hover { transform: translateY(-2px); }
+  .tpl-glyph { transition: transform 200ms; }
+  .tpl-card:hover .tpl-glyph { transform: rotate(-4deg) scale(1.04); }
+}
+@media (max-width: 640px) {
+  .tpl-grid { grid-template-columns: minmax(0, 1fr); }
+  .prj-head .btn { width: 100%; justify-content: center; }
+}

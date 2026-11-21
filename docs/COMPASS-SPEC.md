@@ -37,7 +37,7 @@ Every step shows three supports:
 2. **Warnings:** computed from the passport by an authored rule table (§4).
 3. **Self-check questions:** 2–3 per step, answered in the student's own words. They are stored in the passport and exported, and **never auto-graded**.
 
-The **worked example** is a complete, good passport (university student-support backlog). It opens read-only. Each step can show the example's answers for that step, and the student can copy the example as a practice project.
+The **worked example** is a complete, good passport (the backlog of an IT helpdesk, modelled with system dynamics). Its reference copy at `/example` is read-only, so each step can show the example's answers for that step. On the Project page, among the examples, it starts an editable copy of the whole project (checkpoints back to draft); the reference page can also copy it as a practice project.
 
 ## 4 Warnings (compass rules)
 

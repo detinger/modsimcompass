@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState, type CSSProperties } from 'react';
 import { Handle, Position, type Node, type NodeProps } from '@xyflow/react';
-import { CircleHelp, Scissors, Target } from 'lucide-react';
+import { ArrowRight, CircleHelp, Scissors, Target } from 'lucide-react';
 import { LIMITS } from '../../../domain/artefacts/clean';
 import { CM_GLYPHS, CM_LABEL_MAX, CM_LAYOUT, CM_NODE_LABELS, CM_NODE_TONE, CM_ZONE_HINTS, CM_ZONE_LABELS, labelParts, type CMFrame } from '../../../domain/artefacts/conceptModel';
 import type { CMNode, CMNodeType } from '../../../domain/artefacts/types';
@@ -91,7 +91,7 @@ export function ElementNode({ id, data, selected }: NodeProps<ElementFlowNode>) 
   return (
     <div className={`cm-node cm-t-${n.type}${selected ? ' is-selected' : ''}${editing ? ' is-editing' : ''}`} style={toneStyle(n.type)}>
       <Handle type="target" position={Position.Left} id="in" className="cm-drop" isConnectableStart={false} />
-      <span className="cm-badge"><Glyph type={n.type} /></span>
+      <span className="cm-badge"><Glyph type={n.type} size={14} /></span>
       {editing ? (
         <InlineEditor initial={n.label} label={`Name of this ${CM_NODE_LABELS[n.type].toLowerCase()}`} max={CM_LABEL_MAX} onInput={save} onDone={(value) => {
           setEditingNode(null);
@@ -135,7 +135,7 @@ export function FrameNode({ data }: NodeProps<FrameFlowNode>) {
         {cols.map(([zone, lo, hi], i) => (
           <div key={zone} className={`cm-col cm-col-${zone}`} style={{ left: lo, width: hi - lo, top: CM_LAYOUT.head, height: f.middleBottom - CM_LAYOUT.head }}>
             <span className="cm-col-head"><strong>{CM_ZONE_LABELS[zone]}</strong><span>{CM_ZONE_HINTS[zone]}</span></span>
-            {i < 2 && <span className="cm-col-arrow" aria-hidden="true" />}
+            {i < 2 && <span className="cm-col-arrow" aria-hidden="true"><ArrowRight size={14} strokeWidth={2.5} /></span>}
           </div>
         ))}
         <div className="cm-band cm-foot" style={{ top: f.middleBottom, height: CM_LAYOUT.foot }}>
@@ -145,7 +145,6 @@ export function FrameNode({ data }: NodeProps<FrameFlowNode>) {
       </div>
       <div className="cm-outside" style={{ left: f.outside.x, top: f.outside.y, width: f.outside.w, height: f.outside.h }}>
         <span className="cm-col-head"><strong>Outside</strong><span>{CM_ZONE_HINTS.outside}</span></span>
-        <span className="cm-outside-hint" aria-hidden="true"><Scissors size={26} /></span>
       </div>
     </div>
   );

@@ -6,7 +6,7 @@ import { ID_PATTERN } from '../artefacts/clean';
 import { sanitizeInclusions } from '../artefacts/include';
 import { isIsoTime } from '../artefacts/file';
 import { kindDef } from '../artefacts/kinds';
-import { createProject, LEGACY_PASSPORT_SCHEMAS, newId, PASSPORT_SCHEMA, PASSPORT_SCHEMA_VERSION, type ProjectDoc } from './schema';
+import { createProject, LEGACY_PASSPORT_SCHEMAS, newId, PASSPORT_SCHEMA, PASSPORT_SCHEMA_VERSION, PLANNED_STEPS, type ProjectDoc } from './schema';
 import { upgradeProject } from './upgrade';
 
 /**
@@ -253,6 +253,13 @@ export function importProjectObject(raw: unknown, opts: { now?: string } = {}): 
     warn(`The input row of the ${kindDef(c.kind).label.toLowerCase()} “${c.title.trim() || 'Untitled'}” was missing and has been written again.`);
   }
   if (p.identity.stage !== 'planning') p.identity.stage = '';
+  // Steps 1 to 6 marked “still planning” (not in the template, so read on its own): known step ids, once each, in step order.
+  const rawLater = isObj(o.passport) && isObj(o.passport.identity) ? o.passport.identity.later : undefined;
+  const later = Array.isArray(rawLater) ? PLANNED_STEPS.filter((id) => rawLater.includes(id)) : [];
+  if (later.length) p.identity.later = later; else delete p.identity.later;
+  // The repository address (not in the template either): kept as typed when it is text, so nothing the author wrote is lost.
+  const rawRepo = isObj(o.passport) && isObj(o.passport.identity) ? o.passport.identity.repository : undefined;
+  if (typeof rawRepo === 'string' && rawRepo.trim()) p.identity.repository = rawRepo.trim().slice(0, 500); else delete p.identity.repository;
   p.assumptions.forEach((a) => { if (!EVIDENCE.has(a.evidenceKind)) a.evidenceKind = 'unspecified'; });
   p.outcomes.forEach((r) => { if (!['', 'lower', 'higher', 'target'].includes(r.direction)) r.direction = ''; });
   p.representation.nodes.forEach((n) => { if (!['entity', 'variable', 'stakeholder'].includes(n.type)) n.type = 'entity'; });

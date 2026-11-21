@@ -28,8 +28,8 @@ function toneFor(id: string): string {
 /** Draft is an empty dot; every other status has its own icon, so colour is never the only cue. */
 const STATUS_ICON: Record<ReviewStatus, typeof UserCheck | null> = { draft: null, 'self-reviewed': UserCheck, 'teacher-reviewed': BadgeCheck, 'needs-revision': RotateCcw };
 
-export function ProjectCard({ doc, active, onOpen, onDuplicate, onDownload, onRecovery, onDelete }: {
-  doc: ProjectDoc; active: boolean; onOpen: () => void; onDuplicate: () => void; onDownload: () => void; onRecovery: () => void; onDelete: () => void;
+export function ProjectCard({ doc, active, onOpen, onDuplicate, onExport, onRecovery, onDelete }: {
+  doc: ProjectDoc; active: boolean; onOpen: () => void; onDuplicate: () => void; /** Opens the Export window: the reader chooses what to download. */ onExport: () => void; onRecovery: () => void; onDelete: () => void;
 }) {
   const title = titleOf(doc);
   const { started, open } = useMemo(() => ({
@@ -74,7 +74,7 @@ export function ProjectCard({ doc, active, onOpen, onDuplicate, onDownload, onRe
         <button type="button" className="btn primary" onClick={onOpen}>Open<span className="sr-only"> {title}</span> <ArrowRight size={16} aria-hidden="true" /></button>
         <span className="pc-icons">
           <button type="button" className="icon-btn" data-tip="Duplicate" aria-label={`Duplicate ${title}`} onClick={onDuplicate}><Copy size={16} aria-hidden="true" /></button>
-          <button type="button" className="icon-btn" data-tip="Download project file" aria-label={`Download project file for ${title}`} onClick={onDownload}><Download size={16} aria-hidden="true" /></button>
+          <button type="button" className="icon-btn" data-tip="Export" aria-label={`Export ${title}`} aria-haspopup="dialog" onClick={onExport}><Download size={16} aria-hidden="true" /></button>
           <button type="button" className="icon-btn" data-tip="Recovery file (earlier version)" aria-label={`Download recovery file (earlier version) for ${title}`} onClick={onRecovery}><History size={16} aria-hidden="true" /></button>
           <button type="button" className="icon-btn danger" data-tip="Delete" aria-label={`Delete ${title}`} onClick={onDelete}><Trash2 size={16} aria-hidden="true" /></button>
         </span>

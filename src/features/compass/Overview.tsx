@@ -2,7 +2,7 @@ import { ArrowRight, Check, Download, Flag, Milestone, Plus } from 'lucide-react
 import { Link } from '../../app/router';
 import { KIND_ORDER, KINDS, kindDef } from '../../domain/artefacts/kinds';
 import type { ArtefactKind } from '../../domain/artefacts/types';
-import { CHECKPOINT_DEFS, STEPS, STEP_BY_ID, effectiveProfile, type StepDef, type StepId, type StepProfile, type Warning } from '../../domain/passport/compass';
+import { CHECKPOINT_DEFS, STEPS, STEP_BY_ID, effectiveProfile, stillPlanning, type StepDef, type StepId, type StepProfile, type Warning } from '../../domain/passport/compass';
 import { REVIEW_LABELS, type CheckpointId, type Inclusion, type ReviewStatus } from '../../domain/passport/schema';
 import CompassView from '../../ui/diagrams/CompassView';
 import type { JourneyFlag, JourneyProject } from '../../ui/diagrams/compassShared';
@@ -79,7 +79,7 @@ function StopTile({ step, started, warnings, here }: { step: StepDef; started: b
         <h3><Link to={`${base}/${step.id}`} className="cp-ov-link">{step.title}</Link></h3>
         {started
           ? <span className={`cp-ov-state${open ? ' has-open' : ''}`}>{open ? plural(open, 'open item') : <><Check size={13} aria-hidden="true" /> Clear</>}</span>
-          : <span className="cp-ov-state is-new">Not started</span>}
+          : stillPlanning(p, step.id) ? <span className="cp-ov-state is-later">Later</span> : <span className="cp-ov-state is-new">Not started</span>}
       </div>
       {kinds.length > 0 && (
         <div className="cp-ov-copies">

@@ -25,8 +25,14 @@
 .cm-chip:hover .cm-chip-badge { background: var(--bg-elevated); }
 
 /* ── Canvas ────────────────────────────────────────── */
+/* The canvas takes all the height the window has left, so the page need not scroll: the page, the tool and the canvas
+   grow down to the bottom of the window. A short window keeps a usable canvas (the floor) and scrolls instead; the floor
+   still lets the whole tool, toolbar to hints, fit in one window. The List view has no canvas and keeps the normal flow. */
+main.content:has(.cm-canvas) { display: flex; flex-direction: column; padding-bottom: 16px; }
+.tbx-page:has(.cm-canvas) { flex: 1 0 auto; display: flex; flex-direction: column; width: 100%; }
+.cm-tool:has(.cm-canvas) { flex: 1 0 auto; }
 .cm-canvas {
-  position: relative; height: clamp(460px, calc(100vh - 300px), 900px); min-width: 0;
+  position: relative; flex: 1 0 0; min-height: clamp(300px, calc(100vh - 260px), 360px); min-width: 0;
   border: 1px solid var(--border); border-radius: var(--radius-xl); background: var(--canvas-bg); overflow: hidden; box-shadow: var(--tile-shadow);
 }
 .cm-canvas .react-flow {
@@ -46,25 +52,28 @@
 /* The frame: the “Parts of a conceptual model” layout. Only its three texts take the pointer. */
 .react-flow__node-frame { pointer-events: none !important; cursor: default; }
 .cm-frame { position: relative; pointer-events: none; }
+/* The bands and columns are placed in the frame's own coordinates, edge to edge, and clipped to its rounded corners;
+   the boundary line is drawn over them, so nothing paints across it and the column borders match the zones. */
 .cm-boundary {
-  position: absolute; left: 0; top: 0; border-radius: 22px; border: 2px solid var(--tone, var(--fam-uncertainty));
+  position: absolute; left: 0; top: 0; border-radius: 22px; overflow: hidden;
   background: color-mix(in srgb, var(--tone-soft, var(--bg-subtle)) 50%, var(--canvas-bg));
   box-shadow: 0 0 0 7px color-mix(in srgb, var(--tone-soft, var(--bg-subtle)) 70%, transparent);
 }
+.cm-boundary::after { content: ''; position: absolute; inset: 0; z-index: 2; pointer-events: none; border: 2px solid var(--tone, var(--fam-uncertainty)); border-radius: inherit; }
 .cm-band { position: absolute; left: 0; right: 0; display: flex; background: var(--bg-elevated); }
-.cm-head { top: 0; border-bottom: 1.5px solid var(--border); border-radius: 20px 20px 0 0; }
-.cm-foot { border-top: 1.5px solid var(--border); border-radius: 0 0 20px 20px; }
-.cm-band-part { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; gap: 2px; padding: 10px 16px 10px; }
+.cm-head { top: 0; border-bottom: 1.5px solid var(--border); }
+.cm-foot { border-top: 1.5px solid var(--border); }
+.cm-band-part { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; gap: 1px; padding: 7px 14px 8px; }
 .cm-foot .cm-band-part + .cm-band-part { border-left: 1.5px dashed var(--border-strong); }
-.cm-band-label { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--text-muted); }
+.cm-band-label { display: inline-flex; align-items: center; gap: 5px; font-size: 10px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--text-muted); }
 .cm-objectives .cm-band-label svg { color: var(--tone); }
 .cm-assumptions .cm-band-label svg { color: var(--warning); }
 .cm-simplifications .cm-band-label svg { color: var(--fam-processes); }
 textarea.cm-band-text {
-  pointer-events: auto; flex: 1; min-height: 0; resize: none; margin: 0 -8px; padding: 4px 8px; line-height: 1.4;
-  font-size: 15px; color: var(--text); background: transparent; border: 1px dashed transparent; border-radius: 8px;
+  pointer-events: auto; flex: 1; min-height: 0; resize: none; margin: 0 -6px; padding: 3px 6px; line-height: 1.35;
+  font-size: 12px; color: var(--text); background: transparent; border: 1px dashed transparent; border-radius: 8px;
 }
-.cm-head textarea.cm-band-text { font-size: 16px; font-weight: 500; }
+.cm-head textarea.cm-band-text { font-size: 12.5px; font-weight: 500; }
 textarea.cm-band-text::placeholder { color: var(--text-subtle); font-style: italic; }
 textarea.cm-band-text:hover { border-color: var(--border-strong); }
 textarea.cm-band-text:focus { background: var(--bg-elevated); border-style: solid; border-color: var(--primary); }
@@ -72,31 +81,33 @@ textarea.cm-band-text:focus { background: var(--bg-elevated); border-style: soli
 .cm-col + .cm-col { border-left: 1.5px dashed var(--border-strong); }
 .cm-col-inputs { background: color-mix(in srgb, var(--success-soft) 45%, transparent); }
 .cm-col-outputs { background: color-mix(in srgb, var(--fam-uncertainty-soft) 55%, transparent); }
-.cm-col-head { position: absolute; top: 5px; left: 14px; right: 14px; display: flex; flex-direction: column; align-items: center; line-height: 1.2; font-size: 11.5px; color: var(--text-muted); white-space: nowrap; }
+.cm-col-head { position: absolute; top: 5px; left: 14px; right: 14px; display: flex; flex-direction: column; align-items: center; line-height: 1.2; font-size: 9.5px; color: var(--text-muted); white-space: nowrap; }
 .cm-col-head > * { max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
-.cm-col-head strong { font-size: 12.5px; font-weight: 750; letter-spacing: .06em; text-transform: uppercase; color: var(--text); }
-.cm-col-arrow { position: absolute; top: 12px; right: -15px; width: 28px; height: 2.5px; border-radius: 2px; background: var(--tone); z-index: 1; }
-.cm-col-arrow::after { content: ''; position: absolute; right: 0; top: -4px; width: 8px; height: 8px; border-top: 2.5px solid var(--tone); border-right: 2.5px solid var(--tone); transform: rotate(45deg); border-radius: 1px; }
+.cm-col-head strong { font-size: 10.5px; font-weight: 750; letter-spacing: .06em; text-transform: uppercase; color: var(--text); }
+/* “Flows into”: a small badge sitting on the border between two columns, level with their headings. */
+.cm-col-arrow {
+  position: absolute; top: 8px; right: -12px; width: 24px; height: 24px; z-index: 1; display: grid; place-items: center;
+  border-radius: 50%; background: var(--bg-elevated); border: 1.5px solid var(--tone); color: var(--tone); box-shadow: var(--shadow-sm);
+}
 .cm-outside {
   position: absolute; border: 2px dashed var(--border-strong); border-radius: 22px;
   background: repeating-linear-gradient(135deg, transparent 0 12px, color-mix(in srgb, var(--border) 45%, transparent) 12px 24px);
 }
-.cm-outside-hint { position: absolute; left: 50%; bottom: 16px; transform: translateX(-50%); color: var(--text-subtle); opacity: .55; }
 
 /* Elements */
 .react-flow__node-element { border-radius: 14px; }
 .cm-node {
   --cm-c: var(--primary); --cm-s: var(--primary-soft);
-  position: relative; width: 140px; min-height: 56px; display: flex; align-items: center; gap: 8px; padding: 7px 10px 7px 7px;
+  position: relative; width: 140px; min-height: 56px; display: flex; align-items: center; gap: 6px; padding: 6px 8px 6px 6px;
   background: var(--model-fill); color: var(--model-label); border: 2px solid var(--cm-c); border-radius: 12px; box-shadow: var(--shadow-sm);
-  font-size: 13px; font-weight: 600; line-height: 1.22;
+  font-size: 11px; font-weight: 600; line-height: 1.2;
 }
-.cm-badge { width: 30px; height: 30px; flex: none; border-radius: 50%; display: grid; place-items: center; background: var(--cm-s); color: var(--cm-c); }
+.cm-badge { width: 22px; height: 22px; flex: none; border-radius: 50%; display: grid; place-items: center; background: var(--cm-s); color: var(--cm-c); }
 .cm-label { min-width: 0; overflow-wrap: anywhere; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; line-clamp: 3; overflow: hidden; }
 .cm-label.is-empty { color: var(--text-subtle); font-style: italic; font-weight: 500; }
-.cm-abbr { display: inline-block; margin-left: 1px; padding: 0 5px; border-radius: 999px; background: var(--cm-s); color: var(--text-muted); font-size: 10.5px; font-weight: 700; letter-spacing: .03em; line-height: 1.5; vertical-align: 1px; }
+.cm-abbr { display: inline-block; margin-left: 1px; padding: 0 5px; border-radius: 999px; background: var(--cm-s); color: var(--text-muted); font-size: 9px; font-weight: 700; letter-spacing: .03em; line-height: 1.5; vertical-align: 1px; }
 .cm-node.is-selected { box-shadow: 0 0 0 3px var(--canvas-bg), 0 0 0 5px var(--primary), var(--shadow); }
-.cm-t-actor { border-radius: 999px; padding-right: 14px; }
+.cm-t-actor { border-radius: 999px; padding-right: 12px; }
 .cm-t-stock { border-radius: 4px; border-width: 3px; }
 .cm-t-lever { border-left-width: 7px; }
 .cm-t-outcome { outline: 1.5px solid var(--cm-c); outline-offset: 3px; }
@@ -127,15 +138,15 @@ textarea.cm-inline { min-height: 38px; }
 .react-flow__edge:focus, .react-flow__edge:focus-visible { outline: none; box-shadow: none; }
 .react-flow__edge:focus-visible .cm-edge { filter: drop-shadow(0 0 3px var(--primary)); }
 .cm-edge-label {
-  position: absolute; pointer-events: all; padding: 2px 9px; border-radius: 999px; background: var(--bg-elevated); border: 1px solid var(--border);
-  font-size: 11.5px; font-weight: 500; color: var(--text-muted); white-space: nowrap; max-width: 180px; overflow: hidden; text-overflow: ellipsis; cursor: pointer;
+  position: absolute; pointer-events: all; padding: 1px 7px; border-radius: 999px; background: var(--bg-elevated); border: 1px solid var(--border);
+  font-size: 10px; font-weight: 500; color: var(--text-muted); white-space: nowrap; max-width: 160px; overflow: hidden; text-overflow: ellipsis; cursor: pointer;
 }
 .cm-edge-label.is-selected { border-color: var(--primary); color: var(--text); }
-.cm-sign { position: absolute; pointer-events: all; width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; background: var(--primary-soft); border: 1.5px solid var(--primary); color: var(--primary); font-weight: 800; font-size: 14px; line-height: 1; cursor: pointer; }
+.cm-sign { position: absolute; pointer-events: all; width: 16px; height: 16px; border-radius: 50%; display: grid; place-items: center; background: var(--primary-soft); border: 1.5px solid var(--primary); color: var(--primary); font-weight: 800; font-size: 12px; line-height: 1; cursor: pointer; }
 .cm-sign.is-selected { background: var(--primary); color: var(--text-on-primary); }
 
 /* Panels on the canvas */
-.cm-legend { display: flex; flex-wrap: wrap; gap: 4px 12px; max-width: calc(100% - 80px); padding: 6px 12px; background: color-mix(in srgb, var(--bg-elevated) 92%, transparent); border: 1px solid var(--border); border-radius: 999px; font-size: 11.5px; color: var(--text-muted); box-shadow: var(--shadow-sm); }
+.cm-legend { display: flex; flex-wrap: wrap; gap: 4px 12px; max-width: calc(100% - 80px); padding: 6px 12px; background: color-mix(in srgb, var(--bg-elevated) 92%, transparent); border: 1px solid var(--border); border-radius: 999px; font-size: 10.5px; color: var(--text-muted); box-shadow: var(--shadow-sm); }
 .cm-legend span { display: inline-flex; align-items: center; gap: 5px; }
 .cm-zoom { display: flex; flex-direction: column; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; background: var(--bg-elevated); box-shadow: var(--shadow-sm); }
 .cm-zoom button { width: 34px; height: 34px; display: grid; place-items: center; border: 0; background: transparent; color: var(--text); cursor: pointer; }
@@ -212,7 +223,7 @@ textarea.cm-inline { min-height: 38px; }
   .cm-node { transition: box-shadow 140ms; }
 }
 @media (max-width: 720px) {
-  .cm-canvas { height: 62vh; min-height: 360px; }
+  .cm-canvas { flex: none; height: 62vh; min-height: 360px; }
   .cm-legend { display: none; }
   .cm-list-zones, .cm-list-foot { grid-template-columns: minmax(0, 1fr); }
   .cm-keys { display: none; }

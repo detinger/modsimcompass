@@ -216,7 +216,7 @@ describe('worked example', () => {
     expect(c.alternative).toEqual(run.alternative!.summaries.map((s) => s.averageEndBacklog));
     // Repeatability, as the check plan says: a second run with the same seed agrees in every replication.
     expect(runAll(baseline, alternative, { id: 'r2', projectId: doc.id, modelRevision: 1, createdAt: doc.createdAt }).baseline.summaries).toEqual(run.baseline.summaries);
-    expect(c).toMatchObject({ paired: true, direction: 'lower', unit: 'request-equivalents', baselineLabel: 'Capacity 10', alternativeLabel: 'Capacity 12', minimumDifference: 10 });
+    expect(c).toMatchObject({ paired: true, direction: 'lower', unit: 'ticket-equivalents', baselineLabel: 'Capacity 10', alternativeLabel: 'Capacity 12', minimumDifference: 10 });
     expect(c.baseline).toHaveLength(100);
     expect(c.alternative).toHaveLength(100);
     expect(c.note).toMatch(/seed “compass-example”/);
@@ -237,13 +237,13 @@ describe('worked example', () => {
     expect(round(mean(avgA))).toBe(6);
     expect(round(tInterval(avgA).lower)).toBe(5);
     expect(round(tInterval(avgA).upper)).toBe(7);
-    expect(text).toMatch(/about 30 request-equivalents at capacity 10 \(95% interval of the mean roughly 28 to 32\) and about 6 at capacity 12 \(roughly 5 to 7\)/);
+    expect(text).toMatch(/about 30 ticket-equivalents at capacity 10 \(95% interval of the mean roughly 28 to 32\) and about 6 at capacity 12 \(roughly 5 to 7\)/);
     // “paired difference was about −24 (95% interval roughly −25 to −23) … lower in all 100 pairs”
     expect(round(mean(diff))).toBe(-24);
     expect(round(tInterval(diff).lower)).toBe(-25);
     expect(round(tInterval(diff).upper)).toBe(-23);
     expect(diff.every((d) => d < 0)).toBe(true);
-    expect(text).toMatch(/about −24 request-equivalents \(95% interval roughly −25 to −23\), and the alternative was lower in all 100 pairs/);
+    expect(text).toMatch(/about −24 ticket-equivalents \(95% interval roughly −25 to −23\), and the alternative was lower in all 100 pairs/);
     // The funding criterion: the interval of the paired difference lies below zero and the reduction is at least 10.
     expect(tInterval(diff).upper!).toBeLessThan(-10);
     // “averaged about 59 on day 30; at capacity 12 it averaged about 10”: from the same run, which the copy does not store.
@@ -301,7 +301,7 @@ describe('empty project', () => {
   });
   it('every warning has a non-empty message and a known step', () => {
     for (const w of compassWarnings(doc)) { expect(w.message.trim()).not.toBe(''); expect(STEPS.some((s) => s.id === w.step)).toBe(true); }
-    expect(COMPASS_RULES_VERSION).toBe('compass-rules-v4');
+    expect(COMPASS_RULES_VERSION).toBe('compass-rules-v5');
   });
   it('a step counts as started as soon as one of its fields has content', () => {
     const d = createProject();

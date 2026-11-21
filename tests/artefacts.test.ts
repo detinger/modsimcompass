@@ -1014,14 +1014,14 @@ describe('old addresses', () => {
   });
   it('earlier redirects keep working, straight to the final address', () => {
     const table: Record<string, string> = {
-      '/start': '/', '/projects': '/', '/glossary': '/learn/glossary', '/methods': '/project/method', '/sandbox': '/toolbox/compare', '/labs': '/toolbox', '/legacy': '/toolbox',
+      '/start': '/', '/projects': '/project', '/examples': '/project#examples', '/examples/old': '/', '/glossary': '/learn/glossary', '/methods': '/project/method', '/sandbox': '/toolbox/compare', '/labs': '/toolbox', '/legacy': '/toolbox',
       '/labs/linear-model': '/learn/ideas', '/legacy/linear-model': '/learn/ideas', '/labs/fitting': '/toolbox/data', '/legacy/sampling': '/learn/ideas',
       '/lenses': '/', '/detective/x': '/', '/lectures/1': '/', '/help': '/', '/settings': '/',
     };
     for (const [from, to] of Object.entries(table)) expect(redirectFor(from), from).toBe(to);
   });
   it('the new addresses are not redirected', () => {
-    for (const p of ['/', '/learn', '/learn/process', '/learn/methods/des', '/toolbox', '/toolbox/concept', '/toolbox/data/art-12345678', '/toolbox/artefacts', '/project', '/project/scope', '/project/checkpoints', '/example', '/toolsmith']) {
+    for (const p of ['/', '/learn', '/learn/process', '/learn/methods/des', '/toolbox', '/toolbox/concept', '/toolbox/data/art-12345678', '/toolbox/artefacts', '/project', '/project/overview', '/project/scope', '/project/checkpoints', '/example', '/toolsmith']) {
       expect(redirectFor(p), p).toBeNull();
     }
   });

@@ -1,5 +1,5 @@
 import { useEffect, useId, useState, type ReactNode } from 'react';
-import { ArrowLeft, ArrowRight, CircleCheck, Copy, Download, FileJson, FolderOpen, LayoutGrid, Plus, TriangleAlert } from 'lucide-react';
+import { ArrowLeft, ArrowRight, CircleCheck, Copy, Download, FileJson, FolderOpen, Info, LayoutGrid, Plus, TriangleAlert } from 'lucide-react';
 import { useAddToProject, useArtefacts, type ArtefactEditor } from '../../app/artefacts';
 import { Link, useRouter } from '../../app/router';
 import { useStore } from '../../app/store';
@@ -38,8 +38,8 @@ export function downloadArtefact(a: Artefact): void {
 }
 
 /**
- * The frame every tool shares (docs/TOOLBOX-SPEC.md §4.1): tool name and purpose, the artefact bar,
- * an optional introduction that is open on the first visit, then the tool itself.
+ * The frame every tool shares (docs/TOOLBOX-SPEC.md §4.1), kept slim so the tool gets the height: one line with the tool
+ * name, purpose and an About button; one line for the artefact; the introduction (open on the first visit); the tool.
  */
 export function ToolPage<K extends ArtefactKind>({ kind, editor, exports = [], intro, children }: {
   kind: K; editor: ArtefactEditor<K>; /** The tool's own exports; “Artefact file” is added after them. */ exports?: ToolExport[];
@@ -54,7 +54,7 @@ export function ToolPage<K extends ArtefactKind>({ kind, editor, exports = [], i
   const { state, add } = useAddToProject();
   const { navigate, path } = useRouter();
   const from = fromStep(path);
-  const titleId = useId(), hintId = useId();
+  const titleId = useId(), hintId = useId(), aboutId = useId();
 
   // The introduction is open the first time a tool is visited and folded away after that.
   const [introOpen, setIntroOpen] = useState(() => !introSeen(kind));
@@ -89,22 +89,25 @@ export function ToolPage<K extends ArtefactKind>({ kind, editor, exports = [], i
   return (
     <div className={`page wide tbx-page ${meta.tone}`}>
       <header className="tbx-head">
-        <span className="tbx-crumbs" style={{ display: 'flex', flexWrap: 'wrap', gap: '2px 6px' }}>
+        <span className="tbx-crumbs">
           {from && <Link to={`/project/${from}`} className="tbx-back tbx-back-step"><ArrowLeft size={14} aria-hidden="true" /> Back to {STEP_LABEL[from]}</Link>}
           <Link to="/toolbox" className="tbx-back">{!from && <ArrowLeft size={14} aria-hidden="true" />} Toolbox</Link>
         </span>
-        <div className="tbx-head-main">
-          <span className="tbx-head-icon" aria-hidden="true"><Icon size={26} /></span>
-          <div className="tbx-head-text">
-            <h1>{meta.name}</h1>
-            <p>{meta.tagline}</p>
-          </div>
-        </div>
+        <span className="tbx-head-icon" aria-hidden="true"><Icon size={18} /></span>
+        <h1>{meta.name}</h1>
+        <p className="tbx-head-tag">{meta.tagline}</p>
+        {intro && (
+          <button type="button" className="btn small ghost tbx-about" aria-expanded={introOpen} aria-controls={introOpen ? aboutId : undefined}
+            onClick={() => setIntroOpen((o) => !o)}>
+            <Info size={15} aria-hidden="true" /> <span className="tbx-about-text">About this tool</span>
+          </button>
+        )}
       </header>
 
+      {/* One line: the name (the header already names the kind, so its label is for screen readers), save state, actions. */}
       <section className="artefact-bar" aria-label="This artefact">
         <div className="ab-name">
-          <label htmlFor={titleId} className="ab-label">{def.label}</label>
+          <label htmlFor={titleId} className="sr-only">{def.label} name</label>
           <input id={titleId} className="ab-title" type="text" value={artefact.title} maxLength={200} placeholder="Name this artefact" autoComplete="off"
             onChange={(e) => editor.rename(e.target.value)} />
           <span className={`ab-state${saveState === 'failed' ? ' failed' : ''}`} role="status">
@@ -112,20 +115,20 @@ export function ToolPage<K extends ArtefactKind>({ kind, editor, exports = [], i
           </span>
         </div>
         <div className="ab-actions">
-          <button type="button" className="btn" onClick={editor.startNew}><Plus size={16} aria-hidden="true" /> New</button>
-          <MenuButton label="Open" icon={FolderOpen} items={openItems} empty={saved.length === 0 ? `No saved ${def.label.toLowerCase()} yet.` : undefined} />
-          <button type="button" className="btn" disabled={!persisted} onClick={() => { void duplicate(); }}><Copy size={16} aria-hidden="true" /> Duplicate</button>
-          <MenuButton label="Export" icon={Download} items={exportItems} disabled={!persisted} align="end" />
+          <button type="button" className="btn small" onClick={editor.startNew}><Plus size={15} aria-hidden="true" /> New</button>
+          <MenuButton label="Open" icon={FolderOpen} items={openItems} className="btn small" empty={saved.length === 0 ? `No saved ${def.label.toLowerCase()} yet.` : undefined} />
+          <button type="button" className="btn small" disabled={!persisted} onClick={() => { void duplicate(); }}><Copy size={15} aria-hidden="true" /> Duplicate</button>
+          <MenuButton label="Export" icon={Download} items={exportItems} className="btn small" disabled={!persisted} align="end" />
           <span className="ab-project">
             {/* A project is live: once added, the copy follows every change, so there is nothing to update by hand. */}
             {where === 'current' || where === 'outdated' ? (
               <>
-                <span className="ab-in"><CircleCheck size={16} aria-hidden="true" /> In <strong className="ab-clip">{projectName}</strong></span>
-                <Link className="btn" to={`/project/${step.id}`}>Step {step.number} <ArrowRight size={14} aria-hidden="true" /><span className="sr-only">: {step.title}, in the project</span></Link>
+                <span className="ab-in"><CircleCheck size={15} aria-hidden="true" /> In <strong className="ab-clip">{projectName}</strong></span>
+                <Link className="btn small" to={`/project/${step.id}`}>Step {step.number} <ArrowRight size={14} aria-hidden="true" /><span className="sr-only">: {step.title}, in the project</span></Link>
               </>
             ) : (
-              <button type="button" className="btn primary" disabled={empty} aria-describedby={empty ? hintId : undefined} onClick={() => add(anyArtefact)}>
-                <Plus size={16} aria-hidden="true" />
+              <button type="button" className="btn small primary" disabled={empty} aria-describedby={empty ? hintId : undefined} onClick={() => add(anyArtefact)}>
+                <Plus size={15} aria-hidden="true" />
                 {where === 'no-project' ? 'Add to a new project' : <>Add to <span className="ab-clip">{projectName}</span></>}
               </button>
             )}
@@ -134,11 +137,10 @@ export function ToolPage<K extends ArtefactKind>({ kind, editor, exports = [], i
         </div>
       </section>
 
-      {intro && (
-        <details className="tbx-intro" open={introOpen} onToggle={(e) => setIntroOpen(e.currentTarget.open)}>
-          <summary>About this tool</summary>
+      {intro && introOpen && (
+        <section id={aboutId} className="tbx-intro" aria-label="About this tool">
           <div className="tbx-intro-body">{intro}</div>
-        </details>
+        </section>
       )}
 
       {children}

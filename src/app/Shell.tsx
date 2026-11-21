@@ -41,7 +41,7 @@ const SECTIONS: Section[] = [
     { to: '/toolbox/artefacts', label: 'My artefacts' },
   ] },
   { to: '/project', label: 'Project', icon: Compass, also: ['/example'], links: [
-    { to: '/project', label: 'Overview', exact: true },
+    { to: '/project/overview', label: 'Overview' },
     ...STEPS.map((s) => ({ to: `/project/${s.id}`, label: STEP_LABEL[s.id], num: s.number })),
     { to: '/project/checkpoints', label: 'Checkpoints' },
   ] },

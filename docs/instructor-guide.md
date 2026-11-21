@@ -33,7 +33,7 @@ Ask for the ZIP export at each checkpoint. It contains:
 
 ## The worked example
 
-A complete project for a student-support backlog study opens read-only from Home. It carries its author's own review of all five checkpoints, with four criteria rated Developing and the reason for each. Students can compare their own answers with it step by step, or copy it as a practice project (the copy starts with empty checkpoints). It is a model of form and reasoning, not a template to paste from.
+A complete project for an IT helpdesk backlog study (system dynamics) is the first of the examples on the Project page, beside five planned projects from IT and information systems; starting from it gives the student an editable copy, and its reference copy stays read-only. It carries its author's own review of all five checkpoints, with four criteria rated Developing and the reason for each. Students can compare their own answers with it step by step, or copy it as a practice project (the copy starts with empty checkpoints). It is a model of form and reasoning, not a template to paste from.
 
 ## Mistakes the compass watches for
 

@@ -23,6 +23,10 @@ export type ClaimType = '' | 'descriptive' | 'explanatory' | 'predictive' | 'exp
 export type ReviewStatus = 'draft' | 'self-reviewed' | 'teacher-reviewed' | 'needs-revision';
 export type CheckpointId = 'proposal' | 'design' | 'baseline' | 'evaluation' | 'final';
 
+/** The steps that can be marked “still planning” besides step 7, which uses `identity.stage` (compass.ts `stillPlanning`). */
+export type PlannedStep = 'frame' | 'scope' | 'method' | 'inputs' | 'evaluation' | 'experiment';
+export const PLANNED_STEPS: readonly PlannedStep[] = ['frame', 'scope', 'method', 'inputs', 'evaluation', 'experiment'];
+
 export interface Assumption {
   id: string; statement: string; rationale: string;
   consequenceIfWrong: string; plannedCheck: string;
@@ -54,7 +58,14 @@ export interface Checkpoint {
 export interface LensNote { id: string; lensId: string; text: string; createdAt: string }
 
 export interface Passport {
-  identity: { title: string; author: string; /** ‘planning’: results are not expected yet, so step 7 is not counted as missing. */ stage?: '' | 'planning' };
+  identity: {
+    title: string; author: string;
+    /** ‘planning’: results are not expected yet, so step 7 is not counted as missing. */ stage?: '' | 'planning';
+    /** Steps 1 to 6 marked “still planning”: while such a step is empty, nothing in it counts as missing. Optional: older projects have none. */
+    later?: PlannedStep[];
+    /** Where the project's data, code and project file are kept, for anyone who wants to check them. As typed; shown as a link only when `webAddress` accepts it. Optional. */
+    repository?: string;
+  };
   decision: { stakeholder: string; problem: string; levers: string; question: string; claimType: ClaimType; outcome: string };
   scope: { boundary: string; exclusions: string; horizon: string; timeUnit: string; detail: string; constraints: string };
   representation: {
@@ -179,6 +190,23 @@ export function emptyPassport(): Passport {
     review: { proposal: cp(), design: cp(), baseline: cp(), evaluation: cp(), final: cp() },
     selfChecks: {},
   };
+}
+
+/** A web address a screen or report may link to: http or https, at most 500 characters. Null for anything else. */
+export function webAddress(s: unknown): string | null {
+  if (typeof s !== 'string') return null;
+  const t = s.trim();
+  if (!t || t.length > 500 || /\s/.test(t)) return null;
+  try {
+    const u = new URL(t);
+    return (u.protocol === 'https:' || u.protocol === 'http:') && u.hostname.includes('.') ? t : null;
+  } catch { return null; }
+}
+
+/** A web address as a short label: host and path, without the scheme or a trailing slash. */
+export function shortAddress(url: string, max = 48): string {
+  const t = url.replace(/^https?:\/\//i, '').replace(/\/+$/, '');
+  return t.length > max ? `${t.slice(0, max - 1)}…` : t;
 }
 
 export function newId(prefix = 'id'): string {

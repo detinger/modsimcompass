@@ -75,12 +75,13 @@
 .trash-name strong { overflow-wrap: anywhere; }
 
 /* ── Home: doors, figure, note ──────────────────────── */
-.home-figure { margin: 28px 0; }
 .tiles.doors { margin: 28px 0; }
-.tile.door { min-height: 0; padding: 20px; gap: 6px; background: linear-gradient(155deg, var(--tone-soft), var(--bg-elevated) 72%); }
+/* The four tiles share one height: each fills its grid cell, and “Open” sits at the bottom. */
+.tiles.doors > li { display: flex; }
+.tile.door { flex: 1; min-height: 0; padding: 20px; gap: 6px; background: linear-gradient(155deg, var(--tone-soft), var(--bg-elevated) 72%); }
 .tile.door .tile-icon { width: 52px; height: 52px; border-radius: 16px; background: var(--tone); color: var(--bg-elevated); margin-bottom: 6px; }
 .tile.door .tile-title { font-size: 18px; }
-.tile.door .tile-meta { font-size: 13px; margin-top: 8px; }
+.tile.door .tile-meta { font-size: 13px; margin-top: auto; padding-top: 8px; }
 .home-note { display: flex; gap: 8px; align-items: flex-start; justify-content: center; margin: 32px auto 0; max-width: 72ch; font-size: 13px; color: var(--text-muted); text-wrap: balance; }
 .home-note svg { flex: none; margin-top: 2px; }
 

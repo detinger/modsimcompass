@@ -1,17 +1,18 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, BookOpen, Check, ChevronLeft, ChevronRight, Compass as CompassIcon, Copy, Download, GraduationCap, Lock, Milestone, Pencil, Plus } from 'lucide-react';
+import { ArrowLeft, Check, ChevronLeft, ChevronRight, Compass as CompassIcon, Copy, Download, FolderGit2, FolderOpen, GraduationCap, Lock, Milestone, Pencil, Plus } from 'lucide-react';
 import { useArtefacts } from '../../app/artefacts';
 import { useStore } from '../../app/store';
 import { Link, useRouter } from '../../app/router';
 import {
   CHECKPOINT_DEFS, STEPS, STEP_BY_ID, compassWarnings, effectiveProfile, isStepId, stepFor, stepsStarted, type StepDef, type StepId, type StepProfile, type Warning,
 } from '../../domain/passport/compass';
-import { REVIEW_LABELS, newId, type ProjectDoc } from '../../domain/passport/schema';
-import { workedExample } from '../../content/workedExample';
-import { PassportContext, usePassport, type PassportValue } from '../project/passportContext';
+import { REVIEW_LABELS, shortAddress, webAddress, type ProjectDoc } from '../../domain/passport/schema';
+import { EXAMPLE_TITLE, workedExample, workedExampleCopy } from '../../content/workedExample';
+import { originalsFor } from '../../content/templates/build';
+import { PassportContext, overviewOf, usePassport, type PassportValue } from '../project/passportContext';
 import { Checkpoints } from './Checkpoints';
 import { CompassPanel, QuickGuide } from './CompassPanel';
-import { StepMain } from './StepMain';
+import { StepMain, StillPlanning } from './StepMain';
 import { Overview } from './Overview';
 import { CHECKPOINTS_ID, SEVERITY, SEVERITY_ORDER, STATUS_CLASS, STEP_META, openCount } from './stepMeta';
 import '../../styles/compass.css';
@@ -33,6 +34,8 @@ const LEARN: Record<StepId, { to: string; title: string }> = {
 };
 
 type Screen = 'overview' | 'step' | 'checkpoints';
+/** `/project/overview`: the open project's overview (`/project` is the Project page). */
+const OVERVIEW_ID = 'overview';
 
 // The worked example is built once: it is read only and never mutated (copies are deep clones).
 let exampleCache: ProjectDoc | null = null;
@@ -44,14 +47,15 @@ export default function Compass({ step, example }: { step?: string; example?: bo
   const exampleDoc = getExample();
   const doc = example ? exampleDoc : active;
   // Only the seven steps and the checkpoints page exist under a project address.
-  if (step && !isStepId(step) && step !== CHECKPOINTS_ID) return <NotFound />;
+  if (step && !isStepId(step) && step !== CHECKPOINTS_ID && step !== OVERVIEW_ID) return <NotFound />;
   if (!doc) return <EmptyCompass />;
   return <CompassView key={`${example ? 'example' : 'project'}-${doc.id}`} doc={doc} exampleDoc={exampleDoc} step={step} readOnly={!!example} />;
 }
 
 // ── Empty state ───────────────────────────────────────────────────────────
+/** The overview or a step with no project open: the way to the Project page, or a blank start right here. */
 function EmptyCompass() {
-  const { createAndActivate, projects, activate } = useStore();
+  const { createAndActivate } = useStore();
   return (
     <div className="page cp-root cp-empty">
       <div className="cp-empty-hero">
@@ -61,18 +65,12 @@ function EmptyCompass() {
           <g className="needle"><path d="M60 22l11 38H49z" className="north" /><path d="M60 98l11-38H49z" className="south" /></g>
           <circle cx="60" cy="60" r="5" className="pin" />
         </svg>
-        <h1>Your project compass</h1>
-        <p className="lede">Seven steps from a question to a recommendation you can defend.</p>
+        <h1>No project open</h1>
+        <p className="lede">Open one of yours, start from a template, or begin with a blank project.</p>
         <div className="btn-row">
-          <button type="button" className="btn primary cp-big" onClick={() => createAndActivate({ title: 'My modelling project' })}><Plus size={18} aria-hidden="true" /> Start a new project</button>
-          <Link to="/example" className="btn cp-big"><BookOpen size={18} aria-hidden="true" /> Open the worked example</Link>
+          <Link to="/project" className="btn primary cp-big"><FolderOpen size={18} aria-hidden="true" /> Projects and templates</Link>
+          <button type="button" className="btn cp-big" onClick={() => createAndActivate({ title: 'My modelling project' })}><Plus size={18} aria-hidden="true" /> Start a blank project</button>
         </div>
-        {projects.length > 0 && (
-          <div className="cp-empty-recent">
-            <span>or continue</span>
-            {projects.slice(0, 3).map((p) => <button key={p.id} type="button" className="chip" onClick={() => { void activate(p.id); }}>{p.passport.identity.title || 'Untitled project'}</button>)}
-          </div>
-        )}
       </div>
       <ol className="cp-empty-steps" aria-label="The seven steps">
         {STEPS.map((s) => {
@@ -125,6 +123,7 @@ function Title({ title, readOnly, onChange }: { title: string; readOnly: boolean
 
 function Header({ doc, started, onExport, screen }: { doc: ProjectDoc; started: StepId[]; onExport: () => void; screen: Screen }) {
   const { update, readOnly, base } = usePassport();
+  const repo = webAddress(doc.passport.identity.repository);
   return (
     <header className="cp-head">
       <div className="cp-head-main">
@@ -134,10 +133,15 @@ function Header({ doc, started, onExport, screen }: { doc: ProjectDoc; started: 
           <span className="cp-pips" aria-hidden="true">{STEPS.map((s) => <i key={s.id} className={`${STEP_META[s.id].tone}${started.includes(s.id) ? ' on' : ''}`} />)}</span>
           <span><strong>{started.length}</strong> of {STEPS.length} steps started</span>
           {doc.passport.identity.stage === 'planning' && <span className="cp-stage-chip">Planning</span>}
+          {repo && (
+            <a className="cp-repo" href={repo} target="_blank" rel="noopener noreferrer" title={repo}>
+              <FolderGit2 size={13} aria-hidden="true" /> {shortAddress(repo, 40)}<span className="sr-only"> (repository with the data and code, opens in a new tab)</span>
+            </a>
+          )}
         </p>
       </div>
       <div className="cp-head-actions">
-        <Link to={base} className="btn" aria-current={screen === 'overview' ? 'page' : undefined}><CompassIcon size={16} aria-hidden="true" /> Overview</Link>
+        <Link to={overviewOf(base)} className="btn" aria-current={screen === 'overview' ? 'page' : undefined}><CompassIcon size={16} aria-hidden="true" /> Overview</Link>
         <Link to={`${base}/${CHECKPOINTS_ID}`} className="btn" aria-current={screen === 'checkpoints' ? 'page' : undefined}><Milestone size={16} aria-hidden="true" /> Checkpoints</Link>
         {!readOnly && <button type="button" className="btn primary" onClick={onExport}><Download size={16} aria-hidden="true" /> Export</button>}
       </div>
@@ -263,7 +267,7 @@ function FootNav({ step }: { step: StepDef }) {
     <nav className="cp-foot" aria-label="Previous and next step">
       {prev
         ? <Link to={`${base}/${prev.id}`} className={`cp-foot-link prev ${STEP_META[prev.id].tone}`}><ChevronLeft size={20} aria-hidden="true" /><span><small>Previous</small>{prev.title}</span></Link>
-        : <Link to={base} className="cp-foot-link prev tone-primary"><ChevronLeft size={20} aria-hidden="true" /><span><small>Back to</small>Overview</span></Link>}
+        : <Link to={overviewOf(base)} className="cp-foot-link prev tone-primary"><ChevronLeft size={20} aria-hidden="true" /><span><small>Back to</small>Overview</span></Link>}
       {next
         ? <Link to={`${base}/${next.id}`} className={`cp-foot-link next ${STEP_META[next.id].tone}`}><span><small>Next</small>{next.title}</span><ChevronRight size={20} aria-hidden="true" /></Link>
         : <Link to={`${base}/${CHECKPOINTS_ID}`} className="cp-foot-link next tone-primary"><span><small>Next</small>Checkpoints</span><ChevronRight size={20} aria-hidden="true" /></Link>}
@@ -272,26 +276,26 @@ function FootNav({ step }: { step: StepDef }) {
 }
 
 function CompassView({ doc, exampleDoc, step, readOnly }: { doc: ProjectDoc; exampleDoc: ProjectDoc; step?: string; readOnly: boolean }) {
-  const { update, addProject, toast } = useStore();
+  const { update, addProject, toast, active } = useStore();
   const { path, navigate } = useRouter();
   const base = readOnly ? '/example' : '/project';
   const noop = useCallback(() => {}, []);
   const ctx = useMemo<PassportValue>(() => ({ doc, update: readOnly ? noop : update, readOnly, base }), [doc, update, readOnly, base, noop]);
 
-  const screen: Screen = !step ? 'overview' : step === CHECKPOINTS_ID ? 'checkpoints' : 'step';
+  const screen: Screen = !step || step === OVERVIEW_ID ? 'overview' : step === CHECKPOINTS_ID ? 'checkpoints' : 'step';
   const stepId: StepId = step && isStepId(step) ? step : 'frame';
   // The step's texts as the project's method reads them (statistical, analytic or simulation; general with no method).
   const profile = effectiveProfile(doc);
   const def = stepFor(stepId, profile);
   // Copies are compared with their Toolbox originals on this device; the worked example's originals are on no device.
-  const { list } = useArtefacts();
+  const { list, put } = useArtefacts();
   const toolbox = useMemo(() => (readOnly ? undefined : new Map(list.map((a) => [a.id, a.revision]))), [list, readOnly]);
   const warnings = useMemo(() => compassWarnings(doc, toolbox), [doc, toolbox]);
   const byStep = useMemo(() => Object.fromEntries(STEPS.map((s) => [s.id, warnings.filter((w) => w.step === s.id)])) as Record<StepId, Warning[]>, [warnings]);
   const started = stepsStarted(doc.passport, doc.artefacts ?? []);
 
   // Tools opened from a step offer the way back to it.
-  useEffect(() => { if (screen === 'step') rememberOrigin(`${base}/${stepId}`, `step ${def.number}`); else if (screen === 'overview') rememberOrigin(base, 'the overview'); }, [base, stepId, def.number, screen]);
+  useEffect(() => { if (screen === 'step') rememberOrigin(`${base}/${stepId}`, `step ${def.number}`); else if (screen === 'overview') rememberOrigin(overviewOf(base), 'the overview'); }, [base, stepId, def.number, screen]);
 
   // Move focus to the heading after moving between screens (not on first load).
   const at = screen === 'step' ? stepId : screen;
@@ -309,14 +313,11 @@ function CompassView({ doc, exampleDoc, step, readOnly }: { doc: ProjectDoc; exa
   const closeExport = () => { setExportOpen(false); if (wantsExport) navigate(path.split('?')[0], { replace: true }); };
 
   const copyExample = async () => {
-    const t = new Date().toISOString();
-    const copy: ProjectDoc = { ...structuredClone(doc), id: newId('prj'), createdAt: t, updatedAt: t, projectRevision: 1, origin: { kind: 'copy', ref: doc.id } };
-    copy.passport.identity.title = `${doc.passport.identity.title.replace(/\s*\(worked example\)\s*$/i, '')} (practice)`;
-    // The review is the copier's own to do: checkpoints start again as drafts.
-    for (const k of Object.keys(copy.passport.review) as (keyof typeof copy.passport.review)[]) copy.passport.review[k] = { status: 'draft', notes: '', reviewer: '', feedbackSource: '', rubric: {}, due: '' };
+    const copy = workedExampleCopy({ title: `${EXAMPLE_TITLE} (practice)` });
+    for (const a of originalsFor(copy, new Date().toISOString())) { try { await put(a); } catch { /* Edit makes the original again */ } }
     await addProject(copy, true);
     toast('Practice copy created. It is yours to edit.', 'success');
-    navigate('/project');
+    navigate(overviewOf('/project'));
   };
 
   return (
@@ -328,7 +329,9 @@ function CompassView({ doc, exampleDoc, step, readOnly }: { doc: ProjectDoc; exa
             <p><strong>Worked example · read only</strong><span>A complete project to learn from.</span></p>
             <div className="btn-row">
               <button type="button" className="btn primary" onClick={() => { void copyExample(); }}><Copy size={16} aria-hidden="true" /> Copy as my practice project</button>
-              <Link to="/project" className="btn"><ArrowLeft size={16} aria-hidden="true" /> Back to my project</Link>
+              {active
+                ? <Link to={overviewOf('/project')} className="btn"><ArrowLeft size={16} aria-hidden="true" /> Back to my project</Link>
+                : <Link to="/project" className="btn"><ArrowLeft size={16} aria-hidden="true" /> Projects</Link>}
             </div>
           </div>
         )}
@@ -339,7 +342,7 @@ function CompassView({ doc, exampleDoc, step, readOnly }: { doc: ProjectDoc; exa
             <StepHead step={def} warnings={byStep[stepId]} profile={profile} />
             <QuickGuide step={def} />
             <div className="cp-layout">
-              <div className="cp-main"><StepMain step={stepId} onExport={() => setExportOpen(true)} /></div>
+              <div className="cp-main"><StillPlanning step={stepId} /><StepMain step={stepId} onExport={() => setExportOpen(true)} /></div>
               <CompassPanel step={def} warnings={byStep[stepId]} example={exampleDoc} />
             </div>
             <FootNav step={def} />

@@ -27,7 +27,9 @@ const nodeTypes: NodeTypes = { element: ElementNode, frame: FrameNode };
 const edgeTypes: EdgeTypes = { connection: ConnectionEdge };
 const DND_TYPE = 'application/x-modsim-element';
 const reducedMotion = () => typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-const fitOptions = () => ({ padding: 0.05, maxZoom: 1.1, duration: reducedMotion() ? 0 : 280 });
+/** Room around the fitted model: below for the connections legend, right for the zoom buttons, so neither covers it. */
+const FIT_PADDING = { top: '16px', left: '16px', right: '60px', bottom: '52px' } as const;
+const fitOptions = () => ({ padding: FIT_PADDING, maxZoom: 1.1, duration: reducedMotion() ? 0 : 280 });
 
 const isEditable = (t: EventTarget | null) => t instanceof HTMLElement && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName));
 
@@ -376,7 +378,7 @@ function Workspace({ editing }: { editing: ConceptEditing }) {
                 snapToGrid snapGrid={[8, 8]}
                 nodeDragThreshold={2}
                 minZoom={0.2} maxZoom={2}
-                fitView fitViewOptions={{ padding: 0.05, maxZoom: 1.1 }}
+                fitView fitViewOptions={{ padding: FIT_PADDING, maxZoom: 1.1 }}
                 proOptions={{ hideAttribution: true }}
                 ariaLabelConfig={{
                   'node.a11yDescription.keyboardDisabled': 'Arrow keys move the element. Enter renames it. Delete removes it.',

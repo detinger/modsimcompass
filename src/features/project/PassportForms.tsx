@@ -1,10 +1,10 @@
 import { useMemo, useState, type ReactNode } from 'react';
 import {
-  Anchor, CircleHelp, ClipboardList, Eye, FlaskConical, Gauge, Hourglass, Megaphone, MessageCircleQuestion, Microscope, Plus, Scale, Scan, ShieldCheck,
+  Anchor, CircleHelp, ClipboardList, Eye, FlaskConical, FolderGit2, Gauge, Hourglass, Megaphone, MessageCircleQuestion, Microscope, Plus, Scale, Scan, ShieldCheck,
   SlidersHorizontal, Sparkles, Trash2, TriangleAlert, User, Waypoints,
 } from 'lucide-react';
 import { useStore } from '../../app/store';
-import { AVAILABILITY, EVIDENCE_KINDS, newId, type Assumption, type ClaimType, type EvidenceKind, type InputRow, type OutcomeRow } from '../../domain/passport/schema';
+import { AVAILABILITY, EVIDENCE_KINDS, newId, webAddress, type Assumption, type ClaimType, type EvidenceKind, type InputRow, type OutcomeRow } from '../../domain/passport/schema';
 import { METHODS, type MethodId } from '../../domain/methods/registry';
 import { evaluateRules } from '../../domain/methods/rules';
 import { dataReadiness } from '../../domain/passport/compass';
@@ -408,6 +408,27 @@ export function ConclusionFields() {
       <FieldCard icon={CircleHelp} title="What it cannot say">
         <Area label="Limitations" value={c.limitations} onChange={(v) => update((d) => { d.passport.conclusion.limitations = v; })} />
       </FieldCard>
+      <RepositoryField />
     </>
+  );
+}
+
+/**
+ * Where anyone can check the work: the repository or shared folder with the data, code and project file. Optional,
+ * any service. A release or commit keeps the code and this report in step; only data that may be shared belong there.
+ */
+function RepositoryField() {
+  const { doc, update, readOnly } = usePassport();
+  const value = doc.passport.identity.repository ?? '';
+  if (readOnly && !value.trim()) return null;
+  const valid = !value.trim() || webAddress(value) !== null;
+  return (
+    <FieldCard icon={FolderGit2} title="Where to check it">
+      <Txt label="Repository (data and code)" value={value} placeholder="https://…"
+        onChange={(v) => update((d) => { if (v.trim()) d.passport.identity.repository = v; else delete d.passport.identity.repository; })}
+        hint={valid
+          ? 'Where the data, code and project file are kept. Link a release or commit, so they match this report. Share only data you may share.'
+          : 'Not a web address yet: start it with https://'} />
+    </FieldCard>
   );
 }

@@ -3,7 +3,7 @@ import { profileFor, type MethodProfile } from '../methods/profiles';
 import { METHOD_BY_ID, type MethodId } from '../methods/registry';
 import { answersKey } from '../methods/rules';
 import { fnv1a, stableStringify } from '../sandbox/engine';
-import type { CheckpointId, Inclusion, Passport, ProjectDoc } from './schema';
+import { PLANNED_STEPS, type CheckpointId, type Inclusion, type Passport, type ProjectDoc } from './schema';
 
 /**
  * The Project Compass (docs/COMPASS-SPEC.md): seven steps over the model passport, with
@@ -21,8 +21,12 @@ import type { CheckpointId, Inclusion, Passport, ProjectDoc } from './schema';
  * tested by an analysis plan; an analytic model is solved for each scenario; a simulation is run, with replications when
  * it is stochastic. Every rule that assumed a simulation now reads `effectiveProfile(doc)`, and so do the step texts,
  * the field labels, the checkpoint rubric and the report. With no method chosen, the wording is that of version 3.
+ *
+ * Version 5 lets every step be marked “still planning”, as step 7 could before: while a marked step is empty, its
+ * missing items are due later, not missing, and one suggestion says so. Once something is written in it, the usual
+ * rules apply again.
  */
-export const COMPASS_RULES_VERSION = 'compass-rules-v4';
+export const COMPASS_RULES_VERSION = 'compass-rules-v5';
 
 export type StepId = 'frame' | 'scope' | 'method' | 'inputs' | 'evaluation' | 'experiment' | 'conclude';
 
@@ -45,8 +49,8 @@ export const STEPS: StepDef[] = [
   {
     id: 'frame', number: 1, title: 'Frame', short: 'Who decides what, and how will you know it worked?', checkpoint: 'proposal',
     why: 'A model answers someone’s question. If the question is vague, any model will look like an answer.',
-    good: 'For the head of student support: how does the average end-of-day backlog over 30 days change if daily capacity rises from 10 to 12 requests, within the current budget?',
-    weak: 'We should simulate the support office to see if hiring helps.',
+    good: 'For the IT service desk manager: how does the average end-of-day backlog over 30 days change if daily capacity rises from 10 to 12 tickets, within the current budget?',
+    weak: 'We should simulate the helpdesk to see if hiring helps.',
     selfChecks: [
       { id: 'frame-proposal', question: 'Which sentence in your problem is an observed concern, and which is only a proposed solution?' },
       { id: 'frame-decide', question: 'What would the stakeholder do differently depending on the answer?' },
@@ -55,7 +59,7 @@ export const STEPS: StepDef[] = [
   {
     id: 'scope', number: 2, title: 'Concept and scope', short: 'What is inside the model, and what is left out on purpose?', checkpoint: 'proposal',
     why: 'The boundary decides which demands and resources count. What you leave out can change the answer more than any parameter.',
-    good: 'Included: requests reaching the central office by e-mail, web form and walk-in, including those forwarded by the library. Excluded: the IT helpdesk, because it has its own staff and queue.',
+    good: 'Included: tickets reaching the helpdesk queue through the portal, e-mail and phone, including those opened by monitoring. Excluded: network operations, because it has its own staff and queue.',
     weak: 'The model covers the whole university.',
     selfChecks: [
       { id: 'scope-omitted', question: 'Name one thing you excluded. How could it change the result if it mattered?' },
@@ -75,7 +79,7 @@ export const STEPS: StepDef[] = [
   {
     id: 'inputs', number: 4, title: 'Inputs and assumptions', short: 'What goes in, where does it come from, and what are you assuming?', checkpoint: 'design',
     why: 'Convenient numbers become “facts” unless their unit, source and uncertainty are written down. Every assumption needs a way to be checked.',
-    good: 'Arrivals: 12 requests/day (ticket system, September 2026; daily range 8–16). Assumption: unused capacity is lost — check by asking how slack time is used.',
+    good: 'Arrivals: 12 tickets/day (ticketing system, September 2026; daily range 8–16). Assumption: unused capacity is lost — check by asking how slack time is used.',
     weak: 'Arrivals: 12. Staff work efficiently.',
     selfChecks: [
       { id: 'inputs-fragile', question: 'Which input are you least sure about, and how much could it move the result?' },
@@ -85,7 +89,7 @@ export const STEPS: StepDef[] = [
   {
     id: 'evaluation', number: 5, title: 'Verification and validation', short: 'How will you know the model is built right — and is the right model?', checkpoint: 'baseline',
     why: 'Verification checks the model against its own specification. Validation checks it against the real system for its purpose. Fitting the data you tuned on is neither.',
-    good: 'Verification: daily conservation of requests; a balanced case stays at zero. Validation: compare simulated backlog with October records that were not used for tuning.',
+    good: 'Verification: daily conservation of tickets; a balanced case stays at zero. Validation: compare simulated backlog with October records that were not used for tuning.',
     weak: 'The model fits last month’s data very well, so it is valid.',
     selfChecks: [
       { id: 'eval-simple', question: 'Which simple case has a known answer that your model must reproduce?' },
@@ -95,7 +99,7 @@ export const STEPS: StepDef[] = [
   {
     id: 'experiment', number: 6, title: 'Outcomes and experiment', short: 'What exactly will you measure and compare, and how fairly?', checkpoint: 'evaluation',
     why: 'A fair comparison changes one thing at a time and separates a real effect from random variation.',
-    good: 'Baseline 10 vs alternative 12 requests/day; 100 replications; both policies face the same arrival sequences; outcome: mean end-of-day backlog with a 95% interval for the difference.',
+    good: 'Baseline 10 vs alternative 12 tickets/day; 100 replications; both policies face the same arrival sequences; outcome: mean end-of-day backlog with a 95% interval for the difference.',
     weak: 'We ran each policy once and the new one looked better.',
     selfChecks: [
       { id: 'exp-fair', question: 'What is identical between your baseline and the alternative, and what differs?' },
@@ -191,7 +195,7 @@ const EXPERIMENT_TEXT: Partial<Record<StepProfile['experiment'], StepText>> = {
   'scenario-analysis': {
     short: 'Scenario analysis: which settings change, and how is each scenario solved or run?',
     why: 'Scenarios differ in stated settings and nothing else. Each one is solved or run the same way, so the differences come from the settings.',
-    good: 'Base: two advisors, 12 arrivals per hour. Scenario B: three advisors. Compared: mean waiting time at steady state, solved with the same formulas in both.',
+    good: 'Base: two technicians, 12 calls per hour. Scenario B: three technicians. Compared: mean waiting time at steady state, solved with the same formulas in both.',
     weak: 'We tried some settings and picked the best one.',
     questions: { 'exp-fair': 'What is identical between your scenarios, and what differs?', 'exp-noise': 'How sensitive is the answer to the settings you are least sure of?' },
   },
@@ -272,6 +276,23 @@ export function stepStarted(p: Passport, id: StepId, artefacts: readonly Inclusi
   }
 }
 export function stepsStarted(p: Passport, artefacts: readonly Inclusion[] = []): StepId[] { return STEPS.filter((s) => stepStarted(p, s.id, artefacts)).map((s) => s.id); }
+
+/** “Still planning”: the step comes later. Step 7 reads the project's planning stage; steps 1 to 6 are listed in `identity.later`. */
+export function stillPlanning(p: Passport, id: StepId): boolean {
+  if (id === 'conclude') return p.identity.stage === 'planning';
+  return Array.isArray(p.identity.later) && p.identity.later.includes(id);
+}
+/** Steps 1 to 6 marked “still planning”, in step order (step 7 is reported as the project's planning stage). */
+export function laterSteps(p: Passport): StepDef[] {
+  return PLANNED_STEPS.filter((id) => stillPlanning(p, id)).map((id) => STEP_BY_ID[id]);
+}
+export function setStillPlanning(p: Passport, id: StepId, on: boolean): void {
+  if (id === 'conclude') { p.identity.stage = on ? 'planning' : ''; return; }
+  const marked = new Set(Array.isArray(p.identity.later) ? p.identity.later : []);
+  if (on) marked.add(id); else marked.delete(id);
+  const later = PLANNED_STEPS.filter((s) => marked.has(s));
+  if (later.length) p.identity.later = later; else delete p.identity.later;
+}
 
 export type Severity = 'gap' | 'check' | 'tip';
 export interface Warning { id: string; step: StepId; severity: Severity; message: string }
@@ -438,6 +459,13 @@ export function compassWarnings(doc: ProjectDoc, toolbox?: ToolboxRevisions): Wa
   }
   if (filled(p.conclusion.recommendation) && !filled(p.conclusion.changeConditions)) add('conclude', 'check', 'conditions', 'The recommendation has no conditions that would change it. When does it stop holding?');
   if (/\b(prove[sd]?|guarantee[sd]?|certainly|always)\b/i.test(p.conclusion.recommendation)) add('conclude', 'tip', 'overclaim', 'Suggestion: a model supports a recommendation under assumptions; check words such as “proves” or “guarantees”.');
+
+  // Steps 1 to 6 marked “still planning”, as step 7 above: while such a step is empty, what it lacks is due later.
+  for (const id of PLANNED_STEPS) {
+    if (!stillPlanning(p, id) || stepStarted(p, id, copies)) continue;
+    for (let i = out.length - 1; i >= 0; i--) if (out[i].step === id && out[i].severity === 'gap') out.splice(i, 1);
+    add(id, 'tip', `planning-${id}`, 'Still planning: this step comes later, so nothing here counts as missing yet.');
+  }
 
   // A copy whose Toolbox original has moved on. The project never changes silently: updating is the author's choice.
   if (toolbox) {

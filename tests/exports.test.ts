@@ -130,8 +130,8 @@ describe('Markdown passport: organised around the seven compass steps', () => {
     expect(section(md, 'Step 1 — Frame')).toContain('- **Claim type:** Decision support');
     expect(section(md, 'Step 1 — Frame')).toContain(`- **Precise question:** ${p.decision.question}`);
     // The included conceptual model is the record of the concept: the earlier sketch table is not repeated.
-    expect(section(md, 'Step 2 — Concept and scope')).toContain('### Included artefact — Conceptual model: Student support backlog: conceptual model');
-    expect(section(md, 'Step 2 — Concept and scope')).not.toContain('| Library desk | forwards requests | Daily arrivals | yes |');
+    expect(section(md, 'Step 2 — Concept and scope')).toContain('### Included artefact — Conceptual model: IT helpdesk backlog: conceptual model');
+    expect(section(md, 'Step 2 — Concept and scope')).not.toContain('| Monitoring | opens tickets | Daily arrivals | yes |');
     expect(section(md, 'Step 2 — Concept and scope')).toContain('- **Time unit:** day');
     expect(section(md, 'Step 3 — Choose a method')).toContain('- **Primary method:** System dynamics');
     expect(section(md, 'Step 3 — Choose a method')).toContain('- **Alternative method:** Discrete-event simulation');
@@ -141,8 +141,8 @@ describe('Markdown passport: organised around the seven compass steps', () => {
     // Without an included method choice, the project's own record of the answers is reported instead.
     const bare = workedExample(); bare.artefacts = [];
     expect(section(passportMarkdown(bare), 'Step 3 — Choose a method')).toContain('| At what level must the outcome be reported? | Aggregate totals or averages |');
-    expect(section(passportMarkdown(bare), 'Step 2 — Concept and scope')).toContain('| Library desk | forwards requests | Daily arrivals | yes |');
-    expect(section(md, 'Step 4 — Inputs and assumptions')).toMatch(/\| Daily arrivals \| 8, 12 or 16 .* \| request-equivalents\/day \| Synthetic \/ illustrative \| Synthetic teaching data/);
+    expect(section(passportMarkdown(bare), 'Step 2 — Concept and scope')).toContain('| Monitoring | opens tickets | Daily arrivals | yes |');
+    expect(section(md, 'Step 4 — Inputs and assumptions')).toMatch(/\| Daily arrivals \| 8, 12 or 16 .* \| ticket-equivalents\/day \| Synthetic \/ illustrative \| Synthetic teaching data/);
     expect(section(md, 'Step 4 — Inputs and assumptions')).toMatch(/1\. \*\*Unused capacity is lost.*\*\* \(Declared assumption\)\n {3}- Rationale: /);
     expect(section(md, 'Step 5 — Verification and validation')).toMatch(/- \*\*Calibration \(kept separate from validation\):\*\* Kept separate/);
     expect(section(md, 'Step 6 — Outcomes and experiment')).toMatch(/\| Average end-of-day backlog \| Mean of the 30 end-of-day backlog values/);
@@ -190,7 +190,7 @@ describe('Markdown passport: organised around the seven compass steps', () => {
     const warnings = compassWarnings(d);
     const n = (sev: string) => warnings.filter((w) => w.severity === sev).length;
     expect(open).toContain(`rule table \`${COMPASS_RULES_VERSION}\``);
-    expect(open).toContain('compass-rules-v4');
+    expect(open).toContain('compass-rules-v5');
     expect(open).toContain(`Missing ${n('gap')} · Check ${n('check')} · Suggestion ${n('tip')}.`);
     expect(open.split('\n').filter((l) => l.startsWith('### '))).toEqual([`### Missing (${n('gap')})`, `### Check (${n('check')})`, `### Suggestion (${n('tip')})`]);
     expect(open.split('\n').filter((l) => l.startsWith('- '))).toHaveLength(warnings.length);
@@ -281,7 +281,7 @@ describe('Markdown passport: organised around the seven compass steps', () => {
   });
   it('the brief stays a short Frame summary', () => {
     const md = briefMarkdown(workedExample());
-    expect(md).toMatch(/^# Student support backlog \(worked example\) — problem brief/);
+    expect(md).toMatch(/^# IT helpdesk backlog \(worked example\) — problem brief/);
     expect(md).toContain(`- **Question:** ${workedExample().passport.decision.question}`);
     expect(md).not.toMatch(/Checkpoints|Open items/);
     expect(briefMarkdown(createProject())).toMatch(/- \*\*Stakeholder:\*\* _Not yet specified_/);
@@ -362,11 +362,11 @@ describe('HTML report', () => {
     expect(html.match(/<div class="artefact">/g)).toHaveLength(d.artefacts.length);
     for (const inc of d.artefacts) expect(html).toContain(`<h3>Included artefact — ${KINDS[inc.kind].label}: ${inc.title}</h3>`);
     expect(html).toMatch(/<p class="note">7 of 7 steps started\. .*not a measure of model validity or of review status\.<\/p>/);
-    expect(html).toContain('<title>Student support backlog (worked example) — project report</title>');
+    expect(html).toContain('<title>IT helpdesk backlog (worked example) — project report</title>');
     expect(html.match(/<th scope="col">Self-check question<\/th>/g)).toHaveLength(7);
     expect(html).toContain(`<td>${STEPS[0].selfChecks[0].question}</td><td>Observed concern:`);
     expect(html).toContain('<td><em>Not yet answered</em></td>');
-    expect(html).toContain('<code>compass-rules-v4</code>');
+    expect(html).toContain('<code>compass-rules-v5</code>');
     expect(html).toContain('<h3>Missing (0)</h3>');
     expect(html).toContain('<h3>Check (0)</h3>');
     expect(html).toContain('<h3>Suggestion (0)</h3>');
@@ -445,7 +445,7 @@ describe('CSV helper and ZIP exports', () => {
     expect(manifest).toMatchObject({ artefactsIncluded: 0, artefacts: [] });
     expect(manifest.app).toBe('ModSimCompass');
     expect(manifest.appVersion).toBe('3.0.0');
-    expect(manifest.compassRulesVersion).toBe('compass-rules-v4');
+    expect(manifest.compassRulesVersion).toBe('compass-rules-v5');
     expect(manifest.compassRulesVersion).toBe(COMPASS_RULES_VERSION);
     expect(manifest.methodRuleVersion).toBe('method-rules-v1');
     expect(manifest.schemaVersion).toBe(3);
@@ -474,7 +474,7 @@ describe('CSV helper and ZIP exports', () => {
     expect(renderPart(d, 'brief-md', OPTS)).toMatch(/problem brief/);
     expect(EXPORT_PARTS.map((p) => p.id)).toEqual(['brief-md', 'passport-md', 'project-json', 'report-html']);
     const manifest = buildManifest(d, [], OPTS.generatedAt);
-    expect(manifest).toMatchObject({ compassRulesVersion: 'compass-rules-v4', stepsStarted: { started: 7, total: 7 }, openItems: { missing: 0, check: 0, suggestion: 0 }, projectId: 'worked-example', artefactsIncluded: 5 });
+    expect(manifest).toMatchObject({ compassRulesVersion: 'compass-rules-v5', stepsStarted: { started: 7, total: 7 }, openItems: { missing: 0, check: 0, suggestion: 0 }, projectId: 'worked-example', artefactsIncluded: 5 });
     expect(manifest).not.toHaveProperty('sandboxRun');
     expect(buildManifest(createProject(), [], OPTS.generatedAt)).toMatchObject({ openItems: { missing: 22, check: 0, suggestion: 1 }, artefactsIncluded: 0 });
     const zip = buildExportZip(d, EXPORT_PARTS.map((p) => p.id), OPTS);
@@ -483,7 +483,7 @@ describe('CSV helper and ZIP exports', () => {
     expect(execFileSync('unzip', ['-t', f]).toString()).toMatch(/No errors detected/);
     const listed = JSON.parse(execFileSync('unzip', ['-p', f, 'manifest.json']).toString());
     expect(listed.files).toHaveLength(4);
-    expect(slugify(d.passport.identity.title)).toBe('student-support-backlog-worked-example');
+    expect(slugify(d.passport.identity.title)).toBe('it-helpdesk-backlog-worked-example');
     // Each included copy as its own artefact file (and its picture, when its kind draws one), listed with its step.
     const files = artefactFiles(d, OPTS.generatedAt);
     expect(listed.artefacts.map((a: { kind: string; step: string; file: string }) => [a.kind, a.step, a.file])).toEqual(files.map((a) => [a.kind, KINDS[a.kind].step, a.file]));
@@ -498,7 +498,7 @@ describe('CSV helper and ZIP exports', () => {
     const lean = buildExportZip(d, ['report-html'], { ...OPTS, includeArtefacts: false });
     const g = join(mkdtempSync(join(tmpdir(), 'modsim-zip-')), 'lean.zip');
     writeFileSync(g, lean);
-    expect(execFileSync('unzip', ['-Z1', g]).toString().trim().split('\n').sort()).toEqual(['manifest.json', 'student-support-backlog-worked-example-report.html']);
+    expect(execFileSync('unzip', ['-Z1', g]).toString().trim().split('\n').sort()).toEqual(['it-helpdesk-backlog-worked-example-report.html', 'manifest.json']);
   });
   it('author is excluded from the JSON export unless included', () => {
     const d = sampleDoc();
@@ -538,7 +538,7 @@ describe('the report speaks the project’s method', () => {
     expect(six).toContain('| Which result would contradict each hypothesis? |');
     expect(md).toContain('| Analysis plan | Not rated |');
     expect(md).toContain('| Measurement quality | Not rated |');
-    expect(md).toContain('rule table `compass-rules-v4`');
+    expect(md).toContain('rule table `compass-rules-v5`');
     // The worked example keeps the general labels.
     const ex = passportMarkdown(workedExample());
     expect(ex).toMatch(/^Inputs:$/m);

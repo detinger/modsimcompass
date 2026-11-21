@@ -1,7 +1,7 @@
 import { kindDef } from '../domain/artefacts/kinds';
-import type { Inclusion, ProjectDoc } from '../domain/passport/schema';
+import { shortAddress, webAddress, type Inclusion, type ProjectDoc } from '../domain/passport/schema';
 import { METHOD_BY_ID } from '../domain/methods/registry';
-import { STEPS, compassWarnings, stepsStarted } from '../domain/passport/compass';
+import { STEPS, compassWarnings, laterSteps, stepsStarted } from '../domain/passport/compass';
 import { isSafeSvg } from '../features/toolbox/SvgFigure';
 import { APP_NAME, reportOutline, reportableCopies } from './markdown';
 
@@ -148,12 +148,16 @@ export function passportHtml(doc: ProjectDoc, opts: { includeAuthor?: boolean; g
   const method = rep.primaryMethod && Object.hasOwn(METHOD_BY_ID, rep.primaryMethod) ? METHOD_BY_ID[rep.primaryMethod as keyof typeof METHOD_BY_ID].name : '';
   const open = compassWarnings(doc);
   const count = (sev: string) => open.filter((w) => w.severity === sev).length;
+  // Only an http(s) address becomes a link; anything else the author typed is left out of the report's links.
+  const repository = webAddress(doc.passport.identity.repository);
   const chips = [
     `<li><b>${stepsStarted(doc.passport, copies).length} of ${STEPS.length}</b> steps started</li>`,
     ...(method ? [`<li>Method: <b>${escapeHtml(method)}</b></li>`] : []),
     `<li>Open items: <b>${count('gap')}</b> missing · <b>${count('check')}</b> to check</li>`,
     `<li>Artefacts: <b>${copies.length}</b></li>`,
     ...(doc.passport.identity.stage === 'planning' ? ['<li>Stage: <b>planning</b></li>'] : []),
+    ...(repository ? [`<li>Repository: <a href="${escapeHtml(repository)}" rel="noopener noreferrer">${escapeHtml(shortAddress(repository))}</a></li>`] : []),
+    ...(laterSteps(doc.passport).length ? [`<li>Still planning: <b>${laterSteps(doc.passport).map((s) => `step ${s.number}`).join(', ')}</b></li>`] : []),
   ];
   const toc: string[] = [];
   const body = sections.map((part) => {

@@ -357,6 +357,9 @@ details.cp-row > .btn { margin-bottom: 10px; }
 .cp-stage label { cursor: pointer; }
 .cp-stage input { margin-top: 3px; width: 18px; height: 18px; flex: none; }
 .cp-stage-chip { margin-left: 8px; padding: 1px 10px; border-radius: 999px; font-size: 12px; font-weight: 650; background: var(--accent-soft); color: var(--text); border: 1px solid var(--accent); }
+.cp-repo { margin-left: 8px; display: inline-flex; align-items: center; gap: 5px; max-width: 100%; padding: 1px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; background: var(--bg-elevated); border: 1px solid var(--border-strong); color: var(--text); text-decoration: none; overflow-wrap: anywhere; }
+.cp-repo:hover { border-color: var(--primary); color: var(--primary); }
+.cp-repo svg { flex: none; color: var(--text-muted); }
 
 /* Target date: the native control, dressed like the other fields. */
 .cp-cks input[type="date"] { font: inherit; color: var(--text); background: var(--bg-elevated); border: 1px solid var(--border-strong); border-radius: 10px; min-height: 38px; padding: 6px 10px; max-width: 100%; color-scheme: light dark; }
@@ -473,6 +476,7 @@ details.cp-row > .btn { margin-bottom: 10px; }
 .cp-ov-state svg { color: var(--success); }
 .cp-ov-state.has-open { background: var(--warning-soft); border-color: var(--warning); }
 .cp-ov-state.is-new { background: var(--bg-subtle); border: 1px dashed var(--border-strong); color: var(--text-muted); }
+.cp-ov-state.is-later { background: var(--accent-soft); border: 1px dashed var(--accent); color: var(--text); }
 .cp-ov-copies { display: grid; gap: 6px; min-width: 0; }
 .cp-ov-copy { display: flex; align-items: center; gap: 10px; padding: 6px; border-radius: 12px; background: var(--bg-subtle); min-width: 0; }
 .cp-ov-thumb { width: 72px; height: 48px; flex: none; border-radius: 8px; background: var(--canvas-bg); border: 1px solid var(--border); overflow: hidden; padding: 2px; }

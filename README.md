@@ -1,6 +1,6 @@
 # ModSimCompass
 
-**A project compass for modelling and simulation.** Learn the process, make the pieces of a model with focused tools, and pull them together into one living project, from the first question to a recommendation you can defend.
+**Your guide through a modelling and simulation project.** ModSimCompass leads you from the first question to a recommendation you can defend. Learn the phases of a simulation study and the methods to choose from, from discrete-event simulation and system dynamics to agent-based models, Monte Carlo and structural equation modelling. Then build each piece with a focused tool and keep it all in one project that shows where you are and what comes next.
 
 Everything runs in the browser. There are no accounts, no backend and no analytics.
 
@@ -102,7 +102,3 @@ The app builds to static files in `dist/`. Both hosts run `npm run build`.
 **Netlify.** `netlify.toml` sets the build command, publishes `dist/`, uses Node 22, serves the app for deep links, returns a real 404 for missing assets and caches hashed assets for a year. Connect the repository in Netlify, or run `npx netlify deploy --prod --dir dist` after a build.
 
 **Railway.** `railway.json` builds with Nixpacks (`npm ci && npm run build`) and starts `node server.mjs`, a dependency-free static server that binds `0.0.0.0:$PORT`, serves the app for deep links, returns 404 for missing assets, answers `GET /healthz`, and shuts down gracefully. Connect the repository in Railway; no environment variables are needed.
-
-## Status
-
-See [docs/release-evidence.md](docs/release-evidence.md) for what was verified in earlier releases and for known limitations.

@@ -2,7 +2,7 @@ import { ARTEFACT_FILE_SUFFIX, artefactJson, isIsoTime } from '../domain/artefac
 import { kindDef } from '../domain/artefacts/kinds';
 import { ARTEFACT_SCHEMA, ARTEFACT_SCHEMA_VERSION, type Artefact, type ArtefactKind } from '../domain/artefacts/types';
 import { COMPASS_RULES_VERSION, STEPS, compassWarnings, stepsStarted } from '../domain/passport/compass';
-import type { Inclusion, ProjectDoc } from '../domain/passport/schema';
+import { webAddress, type Inclusion, type ProjectDoc } from '../domain/passport/schema';
 import { RULE_VERSION } from '../domain/methods/rules';
 import { artefactFigure, passportHtml } from './html';
 import { APP_NAME, briefMarkdown, passportMarkdown, reportableCopies } from './markdown';
@@ -88,6 +88,8 @@ export function buildManifest(doc: ProjectDoc, files: { path: string; part: Expo
     projectRevision: doc.projectRevision,
     methodRuleVersion: doc.methods.ruleVersion ?? RULE_VERSION,
     compassRulesVersion: COMPASS_RULES_VERSION,
+    /** Where the project's data and code are kept, when the author gave a web address. */
+    ...(webAddress(doc.passport.identity.repository) ? { repository: webAddress(doc.passport.identity.repository) } : {}),
     /** Completeness only: started steps and open rule findings are not validity or review status. */
     stepsStarted: { started: stepsStarted(doc.passport, reportableCopies(doc)).length, total: STEPS.length },
     openItems: { missing: count('gap'), check: count('check'), suggestion: count('tip') },
