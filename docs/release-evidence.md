@@ -108,7 +108,7 @@ Review findings **not** acted on, by choice:
 - **Open items measure completeness and consistency, not quality.** The new suggestions use simple text patterns (for example, a problem that begins "We should"). They are labelled as suggestions, can be wrong, and never block a checkpoint. The app never scores written reasoning.
 - **Reviewer feedback is a typed label.** There are no accounts, so reviewer names and rubric levels are not authenticated.
 - **The sandbox is one teaching model** (daily aggregate backlog). It does not estimate individual waiting times and says so.
-- **Queueing Lab:** no verified URL was available, so it is not listed.
+- **Queueing theory has no app of its own.** It links to the DES Playground, which covers both methods.
 - **Storage is one browser on one device.** Moving work means exporting and importing the project file.
 - **Cancel timing in the sandbox** is covered by code review and manual use, not by an automated test.
 - **The React layer has no component tests.** Screens are covered by the scripted browser runs above, which live outside the repository.

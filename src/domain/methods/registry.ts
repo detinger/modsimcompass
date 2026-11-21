@@ -2,8 +2,8 @@
  * Method candidates and specialist app registry (PLAN §8).
  *
  * Specialist URLs come from the owner's list of companion apps and returned HTTP 200
- * when checked on 20 Nov 2026. The Queueing Lab is listed without a URL, so it is
- * deliberately left unconfigured — never invent a link.
+ * when checked on 20 Nov 2026. Queueing theory has no app of its own: the DES
+ * Playground covers both methods, so both point to it. Never invent a link.
  */
 
 export type MethodId =
@@ -35,7 +35,6 @@ export const SPECIALIST_APPS: Record<string, SpecialistApp> = {
   montecarlo: { id: 'montecarlo', name: 'Monte Carlo Simulation Lab', url: 'https://montecarlosimlab.netlify.app/', urlSource: 'Checked 2026-11-20', handoff: 'download-passport' },
   markov: { id: 'markov', name: 'Markov Chains', url: 'https://markovchainsim.netlify.app/', urlSource: 'Checked 2026-11-20', handoff: 'download-passport' },
   petri: { id: 'petri', name: 'Petri Nets', url: 'https://petrinetsim.netlify.app', urlSource: 'Checked 2026-11-20', handoff: 'download-passport' },
-  queueing: { id: 'queueing', name: 'Queueing Lab', url: null, urlSource: null, handoff: 'download-passport' },
   des: { id: 'des', name: 'DES Playground', url: 'https://desplayground.netlify.app', urlSource: 'Checked 2026-11-20', handoff: 'download-passport' },
   sd: { id: 'sd', name: 'System Dynamics Studio', url: 'https://sysdyn-studio.netlify.app', urlSource: 'Checked 2026-11-20', handoff: 'download-passport' },
   ca: { id: 'ca', name: 'Cellular Automata Lab', url: 'https://cellular-automata-lab.netlify.app', urlSource: 'Checked 2026-11-20', handoff: 'download-passport' },
@@ -166,7 +165,7 @@ export const METHODS: MethodRecord[] = [
     dataNeeds: ['Arrival rate', 'Service rate', 'Number of servers'],
     omits: ['Time-varying schedules, priorities and complex routing'],
     failureConditions: ['Applied to an unstable or strongly time-varying system', 'Distributional assumptions not checked'],
-    appId: 'queueing',
+    appId: 'des',
   },
   {
     id: 'des', name: 'Discrete-event simulation', family: 'processes',

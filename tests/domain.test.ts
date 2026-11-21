@@ -27,9 +27,10 @@ describe('method rules', () => {
     for (const c of a.candidates) expect(c.reasons.length).toBeGreaterThan(0);
     expect(new Set(RULES.map((r) => r.id)).size).toBe(RULES.length);
   });
-  it('registry: 11 methods; no invented URLs (unconfigured apps are null)', () => {
+  it('registry: 11 methods; queueing theory shares the DES Playground; no invented URLs', () => {
     expect(METHODS).toHaveLength(11);
-    expect(appForMethod('queueing-theory').url).toBeNull();
+    expect(appForMethod('queueing-theory')).toBe(appForMethod('des'));
+    expect(appForMethod('queueing-theory').url).toBe('https://desplayground.netlify.app');
     for (const app of Object.values(SPECIALIST_APPS)) if (app.url) expect(app.urlSource).toBeTruthy();
   });
 });
