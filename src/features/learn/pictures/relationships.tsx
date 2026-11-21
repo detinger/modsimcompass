@@ -92,7 +92,6 @@ const PLS_STAGES: { round: number; path: boolean; r2: boolean; cap: string }[] =
   { round: 4, path: true, r2: true, cap: 'check the prediction on new data' },
   { round: 4, path: true, r2: true, cap: 'check the prediction on new data' },
 ];
-const hexagon = (cx: number, cy: number, r: number) => Array.from({ length: 6 }, (_, i) => { const a = (Math.PI / 3) * i; return `${(cx + r * Math.cos(a)).toFixed(1)},${(cy + r * 0.82 * Math.sin(a)).toFixed(1)}`; }).join(' ');
 
 export function PlsPicture({ label }: { label: string }) {
   const { ref, frame } = useFrames<SVGSVGElement>(1100, 6);
@@ -117,9 +116,9 @@ export function PlsPicture({ label }: { label: string }) {
           <text className="lp-small" x={259} y={y + 4} textAnchor="middle">{['y₁', 'y₂'][i]}</text>
         </g>
       ))}
-      <polygon className="lp-node is-soft" points={hexagon(104, 68, 30)} />
+      <ellipse className="lp-node is-soft" cx={104} cy={68} rx={31} ry={20} />
       <text x={104} y={72} textAnchor="middle">Drivers</text>
-      <polygon className={`lp-node${s.r2 ? ' is-soft' : ''}`} points={hexagon(200, 68, 30)} />
+      <ellipse className={`lp-node${s.r2 ? ' is-soft' : ''}`} cx={200} cy={68} rx={31} ry={20} />
       <text x={200} y={s.r2 ? 66 : 72} textAnchor="middle">Loyalty</text>
       {s.r2 && <text className="lp-small lp-strong" x={200} y={79} textAnchor="middle">R² 0.46</text>}
       <text className="lp-cap" x={140} y={140} textAnchor="middle">{s.cap}</text>

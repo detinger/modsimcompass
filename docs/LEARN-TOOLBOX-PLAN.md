@@ -26,7 +26,7 @@ Left menu, top to bottom. An open section shows its pages as links.
 | Compass stop | Learn | Toolbox | Artefact | Project step |
 | --- | --- | --- | --- | --- |
 | 1 Frame | The simulation process | — | — | Frame |
-| 2 Scope | Parts of a conceptual model | **Conceptual model** | Conceptual model | Scope and concept |
+| 2 Concept | Parts of a conceptual model | **Conceptual model** | Conceptual model | Concept and scope |
 | 3 Method | Methods at a glance | **Method chooser** | Method choice | Choose a method |
 | 4 Inputs | Describing uncertainty | **Data and inputs** | Data model (one per input) | Inputs and assumptions |
 | 5 Check | Verification, validation, calibration | **Verification, validation, calibration** | Check plan | Verification and validation |
@@ -154,7 +154,7 @@ The slice comes first on purpose. The last two directions were each changed afte
 | Coin-flip and regression demos | Moved into Learn |
 | Depth of Learn | Lean: one card per method |
 | Phones | Not a priority; must not break |
-| Adding to a project | The project keeps a copy, with "Update from Toolbox" |
+| Adding to a project | The project is live: it keeps a full copy, refreshed automatically whenever the artefact is saved; the author's own text in the step is never overwritten (revised 21 Nov 2026, replacing "Update from Toolbox") |
 
 ## 10. Risks
 

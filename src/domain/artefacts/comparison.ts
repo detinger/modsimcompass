@@ -16,9 +16,10 @@ const DIRECTIONS = ['lower', 'higher'] as const;
 const ORIGINS = ['pasted', 'imported', 'example'] as const;
 const ORIGIN_TEXT: Record<Comparison['origin'], string> = { pasted: 'Entered by hand', imported: 'Imported from a file', example: 'Example data, not results of this project' };
 
+/** Not paired until the user says so: results from another simulator rarely share random inputs, and a paired interval would then be too narrow. */
 const empty = (): Comparison => ({
   outcome: '', unit: '', direction: 'lower', baselineLabel: 'Baseline', alternativeLabel: 'Alternative',
-  baseline: [], alternative: [], paired: true, minimumDifference: null, targetHalfWidth: null, origin: 'pasted', note: '',
+  baseline: [], alternative: [], paired: false, minimumDifference: null, targetHalfWidth: null, origin: 'pasted', note: '',
 });
 
 function sanitize(raw: unknown, warn: Warn): Comparison | null {
@@ -126,11 +127,11 @@ function differenceOf(d: Comparison): DifferenceSummary {
   return { ...none, kind: 'welch', mean: w.mean, lower: w.lower, upper: w.upper, halfWidth: w.halfWidth, unavailableReason: w.unavailableReason };
 }
 
-/** The minimum worthwhile difference as a size; zero or nothing means “not set”. */
+/** The smallest difference that matters as a size; zero or nothing means “not set”. */
 export const minimumOf = (d: Comparison): number | null => (d.minimumDifference !== null && Number.isFinite(d.minimumDifference) && d.minimumDifference !== 0 ? Math.abs(d.minimumDifference) : null);
 
 /**
- * Reads the interval of the difference against zero and against the minimum worthwhile difference.
+ * Reads the interval of the difference against zero and against the smallest difference that matters.
  * Worded as a reading of these runs: it never calls a result proved, and makes no claim about the real system.
  */
 export function verdictFor(d: Comparison, diff: DifferenceSummary): Verdict {
@@ -152,7 +153,7 @@ export function verdictFor(d: Comparison, diff: DifferenceSummary): Verdict {
   const who = `in favour of ${names[favours]}`;
   const tone: Verdict['tone'] = favours === 'alternative' ? 'good' : 'caution';
   if (m === null) {
-    return { code: 'excludes-zero', headline: `The interval excludes zero: these runs show a difference ${who}.`, detail: 'Set a minimum worthwhile difference to judge whether it is large enough to matter.', favours, tone };
+    return { code: 'excludes-zero', headline: `The interval excludes zero: these runs show a difference ${who}.`, detail: 'Set the smallest difference that matters to judge whether it is large enough.', favours, tone };
   }
   const near = Math.min(Math.abs(lower), Math.abs(upper)), far = Math.max(Math.abs(lower), Math.abs(upper));
   if (near >= m) {
@@ -254,7 +255,7 @@ function markdown(d: Comparison): string[] {
     L.push('- The replications are not paired, so no paired interval is given. Giving both policies the same random inputs would usually give a sharper answer.');
   }
   const m = minimumOf(d);
-  if (m !== null) L.push(`- Minimum worthwhile difference: ${num(m)}`);
+  if (m !== null) L.push(`- Smallest difference that matters: ${num(m)}`);
   L.push(`- **Reading:** ${an.verdict.headline} ${an.verdict.detail}`, `- ${VERDICT_SCOPE}`);
   if (d.targetHalfWidth !== null) L.push(`- Target precision (half-width of the interval): ${num(d.targetHalfWidth)}. ${precisionText(an.precision)}${an.precision.needed !== null ? ' An estimate from the spread of the current runs.' : ''}`);
   L.push('');
@@ -308,6 +309,11 @@ const STYLE = `<style>`
   + `</style>`;
 const open = (w: number, h: number) => `<svg xmlns="http://www.w3.org/2000/svg" class="cmpf" viewBox="0 0 ${w} ${h}" width="${w}" height="${h}">${STYLE}`;
 
+/** The caption every picture of the example carries, so a saved copy cannot pass for real results. */
+export const EXAMPLE_CAPTION = 'Example data, not real results';
+const EXAMPLE_ROOM = 20;
+const exampleLine = (d: Comparison, W: number, y: number) => (d.origin === 'example' ? `<text class="s" x="${r1(W / 2)}" y="${y}" text-anchor="middle">${svgText(EXAMPLE_CAPTION)}</text>` : '');
+
 /** The axis of the difference depends only on the two samples, not on how they are paired: paired and unpaired results of the same policies can be compared by eye. */
 function differenceAxis(d: Comparison, diff: DifferenceSummary): [number, number] {
   const [b0, b1] = spread(d.baseline), [a0, a1] = spread(d.alternative);
@@ -319,7 +325,7 @@ function differenceAxis(d: Comparison, diff: DifferenceSummary): [number, number
 }
 
 /**
- * The difference between the policies on a fixed axis: zero line, minimum worthwhile difference, the interval as a band
+ * The difference between the policies on a fixed axis: zero line, smallest difference that matters, the interval as a band
  * and, for paired data, one dot per replication. Null when a policy has no results.
  */
 export function differenceSvg(d: Comparison, opts: { width?: number } = {}): string | null {
@@ -356,7 +362,7 @@ export function differenceSvg(d: Comparison, opts: { width?: number } = {}): str
     }
   }
 
-  const top = 30, base = top + dotsH, H = base + 62;
+  const top = 30, base = top + dotsH, H = base + 62 + (d.origin === 'example' ? EXAMPLE_ROOM : 0);
   const better = d.direction === 'lower' ? 'left' : 'right';
   const sideLabel = (side: 'left' | 'right') => {
     const name = clip(side === better ? names.alternative : names.baseline, Math.max(8, Math.floor(plotW / 18)));
@@ -368,7 +374,7 @@ export function differenceSvg(d: Comparison, opts: { width?: number } = {}): str
     parts.push(`<rect class="band" x="${r1(x0)}" y="${top - 6}" width="${r1(Math.max(2, x1 - x0))}" height="${dotsH + 6}" rx="2"><title>95% interval ${fmtNum(diff.lower)} to ${fmtNum(diff.upper)}</title></rect>`);
   }
   const m = minimumOf(d);
-  if (m !== null) for (const v of [-m, m]) parts.push(`<line class="min" x1="${r1(x(v))}" x2="${r1(x(v))}" y1="${top - 6}" y2="${base + 5}"><title>Minimum worthwhile difference ${fmtNum(v)}</title></line>`);
+  if (m !== null) for (const v of [-m, m]) parts.push(`<line class="min" x1="${r1(x(v))}" x2="${r1(x(v))}" y1="${top - 6}" y2="${base + 5}"><title>Smallest difference that matters ${fmtNum(v)}</title></line>`);
   parts.push(`<line class="zero" x1="${r1(x(0))}" x2="${r1(x(0))}" y1="${top - 10}" y2="${base + 5}"/>`);
   parts.push(`<line class="mean" x1="${r1(x(diff.mean))}" x2="${r1(x(diff.mean))}" y1="${top - 6}" y2="${base}"><title>Mean difference ${fmtNum(diff.mean)}</title></line>`);
   parts.push(`<line class="ax" x1="${padX - 6}" x2="${W - padX + 6}" y1="${base}" y2="${base}"/>`);
@@ -384,6 +390,7 @@ export function differenceSvg(d: Comparison, opts: { width?: number } = {}): str
     ...(m !== null ? [`Dashed: minimum ±${fmtNum(m)}`] : []),
   ].join('  ·  ');
   parts.push(`<text class="q" x="${W / 2}" y="${base + 55}" text-anchor="middle">${svgText(clip(legend, Math.floor(W / 6.2)))}</text>`);
+  parts.push(exampleLine(d, W, base + 75));
   parts.push('</svg>');
   return parts.join('');
 }
@@ -408,11 +415,11 @@ export function policiesSvg(d: Comparison, opts: { width?: number } = {}): strin
   if (hi < 0 && hi > 0.5 * lo) hi = 0;
   [lo, hi] = padded(lo, hi);
   const x = (v: number) => gutter + ((Math.max(lo, Math.min(hi, v)) - lo) / (hi - lo)) * plotW;
-  const lane = 38, top = 16, base = top + 2 * lane + 4, footer = an.difference.kind === 'none' ? 40 : 58, H = base + footer;
+  const lane = 38, top = 16, base = top + 2 * lane + 4, footer = an.difference.kind === 'none' ? 40 : 58, H = base + footer + (d.origin === 'example' ? EXAMPLE_ROOM : 0);
   const parts: string[] = [open(W, H)];
   if (lo < 0 && hi > 0) parts.push(`<line class="zero" x1="${r1(x(0))}" x2="${r1(x(0))}" y1="${top - 8}" y2="${base + 5}"/>`);
   if (marker !== null) {
-    parts.push(`<line class="min" x1="${r1(x(marker))}" x2="${r1(x(marker))}" y1="${top - 8}" y2="${base + 5}"><title>Baseline mean ${d.direction === 'lower' ? 'minus' : 'plus'} the minimum worthwhile difference</title></line>`);
+    parts.push(`<line class="min" x1="${r1(x(marker))}" x2="${r1(x(marker))}" y1="${top - 8}" y2="${base + 5}"><title>Baseline mean ${d.direction === 'lower' ? 'minus' : 'plus'} the smallest difference that matters</title></line>`);
   }
   ([['b', names.baseline, d.baseline, an.baseline], ['a', names.alternative, d.alternative, an.alternative]] as const).forEach(([cls, name, xs, s], i) => {
     const y = top + lane * i + lane / 2;
@@ -434,6 +441,7 @@ export function policiesSvg(d: Comparison, opts: { width?: number } = {}): strin
     const note = `${differenceText(an.difference)}${marker !== null ? `  ·  Dashed: baseline mean ${d.direction === 'lower' ? '−' : '+'} minimum` : ''}`;
     parts.push(`<text class="q" x="${W / 2}" y="${base + 54}" text-anchor="middle">${svgText(clip(note, Math.floor(W / 6.2)))}</text>`);
   }
+  parts.push(exampleLine(d, W, base + footer + 14));
   parts.push('</svg>');
   return parts.join('');
 }

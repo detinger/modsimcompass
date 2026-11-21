@@ -1,4 +1,4 @@
-/* ModSim Essentials — Toolbox: the hub, My artefacts, the tool page frame and the artefact card.
+/* ModSimCompass — Toolbox: the hub, My artefacts, the tool page frame and the artefact card.
    Builds on tokens.css, app.css and playful.css. Colours only via tokens and tone-* classes.
    Imported by the Toolbox screens, not by main.tsx. */
 
@@ -37,10 +37,6 @@ input.ab-title:focus { border-color: var(--border-strong); background: var(--bg-
 .tbx-intro-body > :last-child { margin-bottom: 0; }
 
 /* Placeholder body of a tool that is still being built. */
-.tbx-stub { display: flex; gap: 16px; align-items: flex-start; padding: 22px; border: 2px dashed var(--border-strong); border-radius: var(--radius-xl); background: var(--bg-elevated); }
-.tbx-stub h2 { font-size: 18px; margin-bottom: 4px; }
-.tbx-stub-icon { width: 46px; height: 46px; border-radius: 14px; display: grid; place-items: center; flex: none; background: var(--tone-soft); color: var(--tone); }
-.tbx-stub-lines { list-style: none; padding: 10px 14px; margin: 12px 0; border-radius: var(--radius); background: var(--bg-subtle); font-size: 13px; display: grid; gap: 2px; overflow-wrap: anywhere; }
 
 /* ── Menu button ────────────────────────────────────── */
 .menu-wrap { position: relative; display: inline-flex; }
@@ -120,7 +116,6 @@ input.ab-title:focus { border-color: var(--border-strong); background: var(--bg-
   .tbx-head-text h1 { font-size: 21px; }
   .ab-project { padding-left: 0; margin-left: 0; border-left: 0; flex-basis: 100%; }
   .ab-clip { max-width: 46vw; }
-  .tbx-stub { flex-direction: column; padding: 16px; }
   /* A menu never reaches past the screen edge, whichever side its button is on. */
   .menu-wrap { position: static; }
   .artefact-bar { position: relative; }

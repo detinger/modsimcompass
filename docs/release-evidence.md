@@ -1,4 +1,6 @@
-# Release evidence — ModSim Essentials 3.0.0 (project compass)
+# Release evidence — ModSimCompass 3.0.0 (project compass)
+
+Earlier names: ModSim101, ModSim Essentials.
 
 Date: 21 November 2026. Branch: `compass-rebuild`.
 

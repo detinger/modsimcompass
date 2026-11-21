@@ -1,10 +1,9 @@
 /**
  * Method candidates and specialist app registry (PLAN §8).
  *
- * Specialist URLs come from the course owner's portfolio file
- * (TEMP/ModellingSimulationLab.tsx, 20 Nov 2026) and returned HTTP 200 when checked
- * on 20 Nov 2026. The Queueing Lab appears in the portfolio overview without a URL,
- * so it is deliberately left unconfigured — never invent a link.
+ * Specialist URLs come from the owner's list of companion apps and returned HTTP 200
+ * when checked on 20 Nov 2026. The Queueing Lab is listed without a URL, so it is
+ * deliberately left unconfigured — never invent a link.
  */
 
 export type MethodId =
@@ -32,15 +31,15 @@ export interface SpecialistApp {
 }
 
 export const SPECIALIST_APPS: Record<string, SpecialistApp> = {
-  sem: { id: 'sem', name: 'SEM Lab', url: 'https://sem-lab.netlify.app', urlSource: 'Course portfolio, checked 2026-11-20', handoff: 'download-passport' },
-  montecarlo: { id: 'montecarlo', name: 'Monte Carlo Simulation Lab', url: 'https://montecarlosimlab.netlify.app/', urlSource: 'Course portfolio, checked 2026-11-20', handoff: 'download-passport' },
-  markov: { id: 'markov', name: 'Markov Chains', url: 'https://markovchainsim.netlify.app/', urlSource: 'Course portfolio, checked 2026-11-20', handoff: 'download-passport' },
-  petri: { id: 'petri', name: 'Petri Nets', url: 'https://petrinetsim.netlify.app', urlSource: 'Course portfolio, checked 2026-11-20', handoff: 'download-passport' },
+  sem: { id: 'sem', name: 'SEM Lab', url: 'https://sem-lab.netlify.app', urlSource: 'Checked 2026-11-20', handoff: 'download-passport' },
+  montecarlo: { id: 'montecarlo', name: 'Monte Carlo Simulation Lab', url: 'https://montecarlosimlab.netlify.app/', urlSource: 'Checked 2026-11-20', handoff: 'download-passport' },
+  markov: { id: 'markov', name: 'Markov Chains', url: 'https://markovchainsim.netlify.app/', urlSource: 'Checked 2026-11-20', handoff: 'download-passport' },
+  petri: { id: 'petri', name: 'Petri Nets', url: 'https://petrinetsim.netlify.app', urlSource: 'Checked 2026-11-20', handoff: 'download-passport' },
   queueing: { id: 'queueing', name: 'Queueing Lab', url: null, urlSource: null, handoff: 'download-passport' },
-  des: { id: 'des', name: 'DES Playground', url: 'https://desplayground.netlify.app', urlSource: 'Course portfolio, checked 2026-11-20', handoff: 'download-passport' },
-  sd: { id: 'sd', name: 'System Dynamics Studio', url: 'https://sysdyn-studio.netlify.app', urlSource: 'Course portfolio, checked 2026-11-20', handoff: 'download-passport' },
-  ca: { id: 'ca', name: 'Cellular Automata Lab', url: 'https://cellular-automata-lab.netlify.app', urlSource: 'Course portfolio, checked 2026-11-20', handoff: 'download-passport' },
-  abm: { id: 'abm', name: 'ABM Learning Platform', url: 'https://abm-learning-platform.up.railway.app', urlSource: 'Course portfolio, checked 2026-11-20', handoff: 'download-passport' },
+  des: { id: 'des', name: 'DES Playground', url: 'https://desplayground.netlify.app', urlSource: 'Checked 2026-11-20', handoff: 'download-passport' },
+  sd: { id: 'sd', name: 'System Dynamics Studio', url: 'https://sysdyn-studio.netlify.app', urlSource: 'Checked 2026-11-20', handoff: 'download-passport' },
+  ca: { id: 'ca', name: 'Cellular Automata Lab', url: 'https://cellular-automata-lab.netlify.app', urlSource: 'Checked 2026-11-20', handoff: 'download-passport' },
+  abm: { id: 'abm', name: 'ABM Learning Platform', url: 'https://abm-learning-platform.up.railway.app', urlSource: 'Checked 2026-11-20', handoff: 'download-passport' },
 };
 
 export interface MethodRecord {

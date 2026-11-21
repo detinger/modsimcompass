@@ -20,6 +20,8 @@ export interface FitResult {
   ksD: number | null;        // continuous families only
   method: string;
   law: Law;
+  /** True for a continuous family fitted to whole numbers: its log-likelihood, AIC and BIC use P(x − ½ < X ≤ x + ½). */
+  wholeNumberScore?: boolean;
 }
 export interface FitFailure { kind: Kind; reason: string }
 
@@ -194,10 +196,37 @@ export function fitFamily(kind: Kind, xs: number[]): FitResult | FitFailure {
 
 export const isFit = (r: FitResult | FitFailure): r is FitResult => 'law' in r;
 
+/** Smallest probability counted for one value, so that a value the curve all but rules out costs a lot but not infinitely much. */
+export const WHOLE_NUMBER_FLOOR = 1e-12;
+
+/**
+ * Log-likelihood of whole numbers under a continuous law, each value x scored as P(x − ½ < X ≤ x + ½) = F(x + ½) − F(x − ½).
+ * These are probabilities, like those of the Poisson and the geometric, so the AICs of both kinds can be compared.
+ */
+export function wholeNumberLogLikelihood(law: Law, xs: number[]): number {
+  let s = 0;
+  for (const x of xs) {
+    const p = law.cdf(x + 0.5) - law.cdf(x - 0.5);
+    s += Math.log(Number.isFinite(p) ? Math.max(WHOLE_NUMBER_FLOOR, p) : WHOLE_NUMBER_FLOOR);
+  }
+  return s;
+}
+
+/** A continuous fit rescored on whole numbers: the same parameters, its log-likelihood, AIC and BIC from probabilities. */
+function onWholeNumbers(f: FitResult, xs: number[]): FitResult {
+  const ll = wholeNumberLogLikelihood(f.law, xs);
+  return { ...f, logLik: ll, aic: 2 * f.k - 2 * ll, bic: f.k * Math.log(xs.length) - 2 * ll, method: `${f.method}; scored on whole numbers`, wholeNumberScore: true };
+}
+
+/**
+ * Every candidate, ranked by AIC. For count data (whole numbers of at least zero) the count families join the candidates,
+ * and the continuous families are scored on whole numbers too: a density is not a probability, so its AIC could not
+ * otherwise be compared with theirs. Data that are not count data are scored exactly as before.
+ */
 export function fitAll(xs: number[]): { fits: FitResult[]; failures: FitFailure[]; countData: boolean } {
   const countData = xs.length > 0 && xs.every((x) => Number.isInteger(x) && x >= 0);
   const candidates = countData ? [...COUNT_CANDIDATES, ...CONTINUOUS_CANDIDATES] : CONTINUOUS_CANDIDATES;
-  const results = candidates.map((k) => fitFamily(k, xs));
+  const results = candidates.map((k) => fitFamily(k, xs)).map((r) => (countData && isFit(r) && !r.law.discrete ? onWholeNumbers(r, xs) : r));
   const fits = results.filter(isFit).sort((a, b) => a.aic - b.aic);
   return { fits, failures: results.filter((r): r is FitFailure => !isFit(r)), countData };
 }
@@ -232,7 +261,7 @@ export const PASTE_MAX_VALUES = 100_000;
 /**
  * Numbers separated by spaces, new lines, semicolons or commas. A comma between two digits is ambiguous
  * (“1,5” may be one and a half, or 1 and 5): when the text has no other use for commas they are read as
- * decimal commas; otherwise they separate values and the doubtful pieces are reported in `decimalCommas`.
+ * decimal commas; otherwise they separate values, and every piece with such a comma is reported in `decimalCommas`.
  * Pieces that are not finite numbers are listed in `rejected` (hexadecimal and similar spellings included).
  */
 export function parseData(text: string): { values: number[]; rejected: string[]; decimalCommas: string[]; commaIsDecimal: boolean; truncated: number } {
@@ -241,7 +270,8 @@ export function parseData(text: string): { values: number[]; rejected: string[];
   const asDecimal = text.replace(/(\d),(?=\d)/g, '$1.').split(/[\s;]+/).filter(Boolean);
   // Decimal commas need another separator in the text, and no piece may end up with two decimal points (“1,2,3”).
   const commaIsDecimal = tight > 0 && loose === 0 && /[\s;]/.test(text.trim()) && asDecimal.every((t) => (t.match(/\./g)?.length ?? 0) <= 1);
-  const decimalCommas = commaIsDecimal || tight === 0 || loose === 0 ? [] : (text.match(/\d+,\d+/g) ?? []).slice(0, 5);
+  // Whenever a comma sits between two digits and was not read as a decimal comma, say which pieces were split.
+  const decimalCommas = commaIsDecimal || tight === 0 ? [] : text.split(/[\s;]+/).filter((t) => /\d,\d/.test(t)).map((t) => t.replace(/^,+|,+$/g, '')).slice(0, 5);
   const parts = commaIsDecimal ? asDecimal : text.split(/[\s,;]+/).filter(Boolean);
   const values: number[] = [], rejected: string[] = [];
   for (const p of parts.slice(0, PASTE_MAX_VALUES)) {

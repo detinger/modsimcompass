@@ -2,8 +2,11 @@ import { defaultConfig, MAX_HORIZON, MAX_REPLICATIONS } from '../sandbox/engine'
 import type { DailyRow, DailyTrace, PolicyResult, ReplicationSummary, RunRecord, SandboxConfig, TraceMetrics } from '../sandbox/types';
 import { METHOD_BY_ID } from '../methods/registry';
 import { emptyAnswers } from '../methods/rules';
+import { ID_PATTERN } from '../artefacts/clean';
 import { sanitizeInclusions } from '../artefacts/include';
-import { createProject, newId, PASSPORT_SCHEMA, PASSPORT_SCHEMA_VERSION, type ProjectDoc } from './schema';
+import { isIsoTime } from '../artefacts/file';
+import { kindDef } from '../artefacts/kinds';
+import { createProject, LEGACY_PASSPORT_SCHEMAS, newId, PASSPORT_SCHEMA, PASSPORT_SCHEMA_VERSION, type ProjectDoc } from './schema';
 import { upgradeProject } from './upgrade';
 
 /**
@@ -13,6 +16,8 @@ import { upgradeProject } from './upgrade';
  * - future schema versions rejected with an explanation
  * - unknown top-level fields preserved in `preservedUnknown`
  * - included artefacts (schema v3) rebuilt by the sanitizer of their kind; older files are upgraded
+ * - the retired backlog sandbox (schema v1 and v2): only its last run is read, field by field, so that the upgrade can
+ *   keep it as a comparison; the sandbox itself is not imported. A version 3 file's `sandbox` field is ignored.
  */
 export const IMPORT_LIMITS = { maxBytes: 5_000_000, maxDepth: 24, maxString: 20_000, maxArray: 2_000 };
 
@@ -139,12 +144,12 @@ function readPolicy(x: unknown): PolicyResult | null {
 }
 
 /**
- * Saved sandbox results are rebuilt field by field. Anything that is not exactly the expected shape and type
- * is dropped as a whole, because the results screens and the exports rely on every field.
+ * Saved sandbox results (schema v1 and v2) are rebuilt field by field. Anything that is not exactly the expected
+ * shape and type is dropped as a whole: a run that does not look like one the app wrote is not turned into a comparison.
  */
 function sanitizeRun(input: unknown, warn: (m: string) => void): RunRecord | null {
   if (input === null || input === undefined) return null;
-  const reject = () => { warn('Saved sandbox results were not in a recognised format and were not imported. Re-run the model to regenerate them.'); return null; };
+  const reject = () => { warn('Saved sandbox results were not in a recognised format, so no comparison was made from them.'); return null; };
   const r = input;
   if (!isObj(r)) return reject();
   const status = ['running', 'partial', 'complete', 'failed'].find((v) => v === r.status) as RunRecord['status'] | undefined;
@@ -179,7 +184,7 @@ export function isIsoDate(s: unknown): s is string {
 export function parseProjectJson(text: string, opts: { now?: string } = {}): ImportResult {
   if (text.length > IMPORT_LIMITS.maxBytes) return { ok: false, error: `File is larger than ${IMPORT_LIMITS.maxBytes / 1_000_000} MB.` };
   let raw: unknown;
-  try { raw = JSON.parse(text); } catch { return { ok: false, error: 'The file is not valid JSON. It may be damaged or not a ModSim Essentials project file.' }; }
+  try { raw = JSON.parse(text); } catch { return { ok: false, error: 'The file is not valid JSON. It may be damaged or not a ModSimCompass project file.' }; }
   return importProjectObject(raw, opts);
 }
 
@@ -188,27 +193,29 @@ export function importProjectObject(raw: unknown, opts: { now?: string } = {}): 
   if (!depthOk(raw)) return { ok: false, error: 'The file is nested too deeply to be a project file.' };
   const o = raw as Record<string, unknown>;
   const schemaName = o.schema;
-  const legacyName = schemaName === 'modsim101/project';
-  if (schemaName !== PASSPORT_SCHEMA && !legacyName) return { ok: false, error: 'This is not a ModSim Essentials project file (missing schema identifier).' };
+  // Files written under the app's earlier names (ModSim101, ModSim Essentials) import as before.
+  const legacyName = LEGACY_PASSPORT_SCHEMAS.includes(String(schemaName));
+  if (schemaName !== PASSPORT_SCHEMA && !legacyName) return { ok: false, error: 'This is not a ModSimCompass project file (missing schema identifier).' };
   const v = o.schemaVersion;
   if (typeof v !== 'number' || !Number.isInteger(v) || v < 1) return { ok: false, error: 'The project file has an invalid schema version.' };
   if (v > PASSPORT_SCHEMA_VERSION) {
-    return { ok: false, error: `This project was saved with a newer schema (version ${v}); this app supports version ${PASSPORT_SCHEMA_VERSION}. Open it in a newer version of ModSim Essentials. Nothing was changed.` };
+    return { ok: false, error: `This project was saved with a newer schema (version ${v}); this app supports version ${PASSPORT_SCHEMA_VERSION}. Open it in a newer version of ModSimCompass. Nothing was changed.` };
   }
   const warnings: string[] = [];
   const warn = (m: string) => { if (warnings.length < 200) warnings.push(m); };
   const base = createProject({ now: opts.now });
-  const template = { ...base, sandbox: undefined, artefacts: undefined, preservedUnknown: undefined } as Record<string, unknown>;
-  delete template.sandbox; delete template.artefacts; delete template.preservedUnknown;
+  const template = { ...base } as Record<string, unknown>;
+  delete template.artefacts; delete template.preservedUnknown;
   let doc = sanitize(o, template, ITEM_TEMPLATES, '', warn) as ProjectDoc;
-  const sb = (o.sandbox && typeof o.sandbox === 'object') ? o.sandbox as Record<string, unknown> : {};
-  doc.sandbox = {
-    baseline: sanitizeConfig(sb.baseline, 'sandbox.baseline', warn),
-    alternative: sb.alternative ? sanitizeConfig(sb.alternative, 'sandbox.alternative', warn) : null,
-    lastRun: sanitizeRun(sb.lastRun, warn),
-  };
+  // Schema v1 and v2: the last sandbox run, for the upgrade below to keep as a comparison. Nothing else of the sandbox is read.
+  if (v < 3 && isObj(o.sandbox) && Object.hasOwn(o.sandbox, 'lastRun')) {
+    const lastRun = sanitizeRun(o.sandbox.lastRun, warn);
+    if (lastRun) doc.sandbox = { lastRun };
+  }
   doc.schema = PASSPORT_SCHEMA;
   doc.schemaVersion = v; // raised to the current version by the upgrade below
+  // The project id is written into file names and the report: letters, digits, '-' and '_' only.
+  if (!ID_PATTERN.test(doc.id)) { warn('The project id was not in a recognised format; a new id was given.'); doc.id = base.id; }
   // Included artefacts: each copy is rebuilt by the sanitizer of its kind; an invalid one is left out with a warning.
   doc.artefacts = sanitizeInclusions(o.artefacts, warn, base.createdAt);
   // Origin: validated kind, optional string reference (not in the default template).
@@ -224,9 +231,27 @@ export function importProjectObject(raw: unknown, opts: { now?: string } = {}): 
     for (const r of rows) { if (!r.id || seen.has(r.id)) r.id = newId(prefix); while (seen.has(r.id)) r.id = `${newId(prefix)}-${seen.size}`; seen.add(r.id); }
   };
   uniqueIds(p.inputs, 'in'); uniqueIds(p.assumptions, 'as'); uniqueIds(p.outcomes, 'out'); uniqueIds(p.representation.nodes, 'n'); uniqueIds(p.representation.relations, 'r'); uniqueIds(doc.lensNotes, 'note');
-  // A row may name the data-model copy that owns it; a link to anything else is removed.
-  const dataModels = new Set(doc.artefacts.filter((i) => i.kind === 'data-model').map((i) => i.id));
-  p.inputs.forEach((r) => { if (!EVIDENCE.has(r.sourceType)) r.sourceType = 'unspecified'; if (!['have', 'obtainable', 'assume'].includes(r.availability ?? '')) delete r.availability; if (!r.plan) delete r.plan; if (!r.inclusion || !dataModels.has(r.inclusion)) delete r.inclusion; }); // optional fields: absent when empty
+  // A row may name the copy that owns it (a kind with `ownsRows`, such as a data model); a link to anything else is removed.
+  const owners = doc.artefacts.filter((i) => !!kindDef(i.kind).ownsRows);
+  const owning = new Set(owners.map((i) => i.id));
+  p.inputs.forEach((r) => { if (!EVIDENCE.has(r.sourceType)) r.sourceType = 'unspecified'; if (!['have', 'obtainable', 'assume'].includes(r.availability ?? '')) delete r.availability; if (!r.plan) delete r.plan; if (!r.inclusion || !owning.has(r.inclusion)) delete r.inclusion; }); // optional fields: absent when empty
+  // Such a copy owns one row per thing it describes (a data model one, measurement data one per construct), each with
+  // its own name: a second row with the same copy and the same name is dropped, and a copy with no row is written again.
+  const owned = new Set<string>();
+  const seenRows = new Set<string>();
+  const before = p.inputs.length;
+  p.inputs = p.inputs.filter((r) => {
+    if (!r.inclusion) return true;
+    const key = `${r.inclusion}\u0000${(r.name ?? '').trim().toLowerCase()}`;
+    if (seenRows.has(key)) return false;
+    seenRows.add(key); owned.add(r.inclusion); return true;
+  });
+  if (p.inputs.length < before) warn(`${before - p.inputs.length} input row${before - p.inputs.length === 1 ? '' : 's'} repeating the row of an included artefact removed.`);
+  for (const c of owners) {
+    if (owned.has(c.id)) continue;
+    kindDef(c.kind).applyToProject(doc, c.data as never, c.id);
+    warn(`The input row of the ${kindDef(c.kind).label.toLowerCase()} “${c.title.trim() || 'Untitled'}” was missing and has been written again.`);
+  }
   if (p.identity.stage !== 'planning') p.identity.stage = '';
   p.assumptions.forEach((a) => { if (!EVIDENCE.has(a.evidenceKind)) a.evidenceKind = 'unspecified'; });
   p.outcomes.forEach((r) => { if (!['', 'lower', 'higher', 'target'].includes(r.direction)) r.direction = ''; });
@@ -236,6 +261,19 @@ export function importProjectObject(raw: unknown, opts: { now?: string } = {}): 
     if (!REVIEW.has(p.review[k].status)) p.review[k].status = 'draft';
     if (!['', 'self', 'teacher'].includes(p.review[k].feedbackSource)) p.review[k].feedbackSource = '';
     if (!isIsoDate(p.review[k].due)) p.review[k].due = '';
+  }
+  // When each review was recorded (not in the template, so read on its own): an ISO time, only for a checkpoint past draft.
+  const rawReviews = (isObj(o.passport) && isObj(o.passport.review)) ? o.passport.review : {};
+  for (const k of Object.keys(p.review) as (keyof typeof p.review)[]) {
+    const at = isObj(rawReviews[k]) ? rawReviews[k].reviewedAt : undefined;
+    if (p.review[k].status !== 'draft' && isIsoTime(at)) p.review[k].reviewedAt = at; else delete p.review[k].reviewedAt;
+    // What the copies held at the review (id, title, content hash): kept only with a recorded review time, and bounded.
+    const seen = isObj(rawReviews[k]) ? rawReviews[k].reviewedCopies : undefined;
+    const list = p.review[k].reviewedAt && Array.isArray(seen)
+      ? seen.slice(0, 200).filter((c): c is { id: string; title: string; hash: string } => isObj(c) && typeof c.id === 'string' && c.id.length <= 64 && typeof c.title === 'string' && typeof c.hash === 'string' && /^[0-9a-f]{1,16}$/.test(c.hash))
+        .map((c) => ({ id: c.id, title: c.title.slice(0, 200), hash: c.hash }))
+      : null;
+    if (list) p.review[k].reviewedCopies = list; else delete p.review[k].reviewedCopies;
   }
   // Dynamic-key maps (schema v2): copy only safe keys and bounded values.
   const rawP = (o.passport && typeof o.passport === 'object') ? o.passport as Record<string, unknown> : {};
@@ -267,7 +305,8 @@ export function importProjectObject(raw: unknown, opts: { now?: string } = {}): 
   const nodeIds = new Set(p.representation.nodes.map((n) => n.id));
   p.representation.relations = p.representation.relations.filter((r) => nodeIds.has(r.from) && nodeIds.has(r.to));
   // Preserve unknown top-level fields
-  const known = new Set([...Object.keys(base), 'preservedUnknown', 'exportedBy']);
+  // `sandbox` is known: the retired backlog sandbox, read above for older files and left out on purpose.
+  const known = new Set([...Object.keys(base), 'artefacts', 'preservedUnknown', 'exportedBy', 'sandbox']);
   const unknown: Record<string, unknown> = {};
   // Fields preserved by an earlier import are carried over as they are, not wrapped once more.
   const earlier = isObj(o.preservedUnknown) ? o.preservedUnknown : {};
@@ -282,8 +321,7 @@ export function importProjectObject(raw: unknown, opts: { now?: string } = {}): 
   const summary = [
     `Title: ${p.identity.title || 'Untitled project'}`,
     `${n(p.inputs.length, 'input')}, ${n(p.assumptions.length, 'assumption')}, ${n(p.outcomes.length, 'outcome')}`,
-    doc.sandbox.lastRun ? `Sandbox results: ${doc.sandbox.lastRun.completedReplications} replication(s), status ${doc.sandbox.lastRun.status}` : 'No sandbox results',
-    ...(doc.artefacts.length ? [n(doc.artefacts.length, 'artefact')] : []),
+    doc.artefacts.length ? n(doc.artefacts.length, 'artefact') : 'No artefacts',
   ];
   return { ok: true, project: doc, warnings, summary };
 }

@@ -1,0 +1,200 @@
+/* ModSimCompass — Verification, validation, calibration (src/features/toolbox/checks). Tokens only.
+   One colour, one meaning, as in the diagram: verification = primary (solid), validation = success (dashed),
+   calibration = warning (dotted). Status: passed = success, failed = error, done = info, planned = hollow. */
+
+.ck-tool-root { display: grid; gap: 16px; min-width: 0; }
+.ck-tool-root .is-verification, .ck-tab.is-verification { --ck: var(--primary); --ck-soft: var(--primary-soft); --ck-dash: none; }
+.ck-tool-root .is-validation, .ck-tab.is-validation { --ck: var(--success); --ck-soft: var(--success-soft); --ck-dash: 9 6; }
+.ck-tool-root .is-calibration, .ck-tab.is-calibration { --ck: var(--warning); --ck-soft: var(--warning-soft); --ck-dash: 1.5 6; }
+
+/* ── Method and progress ────────────────────────────── */
+.ck-top { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px 16px; padding: 14px 18px; border: 1px solid var(--border); border-radius: var(--radius-xl); background: var(--bg-elevated); }
+.ck-method { margin: 0; min-width: min(100%, 240px); }
+.ck-offer { margin-bottom: 3px; }
+.ck-offer-from { color: var(--text-muted); font-weight: 400; }
+.ck-overall { margin: 0 0 6px auto; font-size: 13px; color: var(--text-muted); }
+.ck-overall strong { color: var(--text); }
+
+/* ── The three checks, as tabs ──────────────────────── */
+.ck-tabs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.ck-tab { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; min-width: 0; padding: 14px 16px; border: 2px solid var(--border); border-radius: 16px; background: var(--bg-elevated); color: var(--text); font: inherit; text-align: left; cursor: pointer; transition: border-color 160ms, box-shadow 160ms, background 160ms; }
+.ck-tab:hover { border-color: color-mix(in srgb, var(--ck) 60%, var(--border)); }
+.ck-tab[aria-selected="true"] { border-color: var(--ck); background: linear-gradient(160deg, var(--ck-soft), var(--bg-elevated) 75%); box-shadow: 0 0 0 4px color-mix(in srgb, var(--ck) 20%, transparent); }
+.ck-link { display: inline-flex; align-items: center; gap: 4px; margin-bottom: 4px; color: var(--ck); }
+.ck-link svg:not([class]) path { fill: none; stroke: currentColor; stroke-width: 3; stroke-linecap: round; stroke-dasharray: var(--ck-dash); }
+.ck-tab-name { font-size: 13px; font-weight: 700; color: var(--text-muted); }
+.ck-tab-q { font-size: 18px; font-weight: 700; line-height: 1.25; }
+.ck-tab-foot { display: grid; gap: 4px; width: 100%; margin-top: 6px; }
+.ck-tab-n { font-size: 12px; color: var(--text-muted); }
+.ck-bar { display: flex; gap: 2px; height: 8px; width: 100%; }
+.ck-bar.is-empty { border: 1.5px dashed var(--border-strong); border-radius: 3px; }
+.ck-block { flex: 1 1 0; min-width: 3px; border-radius: 2px; }
+.ck-block.is-passed { background: var(--success); }
+.ck-block.is-failed { background: var(--error); }
+.ck-block.is-done { background: var(--info); }
+.ck-block.is-planned { background: var(--bg-subtle); box-shadow: inset 0 0 0 1.5px var(--border-strong); }
+.ck-block.is-na { background: repeating-linear-gradient(135deg, var(--bg-subtle) 0 3px, var(--border) 3px 5px); }
+
+/* ── Panel ──────────────────────────────────────────── */
+.ck-panel { padding: 16px 18px 20px; border: 1px solid var(--border); border-top: 4px solid var(--ck); border-radius: var(--radius-xl); background: var(--bg-elevated); box-shadow: var(--tile-shadow); min-width: 0; }
+.ck-panel-text { margin: 0 0 14px; font-size: 14px; color: var(--text-muted); }
+.ck-columns { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 18px; align-items: start; }
+
+/* Your checks */
+.ck-none { margin: 0 0 10px; padding: 14px; border: 2px dashed var(--border-strong); border-radius: var(--radius-lg); color: var(--text-muted); text-align: center; }
+.ck-list { list-style: none; padding: 0; margin: 0 0 10px; display: grid; gap: 8px; }
+.ck-row { position: relative; display: flex; gap: 10px; padding: 10px 10px 10px 14px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-elevated); }
+.ck-row::before { content: ''; position: absolute; left: -1px; top: -1px; bottom: -1px; width: 5px; border-radius: var(--radius) 0 0 var(--radius); background: var(--st, var(--border-strong)); }
+.ck-row.is-planned { --st: var(--border-strong); }
+.ck-row.is-done { --st: var(--info); }
+.ck-row.is-passed { --st: var(--success); background: color-mix(in srgb, var(--success-soft) 40%, var(--bg-elevated)); }
+.ck-row.is-failed { --st: var(--error); background: color-mix(in srgb, var(--error-soft) 55%, var(--bg-elevated)); }
+/* Does not apply: neutral, dashed, and quieter than the open checks. */
+.ck-row.is-na { --st: var(--text-subtle); border-style: dashed; }
+.ck-row.is-na::before { background: repeating-linear-gradient(180deg, var(--text-subtle) 0 4px, transparent 4px 7px); }
+.ck-row.is-na .ck-mark { color: var(--text-subtle); }
+.ck-row.is-na .ck-text { color: var(--text-muted); }
+.ck-mark { flex: none; margin-top: 6px; color: var(--st); }
+.ck-row.is-planned .ck-mark { color: var(--text-subtle); }
+.ck-body { flex: 1; min-width: 0; display: grid; gap: 6px; }
+.ck-row textarea { field-sizing: content; resize: none; min-height: 0; width: 100%; }
+.ck-text { font-size: 14px; font-weight: 550; padding: 4px 8px; border-color: transparent; background: transparent; }
+.ck-evidence { font-size: 13px; padding: 4px 8px; background: var(--bg-subtle); border-color: transparent; color: var(--text); }
+.ck-text:hover, .ck-evidence:hover { border-color: var(--border); }
+.ck-text:focus, .ck-evidence:focus { border-color: var(--border-strong); background: var(--bg-elevated); }
+.ck-controls { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px; }
+.ck-status { display: inline-flex; flex-wrap: wrap; gap: 4px; margin: 0; padding: 0; border: 0; min-width: 0; }
+.ck-pill { position: relative; display: inline-flex; align-items: center; gap: 4px; min-height: 28px; padding: 0 10px; border: 1px solid var(--border); border-radius: 999px; background: var(--bg-elevated); font-size: 12px; font-weight: 600; color: var(--text-muted); cursor: pointer; }
+.ck-pill input { position: absolute; inset: 0; margin: 0; opacity: 0; cursor: pointer; }
+.ck-pill:hover { border-color: var(--border-strong); color: var(--text); }
+.ck-pill:has(input:focus-visible) { outline: 2px solid var(--ms-focus); outline-offset: 2px; box-shadow: var(--focus-ring); }
+.ck-pill.is-done { --st: var(--info); --st-soft: var(--info-soft); }
+.ck-pill.is-passed { --st: var(--success); --st-soft: var(--success-soft); }
+.ck-pill.is-failed { --st: var(--error); --st-soft: var(--error-soft); }
+.ck-pill.is-planned { --st: var(--border-strong); --st-soft: var(--bg-subtle); }
+.ck-pill.is-na { --st: var(--text-subtle); --st-soft: var(--bg-subtle); }
+.ck-pill:has(input:checked) { border: 2px solid var(--st); background: var(--st-soft); color: var(--text); padding: 0 9px; }
+.ck-pill:has(input:checked) svg { color: var(--st); }
+.ck-pill.is-planned:has(input:checked) svg { color: var(--text-muted); }
+.ck-row-tools { display: inline-flex; gap: 0; }
+.ck-row-tools .btn { padding: 0 6px; }
+.ck-add { display: flex; gap: 8px; }
+.ck-add input { flex: 1; min-width: 0; }
+
+/* Library */
+.ck-lib { padding: 12px 14px; border-radius: var(--radius-lg); background: var(--bg-subtle); border: 1px solid var(--border); }
+.ck-lib-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
+.ck-lib-head h3, .ck-mine-h { margin: 0; font-size: 14px; }
+.ck-mine-h { margin-bottom: 8px; }
+.ck-mine-n { display: inline-block; min-width: 20px; padding: 0 6px; margin-left: 4px; border-radius: 999px; background: var(--ck-soft); font-size: 12px; text-align: center; font-variant-numeric: tabular-nums; }
+.ck-lib-sub { display: flex; align-items: center; gap: 6px; margin: 10px 0 4px; font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--text-muted); }
+.ck-lib-glyph { display: grid; place-items: center; padding: 2px; border-radius: 6px; background: var(--tone-soft); color: var(--tone); }
+.ck-lib-list { list-style: none; padding: 0; margin: 0; display: grid; gap: 6px; }
+.ck-lib-item { display: flex; align-items: flex-start; gap: 8px; padding: 8px 10px; border-radius: var(--radius-sm); background: var(--bg-elevated); border: 1px solid var(--border); }
+.ck-lib-item.is-added { background: transparent; border-style: dashed; }
+.ck-lib-text { flex: 1; min-width: 0; display: grid; gap: 2px; font-size: 13px; line-height: 1.4; }
+.ck-lib-text small { font-size: 12px; color: var(--text-muted); }
+.ck-lib-item.is-added .ck-lib-text > span { color: var(--text-muted); }
+.ck-lib-added { display: inline-flex; align-items: center; gap: 4px; flex: none; min-height: 28px; font-size: 12px; font-weight: 600; color: var(--text-muted); }
+.ck-lib-added svg { color: var(--success); }
+.ck-lib-tip { margin: 10px 0 0; font-size: 12px; color: var(--text-muted); }
+
+/* ── Group tools ────────────────────────────────────── */
+.ck-tool { margin-bottom: 18px; padding: 16px; border: 1px solid var(--border); border-radius: var(--radius-lg); background: color-mix(in srgb, var(--ck-soft) 35%, var(--bg-elevated)); }
+.ck-tool-h { display: flex; align-items: center; gap: 8px; margin: 0 0 12px; font-size: 16px; }
+.ck-tool-h svg { color: var(--ck); }
+
+/* Calculator */
+.ck-calc-setup { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 0 16px; }
+.ck-tol label { display: inline-flex; align-items: center; gap: 5px; }
+.ck-tol-input { display: flex; align-items: center; gap: 6px; font-weight: 650; color: var(--text-muted); }
+.ck-tol-input input { width: 7em; }
+.ck-late { margin: -4px 0 10px; padding: 6px 10px; border-radius: var(--radius-sm); background: var(--warning-soft); border-left: 3px solid var(--warning); font-size: 13px; }
+.ck-values-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.ck-values { display: grid; gap: 4px; min-width: 0; }
+.ck-values label { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; }
+.ck-values textarea { font-family: var(--font-mono); font-size: 13px; resize: vertical; }
+.ck-swatch { width: 20px; height: 0; border-top: 3px solid var(--chart-1); }
+.ck-values.is-simulated .ck-swatch { border-top: 3px dashed var(--chart-2); }
+.ck-values-n { font-size: 12px; color: var(--text-muted); }
+.ck-values-n.is-bad { color: var(--error); font-weight: 600; }
+.ck-pairs { margin: 10px 0 0; }
+.ck-pairs summary { display: inline-flex; align-items: center; gap: 6px; color: var(--text-muted); }
+.ck-pairs textarea { width: 100%; margin: 6px 0; font-family: var(--font-mono); font-size: 13px; }
+.ck-calc-msg { margin: 14px 0 0; padding: 12px; border-radius: var(--radius); background: var(--bg-elevated); border: 1px dashed var(--border-strong); color: var(--text-muted); text-align: center; }
+.ck-calc-msg.is-warning { background: var(--warning-soft); border: 1px solid var(--warning); color: var(--text); }
+.ck-result { margin-top: 14px; display: grid; gap: 12px; }
+.ck-verdict { display: flex; align-items: flex-start; gap: 10px; margin: 0; padding: 12px 14px; border-radius: var(--radius); border: 1px solid var(--border); background: var(--info-soft); font-size: 15px; font-weight: 600; }
+.ck-verdict svg { flex: none; color: var(--info); margin-top: 1px; }
+.ck-verdict.is-within { background: var(--success-soft); border-color: var(--success); }
+.ck-verdict.is-within svg { color: var(--success); }
+.ck-verdict.is-outside { background: var(--error-soft); border-color: var(--error); }
+.ck-verdict.is-outside svg { color: var(--error); }
+.ck-verdict.is-unpaired { background: var(--warning-soft); border-color: var(--warning); }
+.ck-verdict.is-unpaired svg { color: var(--warning); }
+/* What the tolerance applies to: two pills, native radios inside. */
+.ck-on { border: 0; margin: 0 0 12px; padding: 0; min-width: 0; }
+.ck-on legend { padding: 0; margin-bottom: 4px; font-size: 12px; font-weight: 600; color: var(--text); }
+.ck-on-options { display: inline-flex; flex-wrap: wrap; border: 1px solid var(--border-strong); border-radius: 999px; overflow: hidden; }
+.ck-on-option { display: inline-flex; align-items: center; gap: 6px; min-height: 32px; padding: 0 14px; font-size: 13px; color: var(--text-muted); cursor: pointer; background: var(--bg-elevated); }
+.ck-on-option + .ck-on-option { border-left: 1px solid var(--border); }
+.ck-on-option input { margin: 0; accent-color: var(--primary); }
+.ck-on-option.is-checked { background: var(--primary-soft); color: var(--text); font-weight: 650; }
+.ck-on-option:has(input:focus-visible) { outline: 2px solid var(--ms-focus); outline-offset: -2px; }
+.ck-on .hint { display: block; margin-top: 4px; }
+.ck-kpis > .ck-kpi.is-judged { border: 2px solid var(--primary); background: var(--primary-soft); }
+.ck-judged { display: inline-block; margin-left: 4px; padding: 0 6px; border-radius: 999px; background: var(--primary); color: var(--text-on-primary); font-size: 10.5px; font-weight: 700; letter-spacing: .02em; vertical-align: 1px; }
+.ck-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 8px; margin: 0; }
+.ck-kpis > div { padding: 8px 12px; border-radius: var(--radius); background: var(--bg-elevated); border: 1px solid var(--border); min-width: 0; }
+.ck-kpis dt { font-size: 12px; font-weight: 600; color: var(--text-muted); }
+.ck-kpis dd { margin: 0; font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.ck-undef { font-size: 13px; font-weight: 600; color: var(--text-muted); }
+.ck-plot { padding: 10px; border-radius: var(--radius); background: var(--chart-surface); border: 1px solid var(--border); min-width: 0; }
+.ck-plot .svg-figure svg { max-height: none; }
+.ck-record { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+
+/* Calibration */
+.ck-cal-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(220px, 280px); gap: 16px; align-items: start; }
+.ck-dot { display: inline-block; width: 10px; height: 10px; margin-right: 6px; border-radius: 50%; vertical-align: -1px; }
+.ck-dot.is-tune { background: var(--warning); }
+.ck-dot.is-valid { background: var(--success); }
+.ck-sep-card { display: grid; justify-items: center; gap: 6px; padding: 12px; border-radius: var(--radius-lg); background: var(--bg-elevated); border: 2px solid var(--border); text-align: center; }
+.ck-sep-card.is-separate { border-color: var(--success); }
+.ck-sep-card.is-same { border-color: var(--error); background: color-mix(in srgb, var(--error-soft) 60%, var(--bg-elevated)); }
+.ck-sep-card p { margin: 0; font-size: 13px; }
+.ck-sep-card strong { display: block; font-size: 15px; }
+.ck-sep { max-width: 100%; height: auto; overflow: visible; }
+.ck-sep circle { stroke-width: 3; }
+.ck-sep .ck-sep-a circle { fill: color-mix(in srgb, var(--warning) 22%, transparent); stroke: var(--warning); }
+.ck-sep .ck-sep-b circle { fill: color-mix(in srgb, var(--success) 22%, transparent); stroke: var(--success); }
+.ck-sep.is-incomplete circle { stroke-dasharray: 5 6; fill: transparent; }
+.ck-sep.is-same .ck-sep-b circle { stroke: var(--error); stroke-dasharray: 6 5; }
+.ck-sep text { font-size: 13px; font-weight: 650; fill: var(--text); }
+@media (prefers-reduced-motion: no-preference) {
+  .ck-sep g { transition: transform 420ms cubic-bezier(.3, 1.4, .5, 1); }
+  .ck-block { animation: ck-pop 240ms ease-out both; }
+}
+@keyframes ck-pop { from { transform: scaleY(0.2); opacity: 0; } to { transform: none; opacity: 1; } }
+
+.ck-next { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 10px; }
+.ck-next-link { display: inline-flex; align-items: center; gap: 8px; min-height: 36px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--border); background: var(--bg-elevated); color: var(--text); font-weight: 600; text-decoration: none; }
+.ck-next-link:hover { border-color: var(--primary); color: var(--text); }
+
+/* ── Narrow screens ─────────────────────────────────── */
+@media (max-width: 1000px) {
+  .ck-columns { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 760px) {
+  .ck-tabs { grid-template-columns: minmax(0, 1fr); }
+  .ck-tab { flex-direction: row; flex-wrap: wrap; align-items: center; column-gap: 10px; }
+  .ck-tab-q { font-size: 15px; }
+  .ck-calc-setup, .ck-values-row, .ck-cal-grid { grid-template-columns: minmax(0, 1fr); }
+  .ck-overall { margin-left: 0; }
+}
+@media print {
+  .ck-tabs, .ck-lib, .ck-add, .ck-row-tools, .ck-next, .ck-pairs, .ck-record .btn { display: none !important; }
+}
+
+/* Sub-headings among a method's checks, and the line on what calibration means for the method. */
+.ck-lib-part { margin: 10px 0 2px; font-size: 12px; font-weight: 650; color: var(--text); }
+.ck-note { padding: 8px 12px; border-left: 4px solid var(--warning); border-radius: 4px var(--radius) var(--radius) 4px; background: var(--warning-soft); color: var(--text); }

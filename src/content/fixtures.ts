@@ -1,10 +1,30 @@
 /**
- * Named sandbox fixtures referenced by content. Evidence of kind 'sandbox' and
- * numeric `fixtureCheck`s are computed live from these, never typed in by hand.
- * Provenance: synthetic teaching fixtures (no real student service records).
+ * Named sandbox fixtures referenced by content, and a project as an older version of the app stored it.
+ * Numbers are computed live from these, never typed in by hand.
+ * Provenance: synthetic teaching fixtures (no real service records).
  */
+import type { ProjectDoc } from '../domain/passport/schema';
 import { defaultConfig } from '../domain/sandbox/engine';
-import type { SandboxConfig } from '../domain/sandbox/types';
+import { runAll } from '../domain/sandbox/experiment';
+import type { RunRecord, SandboxConfig } from '../domain/sandbox/types';
+import { exampleConfigs, workedExample } from './workedExample';
+
+let legacyRun: RunRecord | null = null;
+/**
+ * A project as version 1 or 2 of the app stored it: the worked example's own fields, its sketch and its method decision,
+ * no artefacts, and a backlog sandbox holding the example's paired run (capacity 10 versus 12, 100 replications,
+ * seed “compass-example”). Used to check that an older project still upgrades: the run becomes a comparison copy.
+ */
+export function legacyProject(version: 1 | 2 = 2): ProjectDoc {
+  const doc = structuredClone(workedExample()) as Partial<ProjectDoc>;
+  const { baseline, alternative } = exampleConfigs();
+  legacyRun ??= runAll(baseline, alternative, { id: 'run-example', projectId: 'worked-example', modelRevision: 1, createdAt: '2026-11-21T00:00:00.000Z' });
+  delete doc.artefacts;
+  doc.schemaVersion = version;
+  for (const row of doc.passport!.inputs) delete row.inclusion; // rows owned by a copy came with version 3
+  doc.sandbox = { baseline, alternative, lastRun: structuredClone(legacyRun) };
+  return doc as ProjectDoc;
+}
 
 function make(mutate: (c: SandboxConfig) => void): SandboxConfig {
   const c = defaultConfig();

@@ -1,4 +1,4 @@
-import { CHECK_GROUP_LABELS, CHECK_GROUPS, CHECK_STATUS_LABELS, checkPlan } from '../../../domain/artefacts/checkPlan';
+import { CHECK_GROUPS, CHECK_STATUS_LABELS, checkPlan, groupLabel } from '../../../domain/artefacts/checkPlan';
 import type { CheckPlan } from '../../../domain/artefacts/types';
 import { mdLine } from '../../../exports/mdText';
 
@@ -23,7 +23,7 @@ export function checkPlanCsv(d: CheckPlan): string {
   for (const g of CHECK_GROUPS) {
     for (const c of d.checks) {
       if (c.group !== g || !c.text.trim()) continue;
-      lines.push([csvCell(CHECK_GROUP_LABELS[g]), csvCell(c.text.trim()), csvCell(CHECK_STATUS_LABELS[c.status]), csvCell(c.evidence.trim())].join(','));
+      lines.push([csvCell(groupLabel(d.method, g)), csvCell(c.text.trim()), csvCell(CHECK_STATUS_LABELS[c.status]), csvCell(c.evidence.trim())].join(','));
     }
   }
   return `${lines.join('\r\n')}\r\n`;

@@ -1,4 +1,4 @@
-/* ModSim Essentials — the five diagrams. Loaded with the lazy diagram chunk (see src/ui/diagrams/DiagramView.tsx).
+/* ModSimCompass — the five diagrams. Loaded with the lazy diagram chunk (see src/ui/diagrams/DiagramView.tsx).
    Colours come from tokens only. One colour, one meaning:
      step / road = primary · current position and the newest part = current-step accent · checkpoint = success
      conceptual model = primary · assumption = assumption token · verification / validation / calibration = primary / success / warning (plus a dash pattern each)
@@ -54,6 +54,68 @@
 .dgm-walk-count { flex: none; padding: 1px 9px; border-radius: 999px; background: var(--primary-soft); color: var(--primary-strong); font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; }
 .dgm-legend { display: flex; flex-wrap: wrap; gap: 6px 20px; margin: 10px 0 0; padding: 0; list-style: none; font-size: 13px; color: var(--dgm-quiet); }
 .dgm-legend li { display: inline-flex; align-items: center; gap: 7px; }
+
+/* ── Compass wheel: the same stops, flags and road as the line, around a ring ── */
+.dgm-j-num { position: relative; }
+.dgm-w-stage { position: relative; }
+.dgm-w-stage > svg { position: absolute; left: 0; top: 0; overflow: visible; }
+.dgm-j-stop.dgm-w-stop { display: block; transform: none; }
+.dgm-j-stop.dgm-w-stop.is-off { transform: scale(0.96); }
+.dgm-w-stop > .dgm-j-num { position: absolute; width: calc(var(--rs, 20px) * 2); height: calc(var(--rs, 20px) * 2); }
+.dgm-w-stage[data-layout="short"] .dgm-w-stop > .dgm-j-num { font-size: 16px; }
+.dgm-w-stage[data-layout="dial"] .dgm-w-stop > .dgm-j-num { font-size: 15px; border-width: 2.5px; }
+.dgm-w-stage[data-layout="dial"] .dgm-j-badge { top: var(--by); left: var(--bx); right: auto; min-width: 16px; height: 16px; padding: 0 3px; font-size: 10px; }
+.dgm-w-stage[data-layout="dial"] .dgm-j-badge svg { width: 9px; height: 9px; }
+.dgm-w-stop > .dgm-j-text { position: absolute; }
+.dgm-w-stop > .dgm-j-text.is-start { align-items: flex-start; text-align: left; }
+.dgm-w-stop > .dgm-j-text.is-end { align-items: flex-end; text-align: right; }
+.dgm-w-stop > .dgm-j-text.is-center { align-items: center; text-align: center; }
+.dgm-w-stop > .dgm-j-text.is-up { flex-direction: column-reverse; }
+.dgm-w-stop .dgm-j-marks:empty { display: none; }
+.dgm-w-stop[aria-pressed="true"] > .dgm-j-num { box-shadow: 0 0 0 4px color-mix(in srgb, var(--dgm-current) 32%, transparent); }
+/* The rose in the middle */
+.dgm-w-face { fill: var(--dgm-surface); stroke: var(--border); stroke-width: 2; }
+.dgm-w-fine { fill: none; stroke: var(--border); stroke-width: 1.5; stroke-dasharray: 1 6; stroke-linecap: round; }
+.dgm-w-tick { stroke: var(--border); stroke-width: 1; stroke-linecap: round; }
+.dgm-w-tick.is-major { stroke: var(--border-strong); stroke-width: 2; }
+.dgm-w-star .is-lit { fill: var(--dgm-surface); stroke: var(--border-strong); stroke-width: 1; stroke-linejoin: round; }
+.dgm-w-star .is-shade { fill: var(--bg-subtle); stroke: var(--border-strong); stroke-width: 1; stroke-linejoin: round; }
+.dgm-w-mark { fill: color-mix(in srgb, var(--dgm-step) 45%, var(--dgm-surface)); transition: fill 0.3s; }
+.dgm-w-mark.is-on { fill: var(--dgm-current); }
+.dgm-w-needle .is-north-a { fill: var(--dgm-current); }
+.dgm-w-needle .is-north-b { fill: color-mix(in srgb, var(--dgm-current) 68%, var(--dgm-surface)); }
+.dgm-w-needle .is-south-a { fill: var(--border-strong); }
+.dgm-w-needle .is-south-b { fill: color-mix(in srgb, var(--border-strong) 55%, var(--dgm-surface)); }
+.dgm-w-needle .is-shadow path { fill: var(--dgm-ink); opacity: 0.12; }
+.dgm-w-hub { fill: var(--dgm-surface); stroke: var(--border-strong); stroke-width: 2; }
+.dgm-w-hub-dot { fill: var(--dgm-current); }
+/* The loop back: a dashed arc that fades in from its tail and flows towards its arrowhead */
+.dgm-w-loop { transition: opacity 0.5s ease; }
+.dgm-w-loop .is-line { fill: none; stroke-width: 3; stroke-dasharray: 1 9; stroke-linecap: round; }
+.dgm-w-loop polygon { fill: var(--dgm-quiet); stroke: var(--dgm-quiet); stroke-width: 1.5; stroke-linejoin: round; }
+.dgm-w-stop0 { stop-color: var(--dgm-quiet); stop-opacity: 0.12; }
+.dgm-w-stop1 { stop-color: var(--dgm-quiet); stop-opacity: 0.75; }
+.dgm-w-stop2 { stop-color: var(--dgm-quiet); stop-opacity: 1; }
+.dgm-w-loop text { font-size: 13.5px; font-weight: 500; fill: var(--dgm-quiet); letter-spacing: 0.01em; }
+.dgm-w-loop .is-strong { font-weight: 700; fill: var(--dgm-ink); }
+svg.dgm-w-loop .is-line { stroke: var(--dgm-quiet); stroke-width: 2.5; stroke-dasharray: 1 5.5; }
+.dgm-w-loopnote { margin: 8px 0 0; font-size: 13px; line-height: 1.45; color: var(--dgm-quiet); text-align: center; transition: opacity 0.5s ease; }
+.dgm-w-loopnote svg { display: inline-block; vertical-align: -5px; margin-right: 2px; }
+.dgm-w-loopnote strong { color: var(--dgm-ink); }
+.dgm-w-dial text { font-size: 13px; font-weight: 650; fill: var(--dgm-ink); transition: opacity 0.4s ease; }
+.dgm-w-dial text.is-selected { fill: var(--dgm-current); font-weight: 750; }
+@media (prefers-reduced-motion: no-preference) {
+  .dgm-w-loop:not(.is-off) .is-line { animation: dgm-w-flow 1.8s linear infinite; }
+}
+@keyframes dgm-w-flow { to { stroke-dashoffset: -20; } }
+
+/* Line / Circle switch above the compass */
+.dgm-view-bar { display: flex; justify-content: flex-end; margin: 0 0 6px; }
+.dgm-view-toggle { display: inline-flex; gap: 2px; padding: 2px; border-radius: 999px; background: var(--bg-subtle); border: 1px solid var(--border); }
+.dgm-view-toggle button { display: inline-flex; align-items: center; gap: 6px; min-height: 30px; padding: 0 12px; border: 0; border-radius: 999px; background: none; color: var(--text-muted); font: inherit; font-size: 12.5px; font-weight: 600; cursor: pointer; }
+.dgm-view-toggle button:hover { color: var(--text); }
+.dgm-view-toggle button[aria-pressed="true"] { background: var(--bg-elevated); color: var(--text); box-shadow: var(--shadow-sm); }
+.dgm-view-toggle button[aria-pressed="true"] svg { color: var(--primary); }
 
 /* ── Graphs laid out by elkjs ───────────────────────── */
 .dgm-graph { position: relative; margin: 0 auto; }
@@ -262,6 +324,6 @@
 }
 @media print {
   .diagram-card .is-off { opacity: 1; visibility: visible; transform: none; }
-  .dgm-walk-btns { display: none; }
+  .dgm-walk-btns, .dgm-view-bar { display: none; }
   .dgm-vv :is(.dgm-node, .dgm-edge, .dgm-edge-label), .dgm-families .dgm-fam { opacity: 1; transform: none; }
 }

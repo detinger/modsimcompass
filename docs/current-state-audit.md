@@ -1,4 +1,6 @@
-# Current-state audit — ModSim101 before the ModSim Essentials upgrade
+# Current-state audit — ModSimCompass before its first upgrade
+
+Earlier names: ModSim101, ModSim Essentials.
 
 Audit date: 20 November 2026. Audited commit: `c940e77` ("Initial commit"). This record satisfies PLAN §2 (P0).
 
@@ -6,7 +8,7 @@ Audit date: 20 November 2026. Audited commit: `c940e77` ("Initial commit"). This
 
 | Item | Finding |
 | --- | --- |
-| Instructions | No CLAUDE.md or AGENTS.md. README described "ModSim101 📊". Its install steps referred to a `learning-tool/` folder that no longer exists after the second commit moved everything to the root. |
+| Instructions | No CLAUDE.md or AGENTS.md. README described the app under its first name, with an emoji. Its install steps referred to a `learning-tool/` folder that no longer exists after the second commit moved everything to the root. |
 | Package | `learning-tool` (private, v0.0.0). React 19.2, Vite 7.3, Chart.js 4.5 + react-chartjs-2, framer-motion (unused), prism-react-renderer (unused). npm with `package-lock.json`. |
 | Language | Plain JavaScript/JSX. No TypeScript, no tests. |
 | Routing | None. Pages were switched with `useState('home')` in `App.jsx`, so no URL ever changed and there were **no bookmarks or deep links to preserve**. |
@@ -45,7 +47,7 @@ There were no URL routes, so no redirects are needed. The new routes are `/start
 
 ## 5 Identifiers and storage keys
 
-- The npm package name `learning-tool` is kept unchanged. The visible product name is now **ModSim Essentials**.
+- The npm package was called `learning-tool` at the time (it is `modsimcompass` now). The visible product name is now **ModSimCompass**.
 - No storage keys existed. The new keys keep the original project identifier as their prefix: IndexedDB database `modsim101`, `localStorage` keys `modsim101.prefs` and `modsim101.activeProject`, and the cross-tab channel `modsim101`. No migration was necessary, so none was written. The importer also accepts a future `modsim101/project` schema identifier, in case files were produced under the old name.
 - The GitHub repository and hosting project names were **not** renamed.
 

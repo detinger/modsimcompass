@@ -1,23 +1,23 @@
-# ModSim Essentials Implementation Plan
+# ModSimCompass Implementation Plan
 
 > **Superseded (21 Nov 2026).** The product is now a project compass. The governing specification is [docs/COMPASS-SPEC.md](./docs/COMPASS-SPEC.md); see [ADR 0003](./docs/adr/0003-project-compass.md). This document is kept for history.
 
-> Product renamed from ModSim101 to **ModSim Essentials** (20 Nov 2026). Storage identifiers keep the `modsim101` prefix; see docs/current-state-audit.md. Implementation evidence: [docs/release-evidence.md](./docs/release-evidence.md).
+> Product name: **ModSimCompass** (earlier names: ModSim101, ModSim Essentials). Storage identifiers keep the `modsim101` prefix; see docs/current-state-audit.md. Implementation evidence: [docs/release-evidence.md](./docs/release-evidence.md).
 
 > Agent-ready product specification · Version 1.0 · 20 November 2026  
-> Companion: [STYLE.md](./STYLE.md). PLAN owns educational behaviour, scientific semantics, data, architecture, migration and delivery. STYLE owns appearance, interaction, visualisation and accessibility. This is a target specification; the ModSim Essentials repository has not been inspected or modified.
+> Companion: [STYLE.md](./STYLE.md). PLAN owns educational behaviour, scientific semantics, data, architecture, migration and delivery. STYLE owns appearance, interaction, visualisation and accessibility. This is a target specification; the ModSimCompass repository has not been inspected or modified.
 
 ## 1 Mission and source authority
 
-**ModSim Essentials teaches students to think like modellers before selecting a specialist technique.** It is the introductory application for a master’s course in Modelling and Simulation at FIPU, Juraj Dobrila University of Pula. Students already have separate specialist apps. Keep those apps separate. ModSim Essentials supplies the shared intellectual workflow and launches the semester project.
+**ModSimCompass teaches students to think like modellers before selecting a specialist technique.** It is the introductory application for a master’s course in Modelling and Simulation at FIPU, Juraj Dobrila University of Pula. Students already have separate specialist apps. Keep those apps separate. ModSimCompass supplies the shared intellectual workflow and launches the semester project.
 
 The central learner journey is **problem → question → representation → evidence → decision**. Students must leave with a defensible question, justified method choice, explicit assumptions and a plan for checking the model. The app should remain useful at later project checkpoints.
 
 | Source | Authority | Does not establish |
 | --- | --- | --- |
-| Supplied `PLAN(20261120-203307).md` | Audit-first implementation, preservation, pure domain core, local-first persistence, scientific contracts, staged delivery, 12/12/12 content structure, Netlify/Railway requirements | ModSim Essentials’s current code, seven existing Monte Carlo simulations, need for a stochastic DAG builder or mandatory Python/R exports |
-| Supplied `STYLE(10).md` | Exact base theme tokens, typography, shell dimensions, component language, chart grammar, accessibility discipline | Current ModSim Essentials implementation or need for Monte Carlo-specific nodes |
-| Course framework and agreed ModSim Essentials concept | Shared lifecycle, separate specialist apps, model passport, master’s project, six core experiences | An approved institutional grading policy or actual specialist app URLs |
+| Supplied `PLAN(20261120-203307).md` | Audit-first implementation, preservation, pure domain core, local-first persistence, scientific contracts, staged delivery, 12/12/12 content structure, Netlify/Railway requirements | ModSimCompass’s current code, seven existing Monte Carlo simulations, need for a stochastic DAG builder or mandatory Python/R exports |
+| Supplied `STYLE(10).md` | Exact base theme tokens, typography, shell dimensions, component language, chart grammar, accessibility discipline | Current ModSimCompass implementation or need for Monte Carlo-specific nodes |
+| Course framework and agreed ModSimCompass concept | Shared lifecycle, separate specialist apps, model passport, master’s project, six core experiences | An approved institutional grading policy or actual specialist app URLs |
 
 MUST denotes a requirement within its assigned phase. SHOULD permits a documented alternative. LATER is outside the initial release. All implementation checkboxes start unchecked; record evidence before marking complete.
 
@@ -33,7 +33,7 @@ Students can frame a decision question; define scope, boundary and horizon; dist
 - No universal simulation builder, full SEM estimation, complete DES editor, Petri-net analysis engine, ABM authoring engine or automatic translation between methods.
 - No leaderboard, mandatory streaks or speed-based scoring. Academic judgement matters more than clicks.
 - No automatic grading of unrestricted written reasoning by keyword matching or undisclosed AI.
-- Preserve existing useful ModSim Essentials functionality after an audit; do not assume it is an empty repository.
+- Preserve existing useful ModSimCompass functionality after an audit; do not assume it is an empty repository.
 - English interface initially; content keys must permit later Croatian localisation. Do not publish machine-translated scientific terminology without review.
 
 ## 2 Audit and preservation before implementation
@@ -437,6 +437,6 @@ Use ownership boundaries whether one developer or several agents implement the p
 
 Suggested coding-agent prompt:
 
-> Read PLAN.md, STYLE.md, repository instructions and existing source. Audit ModSim Essentials before editing and preserve its useful features. Implement P1 as a complete problem-to-passport journey with the exact deterministic backlog fixtures, two lenses, explainable method advice and local save/export. Keep specialist apps separate. Apply the supplied visual tokens in both themes. Progress through P2 and P3 with verified science, explicit illustrative traces, 12/12/12 teaching content, honest assessment and Netlify/Railway parity. Mark checklist items complete only with evidence. Do not replace the app with a generic simulation builder or invent missing app URLs.
+> Read PLAN.md, STYLE.md, repository instructions and existing source. Audit ModSimCompass before editing and preserve its useful features. Implement P1 as a complete problem-to-passport journey with the exact deterministic backlog fixtures, two lenses, explainable method advice and local save/export. Keep specialist apps separate. Apply the supplied visual tokens in both themes. Progress through P2 and P3 with verified science, explicit illustrative traces, 12/12/12 teaching content, honest assessment and Netlify/Railway parity. Mark checklist items complete only with evidence. Do not replace the app with a generic simulation builder or invent missing app URLs.
 
 **Delivery status:** specification only; no implementation, repository inspection or deployment is claimed.

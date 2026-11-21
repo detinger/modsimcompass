@@ -1,7 +1,7 @@
 import { ArrowRight, FolderOpen } from 'lucide-react';
 import { useArtefacts } from '../../app/artefacts';
 import { Link } from '../../app/router';
-import { KIND_ORDER, kindDef, KINDS } from '../../domain/artefacts/kinds';
+import { kindDef, KINDS, TOOL_ORDER } from '../../domain/artefacts/kinds';
 import { STEP_BY_ID } from '../../domain/passport/compass';
 import { ArtefactCard } from './ArtefactCard';
 import { TOOL_META } from './toolMeta';
@@ -19,10 +19,11 @@ export default function Toolbox() {
       </div>
 
       <ul className="tbx-tiles" aria-label="Tools">
-        {KIND_ORDER.map((kind) => {
+        {TOOL_ORDER.map((kind) => {
           const meta = TOOL_META[kind], def = KINDS[kind], step = STEP_BY_ID[def.step];
           const Icon = meta.icon;
-          const count = list.filter((a) => a.kind === kind).length;
+          // Everything the tool makes, whatever its kind (Data and inputs makes data models and measurement data).
+          const count = list.filter((a) => KINDS[a.kind].toolPath === def.toolPath).length;
           return (
             <li key={kind}>
               <Link to={def.toolPath} className={`tbx-tile ${meta.tone}`}>

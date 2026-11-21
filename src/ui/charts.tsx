@@ -1,11 +1,14 @@
-import { useEffect, useId, useRef, useState, type ReactNode, type RefObject } from 'react';
+import { useEffect, useId, useState, type ReactNode } from 'react';
 
-/** Measure the rendered width so SVG text stays at its true pixel size (no viewBox scaling). */
-export function useWidth(fallback = 640): [RefObject<HTMLDivElement | null>, number] {
-  const ref = useRef<HTMLDivElement>(null);
+/**
+ * Measure the rendered width so SVG text stays at its true pixel size (no viewBox scaling).
+ * Returns a callback ref: the width is measured whenever the element appears, also when a component first renders
+ * nothing and draws its chart later.
+ */
+export function useWidth(fallback = 640): [(el: HTMLDivElement | null) => void, number] {
+  const [el, setEl] = useState<HTMLDivElement | null>(null);
   const [w, setW] = useState(fallback);
   useEffect(() => {
-    const el = ref.current;
     if (!el || typeof ResizeObserver === 'undefined') return;
     const ro = new ResizeObserver((entries) => {
       const cw = Math.round(entries[0].contentRect.width);
@@ -13,8 +16,8 @@ export function useWidth(fallback = 640): [RefObject<HTMLDivElement | null>, num
     });
     ro.observe(el);
     return () => ro.disconnect();
-  }, []);
-  return [ref, w];
+  }, [el]);
+  return [setEl, w];
 }
 import { fmt } from './controls';
 

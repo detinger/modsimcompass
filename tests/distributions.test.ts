@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { FAMILIES, KINDS, lawFor, type Kind } from '../src/domain/distributions/laws';
 import { binDraws, drawFrom, median } from '../src/domain/distributions/preview';
-import { fitAll, fitFamily, isFit, logLikelihood, deltaAicLabel, parseData } from '../src/domain/distributions/fitting';
+import { fitAll, fitFamily, isFit, logLikelihood, deltaAicLabel, parseData, WHOLE_NUMBER_FLOOR, wholeNumberLogLikelihood } from '../src/domain/distributions/fitting';
 import { EDGES, FAMILY_NOTES, LEAVES, QUESTIONS, pathTo } from '../src/domain/distributions/tree';
 import { DATASETS } from '../src/domain/distributions/datasets';
 import { flipCoins, ols, sampleLetters, simulateLinear } from '../src/domain/distributions/experiments';
@@ -69,13 +69,40 @@ describe('maximum-likelihood fits match scipy.stats on the preserved datasets', 
     expect(parseData('1,5 2,25\n3').values).toEqual([1.5, 2.25, 3]);
     expect(parseData('1,5 2,25\n3').commaIsDecimal).toBe(true);
     expect(parseData('1,2,3').values).toEqual([1, 2, 3]);
-    expect(parseData('1,2,3').decimalCommas).toEqual([]);
+    // A comma between digits that is not read as a decimal comma is always reported.
+    expect(parseData('1,2,3').decimalCommas).toEqual(['1,2,3']);
     const mixed = parseData('23, 31; 18 45 1,5');
     expect(mixed.values).toEqual([23, 31, 18, 45, 1, 5]);
     expect(mixed.commaIsDecimal).toBe(false);
     expect(mixed.decimalCommas).toEqual(['1,5']);
     expect(parseData('4.2, 5.1, 3.8').decimalCommas).toEqual([]);
     expect(parseData('1,2,3 4,5,6').values).toEqual([1, 2, 3, 4, 5, 6]);
+  });
+  it('reports every piece whose comma between digits was split, so a decimal comma is never misread silently', () => {
+    expect(parseData('3,5')).toMatchObject({ values: [3, 5], decimalCommas: ['3,5'] });
+    expect(parseData('12,5\n')).toMatchObject({ values: [12, 5], decimalCommas: ['12,5'] });
+    expect(parseData('1.000,5 2.000,5').decimalCommas).toEqual(['1.000,5', '2.000,5']);
+    expect(parseData('1,5 2,5').decimalCommas).toEqual([]); // read as decimal commas: nothing to report
+    expect(parseData('4, 7, 9').decimalCommas).toEqual([]); // no comma between two digits
+  });
+  it('count data: continuous curves are scored on whole numbers, so counts and curves compare fairly', () => {
+    // 100 counts in the proportions of a Poisson with mean 1.4.
+    const counts = [...Array(25).fill(0), ...Array(34).fill(1), ...Array(24).fill(2), ...Array(11).fill(3), ...Array(4).fill(4), ...Array(2).fill(5)];
+    const { fits, countData } = fitAll(counts);
+    expect(countData).toBe(true);
+    expect(fits[0].kind).toBe('poisson');
+    for (const f of fits) {
+      expect(!!f.wholeNumberScore).toBe(!f.law.discrete);
+      expect(f.aic).toBeCloseTo(2 * f.k - 2 * f.logLik, 9);
+    }
+    // The score of a curve is its probability for each whole number: F(x + ½) − F(x − ½), here for the uniform.
+    const uniform = fits.find((f) => f.kind === 'uniform')!;
+    expect(uniform.logLik).toBeCloseTo(27 * Math.log(0.1) + 73 * Math.log(0.2), 9);
+    expect(wholeNumberLogLikelihood(uniform.law, [99])).toBe(Math.log(WHOLE_NUMBER_FLOOR));
+    // Data that are not count data are scored on the density exactly as before.
+    const cont = fitAll([0.8, 1.9, 2.4, 3.1, 0.5, 4.7, 2.2, 1.3, 2.9, 6.1]);
+    expect(cont.countData).toBe(false);
+    for (const f of cont.fits) { expect(f.wholeNumberScore).toBeUndefined(); expect(f.logLik).toBeCloseTo(logLikelihood(f.law, [0.8, 1.9, 2.4, 3.1, 0.5, 4.7, 2.2, 1.3, 2.9, 6.1]), 9); }
   });
   it('recovers known parameters from a large seeded sample', () => {
     const xs = drawFrom(lawFor('gamma', [3, 2]), 'recover', 'g', 5000);
@@ -158,5 +185,55 @@ describe('distribution → sandbox demand transfer', () => {
   it('rejects continuous and negative-support laws', () => {
     expect(lawToDemand(lawFor('normal', [12, 2])).ok).toBe(false);
     expect(lawToDemand(lawFor('discrete', [-2, 3])).ok).toBe(false);
+  });
+});
+
+import { pairedColumns, parseCsv } from '../src/domain/distributions/csv';
+import { fitPythonCode, fitRCode, scriptSeed } from '../src/domain/distributions/code';
+describe('CSV import', () => {
+  it('detects the separator, the header and decimal commas, and counts what it leaves out', () => {
+    const res = parseCsv('id;time;note\n1;2,5;a\n2;n/a;b\n3;4,25;c\n4;;d\n5;1,5;e\n');
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    const t = res.table;
+    expect([t.separator, t.header, t.rows]).toEqual([';', true, 5]);
+    const time = t.columns[1];
+    expect(time.name).toBe('time');
+    expect(time.decimalComma).toBe(true);
+    expect(time.values).toEqual([2.5, 4.25, 1.5]);
+    expect([time.blank, time.rejected]).toEqual([1, 1]);
+    expect(time.rejectedSamples[0]).toEqual({ line: 3, text: 'n/a' });
+    expect(time.byRow).toEqual([2.5, null, 4.25, null, 1.5]);
+    expect(t.columns[2].offered).toBe(false);
+  });
+  it('reads quoted cells, tabs and a byte-order mark; refuses binary and oversized text', () => {
+    const res = parseCsv('﻿a\tb\n"1"\t2\n3\t"4"\n5\t6\n');
+    expect(res.ok && res.table.separator).toBe('\t');
+    expect(res.ok && res.table.columns.map((c) => c.values)).toEqual([[1, 3, 5], [2, 4, 6]]);
+    expect(parseCsv('a,b\n1,\u00002').ok).toBe(false);
+    expect(parseCsv(' ').ok).toBe(false);
+    expect(parseCsv('x'.repeat(5 * 1024 * 1024 + 1)).ok).toBe(false);
+  });
+  it('keeps two columns row by row, so pairs stay pairs', () => {
+    const res = parseCsv('a,b\n1,10\n2,\n,30\n4,40\n');
+    if (!res.ok) throw new Error(res.error);
+    const [a, b] = res.table.columns;
+    expect(pairedColumns(a, b)).toEqual({ first: [1, 4], second: [10, 40], dropped: 2 });
+  });
+});
+
+describe('R and Python code', () => {
+  it('uses the app seed when it is a plain whole number, and never writes a cut-off list', () => {
+    expect(scriptSeed('777')).toBe(777);
+    expect(scriptSeed('abc')).toBe(42);
+    expect(scriptSeed('1234567890')).toBe(42);
+    expect(rCode('normal', [0, 1], 10, '7')).toMatch(/set\.seed\(7\)/);
+    expect(pythonCode('normal', [0, 1], 10, '7')).toMatch(/random_state=7/);
+    expect(rCode('normal', [0, 1], 10)).toMatch(/set\.seed\(42\)/);
+    const many = Array.from({ length: 300 }, (_, i) => i);
+    expect(fitRCode(many)).toMatch(/read\.csv/);
+    expect(fitRCode(many)).not.toMatch(/\.\.\./);
+    expect(fitPythonCode(many)).not.toMatch(/\.\.\./);
+    expect(fitRCode([1, 2, 3])).toMatch(/x <- c\(1, 2, 3\)/);
   });
 });

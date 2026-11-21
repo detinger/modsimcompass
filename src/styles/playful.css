@@ -1,4 +1,4 @@
-/* ModSim Essentials — playful layer (owner direction, 20 Nov 2026: visual, uncluttered, playful).
+/* ModSimCompass — playful layer (owner direction, 20 Nov 2026: visual, uncluttered, playful).
    Builds only on central tokens plus four family accents taken from the course family guide. */
 :root {
   --fam-relationships: #3b6fe0; --fam-relationships-soft: #e7eefc;
@@ -25,6 +25,7 @@
   }
 }
 .tone-blue { --tone: var(--fam-relationships); --tone-soft: var(--fam-relationships-soft); }
+.tone-green { --tone: var(--success); --tone-soft: var(--success-soft); }
 .tone-teal { --tone: var(--fam-uncertainty); --tone-soft: var(--fam-uncertainty-soft); }
 .tone-brown { --tone: var(--fam-processes); --tone-soft: var(--fam-processes-soft); }
 .tone-purple { --tone: var(--fam-emergence); --tone-soft: var(--fam-emergence-soft); }
@@ -181,6 +182,9 @@ h2 svg.thumb { width: 64px; height: 28px; }
 .coin-bar span { display: grid; place-items: center; color: #fff; min-width: 0; }
 .coin-bar .h { background: var(--chart-1); } .coin-bar .t { background: var(--chart-2); }
 .tiles.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.tiles.four { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+@media (max-width: 1100px) { .tiles.four { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 520px) { .tiles.four { grid-template-columns: minmax(0, 1fr); } }
 .tiles.covers { grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); }
 .tiles.five { grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); }
 .tile-art ~ .tile-num { font-size: 12px; font-weight: 800; color: var(--text-on-primary); background: var(--tone); border-radius: 999px; padding: 3px 9px; right: 10px; top: 10px; box-shadow: var(--shadow-sm); }

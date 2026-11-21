@@ -1,4 +1,4 @@
-/* ModSim Essentials — Home, Tools, Help and Settings (work package C).
+/* ModSimCompass — Home, Tools, Help and Settings (work package C).
    Builds on tokens.css, app.css and playful.css. Colours only via tokens and tone-* classes.
    Every looping animation sits inside a prefers-reduced-motion: no-preference block. */
 
@@ -249,7 +249,7 @@
   .tool-name h1 { font-size: 22px; }
   .icon-btn { width: 40px; height: 40px; }
   .pc-actions { flex-wrap: wrap; }
-  .tiles.three.doors { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+  .tiles.three.doors, .tiles.four.doors { grid-template-columns: minmax(0, 1fr); gap: 12px; }
   .tile.door { display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: 14px; align-items: center; padding: 14px 16px; }
   .tile.door .tile-icon { grid-row: span 2; margin: 0; }
   .tile.door .tile-meta { display: none; }

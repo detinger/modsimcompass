@@ -27,14 +27,19 @@ export const GLOSSARY: GlossaryTerm[] = [
   { term: 'Random seed', text: 'A starting value that makes a random sequence repeatable.' },
   { term: 'Replication', text: 'One complete run with its own random numbers. Several are needed to see the spread.' },
   { term: 'Resource', text: 'Something with limited capacity that entities need: staff, machines, rooms.' },
-  { term: 'Sensitivity analysis', text: 'Changing one input at a time to see how much the result moves.' },
+  { term: 'Sensitivity analysis', text: 'Changing inputs, one at a time or several together, to see how much the result moves.' },
   { term: 'Simplification', text: 'A deliberate shortcut that keeps the model small enough to understand.' },
-  { term: 'Simulation', text: 'Running a model over time to see how it behaves.' },
+  { term: 'Simulation', text: 'Running a model to see how it behaves: over time, or many times over with random inputs.' },
   { term: 'State', text: 'Everything needed to describe the system at one moment.', to: '/learn/methods/markov-chains' },
   { term: 'Steady state', text: 'The long-run behaviour, after the effects of the starting conditions have faded.' },
-  { term: 'Stochastic model', text: 'A model with randomness inside: every run gives a different result.' },
+  { term: 'Stochastic model', text: 'A model with randomness inside: runs with different random numbers give different results. The same seed repeats a run.' },
   { term: 'Stock and flow', text: 'A stock accumulates. Flows fill it and drain it.', to: '/learn/methods/system-dynamics' },
   { term: 'Validation', text: 'Is it the right model? The model is compared with the real system, for the stated purpose.', to: '/toolbox/checks' },
   { term: 'Verification', text: 'Is it built right? The program is compared with the conceptual model.', to: '/toolbox/checks' },
   { term: 'Warm-up period', text: 'The start of a run, discarded because the model has not yet reached typical conditions.' },
 ];
+
+/** The address-safe id of a term, for links such as `/learn/glossary#term-random-seed`. */
+export const termId = (term: string): string => `term-${term.toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}`;
+/** The glossary entry of a term. */
+export const glossaryHref = (term: string): string => `/learn/glossary#${termId(term)}`;

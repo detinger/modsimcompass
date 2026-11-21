@@ -1,9 +1,10 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, BookOpen, Check, ChevronLeft, ChevronRight, Compass as CompassIcon, Copy, Download, Lock, Milestone, Pencil, Plus } from 'lucide-react';
+import { ArrowLeft, BookOpen, Check, ChevronLeft, ChevronRight, Compass as CompassIcon, Copy, Download, GraduationCap, Lock, Milestone, Pencil, Plus } from 'lucide-react';
+import { useArtefacts } from '../../app/artefacts';
 import { useStore } from '../../app/store';
 import { Link, useRouter } from '../../app/router';
 import {
-  CHECKPOINT_DEFS, STEPS, STEP_BY_ID, compassWarnings, isStepId, stepsStarted, type StepDef, type StepId, type Warning,
+  CHECKPOINT_DEFS, STEPS, STEP_BY_ID, compassWarnings, effectiveProfile, isStepId, stepFor, stepsStarted, type StepDef, type StepId, type StepProfile, type Warning,
 } from '../../domain/passport/compass';
 import { REVIEW_LABELS, newId, type ProjectDoc } from '../../domain/passport/schema';
 import { workedExample } from '../../content/workedExample';
@@ -11,6 +12,7 @@ import { PassportContext, usePassport, type PassportValue } from '../project/pas
 import { Checkpoints } from './Checkpoints';
 import { CompassPanel, QuickGuide } from './CompassPanel';
 import { StepMain } from './StepMain';
+import { Overview } from './Overview';
 import { CHECKPOINTS_ID, SEVERITY, SEVERITY_ORDER, STATUS_CLASS, STEP_META, openCount } from './stepMeta';
 import '../../styles/compass.css';
 import NotFound from '../help/NotFound';
@@ -19,19 +21,24 @@ import { rememberOrigin } from '../../app/cameFrom';
 // The export dialog brings the report writers with it; it is loaded when first opened.
 const ExportDialog = lazy(() => import('../project/ExportDialog').then((m) => ({ default: m.ExportDialog })));
 
-const LAST_STEP_KEY = 'modsim-essentials.compass.lastStep';
-function lastStep(id: string): StepId | null {
-  try { const s = window.localStorage.getItem(`${LAST_STEP_KEY}.${id}`); return s && isStepId(s) ? s : null; } catch { return null; }
-}
-function rememberStep(id: string, step: StepId) {
-  try { window.localStorage.setItem(`${LAST_STEP_KEY}.${id}`, step); } catch { /* storage unavailable: nothing to remember */ }
-}
+/** The Learn page that belongs to each step (LEARN-TOOLBOX-PLAN.md §2). */
+const LEARN: Record<StepId, { to: string; title: string }> = {
+  frame: { to: '/learn/process', title: 'The simulation process' },
+  scope: { to: '/learn/ideas', title: 'Parts of a conceptual model' },
+  method: { to: '/learn/methods', title: 'Methods at a glance' },
+  inputs: { to: '/learn/ideas', title: 'Describing uncertainty' },
+  evaluation: { to: '/learn/ideas', title: 'Verification, validation, calibration' },
+  experiment: { to: '/learn/ideas', title: 'A fair comparison' },
+  conclude: { to: '/learn/process', title: 'Closing the loop' },
+};
+
+type Screen = 'overview' | 'step' | 'checkpoints';
 
 // The worked example is built once: it is read only and never mutated (copies are deep clones).
 let exampleCache: ProjectDoc | null = null;
 const getExample = () => (exampleCache ??= workedExample());
 
-/** The Project Compass: seven steps over the model passport, with guidance beside every step. */
+/** The project compass: an overview of the seven steps, each step with guidance beside it, and the checkpoints. */
 export default function Compass({ step, example }: { step?: string; example?: boolean }) {
   const { active } = useStore();
   const exampleDoc = getExample();
@@ -116,7 +123,7 @@ function Title({ title, readOnly, onChange }: { title: string; readOnly: boolean
   );
 }
 
-function Header({ doc, started, onExport, onCheckpoints }: { doc: ProjectDoc; started: StepId[]; onExport: () => void; onCheckpoints: boolean }) {
+function Header({ doc, started, onExport, screen }: { doc: ProjectDoc; started: StepId[]; onExport: () => void; screen: Screen }) {
   const { update, readOnly, base } = usePassport();
   return (
     <header className="cp-head">
@@ -130,10 +137,11 @@ function Header({ doc, started, onExport, onCheckpoints }: { doc: ProjectDoc; st
         </p>
       </div>
       <div className="cp-head-actions">
+        <Link to={base} className="btn" aria-current={screen === 'overview' ? 'page' : undefined}><CompassIcon size={16} aria-hidden="true" /> Overview</Link>
+        <Link to={`${base}/${CHECKPOINTS_ID}`} className="btn" aria-current={screen === 'checkpoints' ? 'page' : undefined}><Milestone size={16} aria-hidden="true" /> Checkpoints</Link>
         {!readOnly && <button type="button" className="btn primary" onClick={onExport}><Download size={16} aria-hidden="true" /> Export</button>}
-        <Link to={`${base}/${CHECKPOINTS_ID}`} className="btn" aria-current={onCheckpoints ? 'page' : undefined}><Milestone size={16} aria-hidden="true" /> Checkpoints</Link>
       </div>
-      <ul className="cp-cpchips" aria-label="Checkpoint status">
+      {screen !== 'overview' && <ul className="cp-cpchips" aria-label="Checkpoint status">
         {CHECKPOINT_DEFS.map((c) => {
           const status = doc.passport.review[c.id].status;
           return (
@@ -144,7 +152,7 @@ function Header({ doc, started, onExport, onCheckpoints }: { doc: ProjectDoc; st
             </li>
           );
         })}
-      </ul>
+      </ul>}
     </header>
   );
 }
@@ -209,7 +217,14 @@ function Stepper({ current, started, byStep }: { current: StepId | null; started
 }
 
 // ── Step screen ───────────────────────────────────────────────────────────
-function StepHead({ step, warnings }: { step: StepDef; warnings: Warning[] }) {
+/** The Learn page of a step. A statistical model's measured data and analysis plan are explained with its method card. */
+function learnFor(id: StepId, profile: StepProfile): { to: string; title: string } {
+  if ((id === 'inputs' && profile.inputs === 'measurement') || (id === 'experiment' && profile.experiment === 'analysis-plan')) return LEARN.method;
+  return LEARN[id];
+}
+
+function StepHead({ step, warnings, profile }: { step: StepDef; warnings: Warning[]; profile: StepProfile }) {
+  const learn = learnFor(step.id, profile);
   const { icon: Icon } = STEP_META[step.id];
   const jump = () => {
     const el = document.getElementById('open-items');
@@ -223,9 +238,11 @@ function StepHead({ step, warnings }: { step: StepDef; warnings: Warning[] }) {
         <p className="cp-stepno">Step {step.number} of {STEPS.length}</p>
         <h2 tabIndex={-1} id="cp-step-h">{step.title}</h2>
         <p className="cp-short">{step.short}</p>
+        <Link to={learn.to} className="cp-learn"><GraduationCap size={14} aria-hidden="true" /> Learn: {learn.title}</Link>
       </div>
       {warnings.length > 0 && (
-        <button type="button" className="cp-jump" onClick={jump} aria-label={`Show open items: ${SEVERITY_ORDER.map((sev) => `${warnings.filter((w) => w.severity === sev).length} ${SEVERITY[sev].label}`).join(', ')}`}>
+        <button type="button" className="cp-jump" onClick={jump}>
+          <span className="sr-only">Show open items: </span>
           {SEVERITY_ORDER.map((sev) => {
             const n = warnings.filter((w) => w.severity === sev).length;
             if (n === 0) return null;
@@ -246,7 +263,7 @@ function FootNav({ step }: { step: StepDef }) {
     <nav className="cp-foot" aria-label="Previous and next step">
       {prev
         ? <Link to={`${base}/${prev.id}`} className={`cp-foot-link prev ${STEP_META[prev.id].tone}`}><ChevronLeft size={20} aria-hidden="true" /><span><small>Previous</small>{prev.title}</span></Link>
-        : <span />}
+        : <Link to={base} className="cp-foot-link prev tone-primary"><ChevronLeft size={20} aria-hidden="true" /><span><small>Back to</small>Overview</span></Link>}
       {next
         ? <Link to={`${base}/${next.id}`} className={`cp-foot-link next ${STEP_META[next.id].tone}`}><span><small>Next</small>{next.title}</span><ChevronRight size={20} aria-hidden="true" /></Link>
         : <Link to={`${base}/${CHECKPOINTS_ID}`} className="cp-foot-link next tone-primary"><span><small>Next</small>Checkpoints</span><ChevronRight size={20} aria-hidden="true" /></Link>}
@@ -261,25 +278,29 @@ function CompassView({ doc, exampleDoc, step, readOnly }: { doc: ProjectDoc; exa
   const noop = useCallback(() => {}, []);
   const ctx = useMemo<PassportValue>(() => ({ doc, update: readOnly ? noop : update, readOnly, base }), [doc, update, readOnly, base, noop]);
 
-  const onCheckpoints = step === CHECKPOINTS_ID;
-  const stepId: StepId = step && isStepId(step) ? step : (!readOnly && lastStep(doc.id)) || 'frame';
-  const def = STEP_BY_ID[stepId];
-  const warnings = useMemo(() => compassWarnings(doc), [doc]);
+  const screen: Screen = !step ? 'overview' : step === CHECKPOINTS_ID ? 'checkpoints' : 'step';
+  const stepId: StepId = step && isStepId(step) ? step : 'frame';
+  // The step's texts as the project's method reads them (statistical, analytic or simulation; general with no method).
+  const profile = effectiveProfile(doc);
+  const def = stepFor(stepId, profile);
+  // Copies are compared with their Toolbox originals on this device; the worked example's originals are on no device.
+  const { list } = useArtefacts();
+  const toolbox = useMemo(() => (readOnly ? undefined : new Map(list.map((a) => [a.id, a.revision]))), [list, readOnly]);
+  const warnings = useMemo(() => compassWarnings(doc, toolbox), [doc, toolbox]);
   const byStep = useMemo(() => Object.fromEntries(STEPS.map((s) => [s.id, warnings.filter((w) => w.step === s.id)])) as Record<StepId, Warning[]>, [warnings]);
-  const started = stepsStarted(doc.passport);
+  const started = stepsStarted(doc.passport, doc.artefacts ?? []);
 
-  useEffect(() => { if (!readOnly && step && isStepId(step)) rememberStep(doc.id, step); }, [readOnly, step, doc.id]);
   // Tools opened from a step offer the way back to it.
-  useEffect(() => { if (!onCheckpoints) rememberOrigin(`${base}/${stepId}`, `step ${def.number}`); }, [base, stepId, def.number, onCheckpoints]);
+  useEffect(() => { if (screen === 'step') rememberOrigin(`${base}/${stepId}`, `step ${def.number}`); else if (screen === 'overview') rememberOrigin(base, 'the overview'); }, [base, stepId, def.number, screen]);
 
-  // Move focus to the step heading after navigating between steps (not on first load).
-  const screen = onCheckpoints ? CHECKPOINTS_ID : stepId;
-  const shown = useRef(screen);
+  // Move focus to the heading after moving between screens (not on first load).
+  const at = screen === 'step' ? stepId : screen;
+  const shown = useRef(at);
   useEffect(() => {
-    if (shown.current === screen) return;
-    shown.current = screen;
+    if (shown.current === at) return;
+    shown.current = at;
     document.getElementById('cp-step-h')?.focus({ preventScroll: true });
-  }, [screen]);
+  }, [at]);
 
   // `?export=1` opens the export dialog; closing it removes the flag so the link works again.
   const wantsExport = !readOnly && /[?&]export=1\b/.test(path);
@@ -311,11 +332,11 @@ function CompassView({ doc, exampleDoc, step, readOnly }: { doc: ProjectDoc; exa
             </div>
           </div>
         )}
-        <Header doc={doc} started={started} onExport={() => setExportOpen(true)} onCheckpoints={onCheckpoints} />
-        <Stepper current={onCheckpoints ? null : stepId} started={started} byStep={byStep} />
-        {onCheckpoints ? <Checkpoints /> : (
+        <Header doc={doc} started={started} onExport={() => setExportOpen(true)} screen={screen} />
+        {screen !== 'overview' && <Stepper current={screen === 'step' ? stepId : null} started={started} byStep={byStep} />}
+        {screen === 'overview' ? <Overview byStep={byStep} started={started} onExport={() => setExportOpen(true)} /> : screen === 'checkpoints' ? <Checkpoints /> : (
           <div className={`cp-step ${STEP_META[stepId].tone}`} key={stepId}>
-            <StepHead step={def} warnings={byStep[stepId]} />
+            <StepHead step={def} warnings={byStep[stepId]} profile={profile} />
             <QuickGuide step={def} />
             <div className="cp-layout">
               <div className="cp-main"><StepMain step={stepId} onExport={() => setExportOpen(true)} /></div>

@@ -21,7 +21,7 @@ export const QUESTIONS: Record<string, QuestionNode> = {
 };
 
 export const FAMILY_NOTES: Partial<Record<Kind, { use: string; example: string; thumb: (number | string)[] }>> = {
-  categorical: { use: 'You list the probability of each outcome directly.', example: 'A student picks channel A, B or C.', thumb: ['0.15, 0.35, 0.3, 0.2'] },
+  categorical: { use: 'You list the probability of each outcome directly.', example: 'A caller picks channel A, B or C.', thumb: ['0.15, 0.35, 0.3, 0.2'] },
   binomial: { use: 'Successes in a fixed number of independent trials.', example: 'Defective items in a batch of 20.', thumb: [12, 0.5] },
   discrete: { use: 'Every whole number in a range is equally likely.', example: 'The roll of a fair die.', thumb: [1, 8] },
   geometric: { use: 'Failures before the first success.', example: 'Calls before the first sale.', thumb: [0.3] },

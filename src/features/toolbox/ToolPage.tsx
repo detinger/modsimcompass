@@ -1,12 +1,12 @@
 import { useEffect, useId, useState, type ReactNode } from 'react';
-import { ArrowLeft, ArrowRight, CircleCheck, Copy, Download, FileJson, FolderOpen, LayoutGrid, Plus, RefreshCw, TriangleAlert } from 'lucide-react';
+import { ArrowLeft, ArrowRight, CircleCheck, Copy, Download, FileJson, FolderOpen, LayoutGrid, Plus, TriangleAlert } from 'lucide-react';
 import { useAddToProject, useArtefacts, type ArtefactEditor } from '../../app/artefacts';
 import { Link, useRouter } from '../../app/router';
 import { useStore } from '../../app/store';
 import { ARTEFACT_FILE_SUFFIX, artefactJson } from '../../domain/artefacts/file';
 import { kindDef, KINDS } from '../../domain/artefacts/kinds';
 import type { Artefact, ArtefactKind } from '../../domain/artefacts/types';
-import { STEP_BY_ID } from '../../domain/passport/compass';
+import { isStepId, STEP_BY_ID, STEP_LABEL, type StepId } from '../../domain/passport/compass';
 import { newId } from '../../domain/passport/schema';
 import { slugify } from '../../exports/projectFile';
 import { downloadFile } from '../../ui/controls';
@@ -16,6 +16,14 @@ import { TOOL_META } from './toolMeta';
 import '../../styles/toolbox.css';
 
 export interface ToolExport { id: string; label: string; run: () => void }
+
+/** The short step names of the menu, for “Back to …”. */
+
+/** `?from=scope`: the tool was opened from that project step, which gets a way back. */
+export function fromStep(path: string): StepId | null {
+  const from = new URLSearchParams(path.split('?')[1] ?? '').get('from') ?? '';
+  return isStepId(from) ? from : null;
+}
 
 const INTRO_SEEN = 'modsim-essentials.toolbox.intro-seen';
 function introSeen(kind: ArtefactKind): boolean {
@@ -44,7 +52,8 @@ export function ToolPage<K extends ArtefactKind>({ kind, editor, exports = [], i
   const { ofKind, put } = useArtefacts();
   const { active, toast } = useStore();
   const { state, add } = useAddToProject();
-  const { navigate } = useRouter();
+  const { navigate, path } = useRouter();
+  const from = fromStep(path);
   const titleId = useId(), hintId = useId();
 
   // The introduction is open the first time a tool is visited and folded away after that.
@@ -80,7 +89,10 @@ export function ToolPage<K extends ArtefactKind>({ kind, editor, exports = [], i
   return (
     <div className={`page wide tbx-page ${meta.tone}`}>
       <header className="tbx-head">
-        <Link to="/toolbox" className="tbx-back"><ArrowLeft size={14} aria-hidden="true" /> Toolbox</Link>
+        <span className="tbx-crumbs" style={{ display: 'flex', flexWrap: 'wrap', gap: '2px 6px' }}>
+          {from && <Link to={`/project/${from}`} className="tbx-back tbx-back-step"><ArrowLeft size={14} aria-hidden="true" /> Back to {STEP_LABEL[from]}</Link>}
+          <Link to="/toolbox" className="tbx-back">{!from && <ArrowLeft size={14} aria-hidden="true" />} Toolbox</Link>
+        </span>
         <div className="tbx-head-main">
           <span className="tbx-head-icon" aria-hidden="true"><Icon size={26} /></span>
           <div className="tbx-head-text">
@@ -105,18 +117,19 @@ export function ToolPage<K extends ArtefactKind>({ kind, editor, exports = [], i
           <button type="button" className="btn" disabled={!persisted} onClick={() => { void duplicate(); }}><Copy size={16} aria-hidden="true" /> Duplicate</button>
           <MenuButton label="Export" icon={Download} items={exportItems} disabled={!persisted} align="end" />
           <span className="ab-project">
-            {where === 'current' ? (
+            {/* A project is live: once added, the copy follows every change, so there is nothing to update by hand. */}
+            {where === 'current' || where === 'outdated' ? (
               <>
                 <span className="ab-in"><CircleCheck size={16} aria-hidden="true" /> In <strong className="ab-clip">{projectName}</strong></span>
                 <Link className="btn" to={`/project/${step.id}`}>Step {step.number} <ArrowRight size={14} aria-hidden="true" /><span className="sr-only">: {step.title}, in the project</span></Link>
               </>
             ) : (
               <button type="button" className="btn primary" disabled={empty} aria-describedby={empty ? hintId : undefined} onClick={() => add(anyArtefact)}>
-                {where === 'outdated' ? <RefreshCw size={16} aria-hidden="true" /> : <Plus size={16} aria-hidden="true" />}
-                {where === 'no-project' ? 'Add to a new project' : <>{where === 'outdated' ? 'Update' : 'Add to'} <span className="ab-clip">{projectName}</span></>}
+                <Plus size={16} aria-hidden="true" />
+                {where === 'no-project' ? 'Add to a new project' : <>Add to <span className="ab-clip">{projectName}</span></>}
               </button>
             )}
-            {empty && where !== 'current' && <span id={hintId} className="ab-hint">Nothing to add yet</span>}
+            {empty && where !== 'current' && where !== 'outdated' && <span id={hintId} className="ab-hint">Nothing to add yet</span>}
           </span>
         </div>
       </section>

@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { createArtefact, parseArtefactJson, storable, type ArtefactImport } from '../domain/artefacts/file';
-import { includeArtefact, inclusionOf } from '../domain/artefacts/include';
+import { includeArtefact, inclusionOf, refreshCopies, staleSources, undoChange, undoRecord, type UndoRecord } from '../domain/artefacts/include';
 import { isArtefactKind, KINDS } from '../domain/artefacts/kinds';
 import type { Artefact, ArtefactData, ArtefactKind } from '../domain/artefacts/types';
 import { createProject, newId } from '../domain/passport/schema';
@@ -32,13 +32,23 @@ const now = () => new Date().toISOString();
 const newestFirst = (list: Artefact[]) => [...list].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
 const SAVE_DELAY = 500;
 const SAVE_MAX_WAIT = 2000; // never postpone a pending save longer than this
+/** The revision an artefact is saved with: its own, or one more than a stored revision that is not behind it. */
+export const savedRevision = (draft: number, stored: number | null | undefined): number => (typeof stored === 'number' && stored >= draft ? stored + 1 : draft);
+
+/** A page of the open project: only a tab showing the project writes refreshed copies into it. */
+export const showsProject = (path: string) => /^\/project(\/|$)/.test(path.split(/[?#]/)[0]);
 
 export function ArtefactsProvider({ children }: { children: ReactNode }) {
-  const { repo } = useStore();
+  const { repo, active, update } = useStore();
+  const { path } = useRouter();
+  const showing = showsProject(path);
   const [ready, setReady] = useState(false);
   const [list, setList] = useState<Artefact[]>([]);
   const listRef = useRef<Artefact[]>([]);
   const writing = useRef(0);
+  const channel = useRef<BroadcastChannel | null>(null);
+  const activeRef = useRef(active);
+  useEffect(() => { activeRef.current = active; });
   const commit = useCallback((next: Artefact[]) => { listRef.current = next; setList(next); }, []);
 
   const reload = useCallback(async () => {
@@ -56,15 +66,39 @@ export function ArtefactsProvider({ children }: { children: ReactNode }) {
     // Another tab may have changed the store while this one was in the background.
     const onVisible = () => { if (document.visibilityState === 'visible' && writing.current === 0) void reload(); };
     document.addEventListener('visibilitychange', onVisible);
-    return () => { cancelled = true; document.removeEventListener('visibilitychange', onVisible); };
+    // Another tab saved an artefact: a copy of it in the open project may need refreshing, so read the list again.
+    const ch = typeof BroadcastChannel === 'undefined' ? null : new BroadcastChannel('modsim101-artefacts');
+    channel.current = ch;
+    if (ch) ch.onmessage = (ev: MessageEvent) => {
+      const m = ev.data as { type?: string; id?: string };
+      if (m?.type === 'artefact' && typeof m.id === 'string' && (activeRef.current?.artefacts ?? []).some((i) => i.sourceId === m.id)) void reload();
+    };
+    return () => { cancelled = true; document.removeEventListener('visibilitychange', onVisible); ch?.close(); channel.current = null; };
   }, [repo, reload]);
 
+  /**
+   * A saved revision is always newer than any stored before it, also when another tab saved the same artefact meanwhile:
+   * it becomes one more than the stored one whenever the draft is not already ahead, so no copy's `sourceRevision`
+   * can be ahead of its original.
+   */
   const put = useCallback(async (a: Artefact) => {
-    const stored = storable(a);
+    let stored = storable(a);
+    const known = listRef.current.find((x) => x.id === stored.id);
+    if (known && known !== a) stored = { ...stored, revision: savedRevision(stored.revision, known.revision) };
     commit(newestFirst([stored, ...listRef.current.filter((x) => x.id !== stored.id)]));
     if (!repo) throw new Error('Storage is not ready.');
     writing.current++;
-    try { await repo.saveArtefact(stored); } finally { writing.current--; }
+    try {
+      let onDisk: Artefact | null = null;
+      try { onDisk = await repo.getArtefact(stored.id); } catch { onDisk = null; }
+      if (onDisk && savedRevision(stored.revision, onDisk.revision) !== stored.revision) {
+        stored = { ...stored, revision: savedRevision(stored.revision, onDisk.revision) };
+        const s = stored;
+        commit(newestFirst([s, ...listRef.current.filter((x) => x.id !== s.id)]));
+      }
+      await repo.saveArtefact(stored);
+      channel.current?.postMessage({ type: 'artefact', id: stored.id, revision: stored.revision });
+    } finally { writing.current--; }
   }, [repo, commit]);
 
   const save = useCallback((a: Artefact) => put({ ...a, revision: a.revision + 1, updatedAt: now() }), [put]);
@@ -73,7 +107,7 @@ export function ArtefactsProvider({ children }: { children: ReactNode }) {
     commit(listRef.current.filter((x) => x.id !== id));
     if (!repo) return;
     writing.current++;
-    try { await repo.deleteArtefact(id); } finally { writing.current--; }
+    try { await repo.deleteArtefact(id); channel.current?.postMessage({ type: 'artefact', id }); } finally { writing.current--; }
   }, [repo, commit]);
 
   const duplicate = useCallback(async (id: string) => {
@@ -91,6 +125,19 @@ export function ArtefactsProvider({ children }: { children: ReactNode }) {
     try { await put(res.artefact); } catch { return { ok: false, error: 'The artefact could not be saved on this device.' }; }
     return res;
   }, [put]);
+
+  // Live projects (docs/TOOLBOX-SPEC.md §10): a copy in the open project follows its original on this device. Only a
+  // tab showing the project writes the refresh into it: when the project is opened there, and when an included artefact
+  // is saved, in this tab or (heard by broadcast) another. Tabs elsewhere never write the project, so a Toolbox tab
+  // cannot collide with one where the project is being edited. A copy whose original is not on this device stays as it
+  // is. The refresh is a silent edit of the project: saved with it, taken in by other tabs without a notice.
+  useEffect(() => {
+    if (!ready || !active || !showing) return;
+    const find = (id: string) => listRef.current.find((a) => a.id === id);
+    if (staleSources(active, find).length === 0) return;
+    const t = now();
+    update((d) => { refreshCopies(d, find, t); }, { silent: true });
+  }, [ready, active, list, update, showing]);
 
   const value = useMemo<ArtefactsApi>(() => ({
     ready, list,
@@ -290,12 +337,21 @@ export function useAddToProject(): { state(artefact: Artefact): AddState; add(ar
       return;
     }
     const name = active.passport.identity.title || 'Untitled project';
-    const before = { passport: structuredClone(active.passport), methods: structuredClone(active.methods), artefacts: structuredClone(active.artefacts ?? []) };
     const refreshed = !!inclusionOf(active, a.id);
     const displaced = !refreshed && !KINDS[a.kind].many ? (active.artefacts ?? []).find((i) => i.kind === a.kind) : undefined;
-    update((d) => { includeArtefact(d, a, t); });
-    const text = refreshed ? `Updated the ${what} in “${name}”.` : displaced ? `Added to “${name}”. It replaced “${displaced.title}”.` : `Added to “${name}”.`;
-    toast(text, 'success', { label: 'Undo', run: () => update((d) => { d.passport = before.passport; d.methods = before.methods; d.artefacts = before.artefacts; }) });
+    // An explicit add: the copy takes over the fields its kind writes. Text of the author's own that it replaces is named, never silent.
+    let overwritten: string[] = [];
+    let record: UndoRecord | null = null;
+    update((d) => {
+      const before = structuredClone(d);
+      const r = includeArtefact(d, a, t);
+      overwritten = r.overwritten;
+      record = undoRecord(before, d, [r.inclusionId, ...(r.replaced ? [r.replaced.id] : [])]);
+    });
+    const base = refreshed ? `Updated the ${what} in “${name}”.` : displaced ? `Added to “${name}”. It replaced “${displaced.title}”.` : `Added to “${name}”.`;
+    const text = overwritten.length ? `${base} Replaced your text in: ${overwritten.join(', ')}.` : base;
+    // Undo takes back only what the add did; edits made after it stay.
+    toast(text, 'success', { label: 'Undo', run: () => { const rec = record; if (rec) update((d) => { undoChange(d, rec); }); } });
   }, [active, update, addProject, toast]);
 
   return { state, add };

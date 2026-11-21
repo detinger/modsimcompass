@@ -150,7 +150,7 @@
   }
 }
 
-/* ModSim Essentials semantic aliases (STYLE §2.1) */
+/* ModSimCompass semantic aliases (STYLE §2.1) */
 :root {
   --ms-selection: var(--primary);
   --ms-selection-soft: var(--primary-soft);

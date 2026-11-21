@@ -96,7 +96,7 @@ export function workedExample(): ProjectDoc {
     claimType: 'decision-support',
   };
 
-  // ── 2 Scope and concept ──────────────────────────────────────────────────
+  // ── 2 Concept and scope ──────────────────────────────────────────────────
   p.scope = {
     boundary: 'Included: every request that reaches the central student-support office by e-mail, web form or walk-in, including the requests forwarded by the library desk; the advisors’ combined daily handling capacity; the backlog of open requests at the end of each day.',
     exclusions: 'IT helpdesk: it has its own staff, queue and budget, so its requests never use office capacity.\nEnrolment office: it handles enrolment and fee cases in a separate system; the few cases it passes on arrive as ordinary requests and are already counted.\nQuality and content of the answers, and the experience of individual students: the question is about the total backlog.',
@@ -271,8 +271,9 @@ export function workedExample(): ProjectDoc {
   };
   const arrivalModel: DataModel = {
     name: arrivals.name, unit: arrivals.unit,
-    family: 'categorical', params: [0.25, 0.5, 0.25], origin: 'described',
-    provenance: `${arrivals.provenance} The three categories stand for a quiet day (8), a typical day (12) and a busy day (16).`,
+    // Four equally weighted values give 8, 12 or 16 with probabilities 0.25, 0.5 and 0.25: the law of the input row, exactly.
+    family: 'empirical', params: [8, 12, 12, 16], origin: 'described',
+    provenance: `${arrivals.provenance} Written as four equally weighted values, 8, 12, 12 and 16: a quiet day (8), a typical day (12, twice as likely) and a busy day (16). These are not observations.`,
     uncertainty: arrivals.uncertainty, availability: 'obtainable', plan: arrivals.plan ?? '',
     summary: null, fit: null, generator: { seed: SEED, n: 30 }, keepData: false, data: [],
   };
@@ -295,7 +296,7 @@ export function workedExample(): ProjectDoc {
       { id: 'ck-calibrate-1', group: 'calibration', status: 'planned', evidence: '',
         text: 'Estimate the arrival distribution and the baseline capacity from the first 30 working days only. If validation fails, review the structure before changing a number.' },
     ],
-    validation: { measure: 'Mean end-of-day backlog over the held-out 30 working days, simulated against recorded', tolerancePct: 20, observed: [], simulated: [] },
+    validation: { measure: 'Mean end-of-day backlog over the held-out 30 working days, simulated against recorded', tolerancePct: 20, toleranceOn: 'means', observed: [], simulated: [] },
     calibration: {
       parameters: 'Arrival distribution; baseline daily handling capacity',
       tunedOn: 'Ticket-system records of the first 30 working days',

@@ -1,4 +1,4 @@
-/* ModSim Essentials — shared component styles. Colours only via tokens (tokens.css). */
+/* ModSimCompass — shared component styles. Colours only via tokens (tokens.css). */
 
 *, *::before, *::after { box-sizing: border-box; }
 html { -webkit-text-size-adjust: 100%; }
@@ -49,7 +49,14 @@ hr { border: 0; border-top: 1px solid var(--border); margin: 18px 0; }
   display: flex; flex-direction: column; padding: 10px 10px 12px;
 }
 .brand { display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 4px 4px 10px; text-decoration: none; color: var(--text); }
-.brand-mark { width: 30px; height: 30px; border-radius: var(--radius-sm); background: var(--primary); color: var(--text-on-primary); display: grid; place-items: center; flex: none; }
+.brand-mark { width: 30px; height: 30px; display: grid; place-items: center; flex: none; }
+/* The compass mark (Shell BrandMark); public/favicon.svg draws the same with fixed colours. */
+.brand-compass .bc-disc { fill: var(--bg-elevated); stroke: var(--primary); }
+.brand-compass .bc-star { fill: color-mix(in srgb, var(--primary) 24%, var(--bg-elevated)); }
+.brand-compass .bc-tail { fill: var(--text-subtle); }
+.brand-compass .bc-north { fill: var(--accent); }
+.brand-compass .bc-north-lit { fill: color-mix(in srgb, var(--accent) 68%, var(--bg-elevated)); }
+.brand-compass .bc-hub { fill: var(--bg-elevated); stroke: var(--primary); }
 .brand-name { font-size: 15px; font-weight: 650; letter-spacing: -0.01em; line-height: 1.15; }
 .brand-sub { font-size: 11px; color: var(--text-subtle); font-weight: 400; }
 .nav-group { display: flex; flex-direction: column; gap: 2px; padding: 6px 0; }
@@ -76,6 +83,15 @@ hr { border: 0; border-top: 1px solid var(--border); margin: 18px 0; }
 .sidebar-bottom { flex: none; flex-direction: row; flex-wrap: wrap; border-top: 1px solid var(--border); padding-bottom: 0; }
 .sidebar-bottom .nav-item { width: auto; flex: 1 1 auto; gap: 7px; padding: 8px; font-size: 13px; }
 .sidebar-bottom .nav-collapse { flex: none; }
+.theme-switch { display: inline-flex; align-items: center; gap: 2px; padding: 3px; margin: 4px 6px; border-radius: 999px; background: var(--bg-subtle); border: 1px solid var(--border); }
+.theme-switch button { display: grid; place-items: center; width: 34px; height: 28px; padding: 0; border: 0; border-radius: 999px; background: none; color: var(--text-muted); cursor: pointer; transition: background 120ms, color 120ms; }
+.theme-switch button:hover { color: var(--text); background: var(--bg-hover); }
+.theme-switch button[aria-pressed="true"] { background: var(--bg-elevated); color: var(--primary); box-shadow: var(--shadow-sm); }
+.theme-switch button:focus-visible { outline: 2px solid var(--focus, var(--primary)); outline-offset: 1px; }
+.sidebar-bottom { align-items: center; justify-content: space-between; }
+.theme-cycle { display: none; }
+.collapsed .theme-switch { display: none; }
+.collapsed .theme-cycle { display: flex; }
 .collapsed .nav-text, .collapsed .brand-text, .collapsed .nav-label, .collapsed .nav-num, .collapsed .nav-sub { display: none; }
 .collapsed .nav-item { justify-content: center; }
 .collapsed .nav-item.within { background: var(--primary-soft); color: var(--primary); }
@@ -328,6 +344,8 @@ details[open] > summary { margin-bottom: 6px; }
   .collapsed .nav-item.within { background: none; color: var(--text); }
   .collapsed .nav-sections { overflow-y: auto; }
   .collapsed .sidebar-bottom { flex-direction: row; }
+  .collapsed .theme-switch { display: inline-flex; }
+  .collapsed .theme-cycle { display: none; }
   .nav-sub-item { min-height: 34px; }
   .desktop-only { display: none !important; }
   .mobile-only { display: inline-flex !important; }

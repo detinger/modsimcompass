@@ -6,7 +6,7 @@ const OLD_TOOLS: Record<string, string> = {
 
 function redirectOnce(p: string): string | null {
   const exact: Record<string, string> = {
-    '/start': '/', '/projects': '/', '/glossary': '/', '/methods': '/project/method', '/sandbox': '/tools/sandbox',
+    '/start': '/', '/projects': '/', '/help': '/', '/settings': '/', '/glossary': '/learn/glossary', '/methods': '/project/method', '/sandbox': '/tools/sandbox',
     '/labs': '/tools', '/labs/linear-model': '/tools/regression', '/legacy': '/tools', '/legacy/linear-model': '/tools/regression',
   };
   if (exact[p]) return exact[p];

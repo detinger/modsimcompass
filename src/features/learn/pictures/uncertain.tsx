@@ -65,7 +65,7 @@ export function MonteCarloPicture({ label }: { label: string }) {
       <text className="lp-quiet" x={hx(MC.BUDGET) + 4} y={30}>budget</text>
       {sampling && <circle className="lp-dot is-hot" r={3.5} cy={BASE + 7} style={at(hx(Math.max(MC.LO, Math.min(MC.HI, last.total))), 0)} />}
       <text className="lp-cap" x={X1} y={140} textAnchor="end">{n} runs · over budget {Math.round((over / n) * 100)}%</text>
-      <text className="lp-quiet" x={X0} y={140}>total</text>
+      <text className="lp-small lp-quiet" x={X0} y={BASE + 18}>total</text>
     </Pic>
   );
 }

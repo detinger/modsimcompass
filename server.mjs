@@ -24,7 +24,7 @@ const SECURITY = {
 };
 
 if (!existsSync(join(ROOT, 'index.html'))) {
-  console.error(`[modsim-essentials] ${ROOT}/index.html not found. Run "npm run build" first.`);
+  console.error(`[modsimcompass] ${ROOT}/index.html not found. Run "npm run build" first.`);
   process.exit(1);
 }
 
@@ -55,10 +55,10 @@ const server = createServer((req, res) => {
   send(res, 200, join(ROOT, 'index.html'));
 });
 
-server.listen(PORT, HOST, () => console.log(`[modsim-essentials] serving ${ROOT} on http://${HOST}:${PORT}`));
+server.listen(PORT, HOST, () => console.log(`[modsimcompass] serving ${ROOT} on http://${HOST}:${PORT}`));
 
 function shutdown(signal) {
-  console.log(`[modsim-essentials] ${signal} received, closing server`);
+  console.log(`[modsimcompass] ${signal} received, closing server`);
   server.close(() => process.exit(0));
   setTimeout(() => process.exit(0), 5000).unref();
 }

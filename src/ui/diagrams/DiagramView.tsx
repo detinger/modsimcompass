@@ -1,7 +1,7 @@
 import type { ComponentType } from 'react';
 import { DIAGRAMS } from '../../content/diagrams/specs';
 import type { DiagramId } from '../../content/diagrams/types';
-import CompassJourney from './CompassJourney';
+import CompassView from './CompassView';
 import ConceptComponents from './ConceptComponents';
 import MethodFamilies from './MethodFamilies';
 import PairedComparison from './PairedComparison';
@@ -9,7 +9,7 @@ import VvCycle from './VvCycle';
 import '../../styles/diagrams.css';
 
 const VIEWS: Record<DiagramId, ComponentType> = {
-  'compass-journey': CompassJourney,
+  'compass-journey': CompassView,
   'concept-components': ConceptComponents,
   'method-families': MethodFamilies,
   'vv-cycle': VvCycle,

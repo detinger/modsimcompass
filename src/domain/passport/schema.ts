@@ -1,11 +1,12 @@
 import type { MethodId } from '../methods/registry';
 import type { MethodAnswers } from '../methods/rules';
 import type { RunRecord, SandboxConfig } from '../sandbox/types';
-import { defaultConfig } from '../sandbox/engine';
 import type { ArtefactData, ArtefactKind } from '../artefacts/types';
 
 /** Versioned model passport (PLAN §9). Completeness ≠ validity ≠ review status. */
-export const PASSPORT_SCHEMA = 'modsim-essentials/project';
+export const PASSPORT_SCHEMA = 'modsimcompass/project';
+/** The schema names of project files written under the app's earlier names (ModSim101, ModSim Essentials). They import as before. */
+export const LEGACY_PASSPORT_SCHEMAS: readonly string[] = ['modsim-essentials/project', 'modsim101/project'];
 export const PASSPORT_SCHEMA_VERSION = 3;
 
 export type EvidenceKind = 'observed' | 'literature' | 'expert' | 'assumed' | 'synthetic' | 'unspecified';
@@ -43,7 +44,13 @@ export interface InputRow {
 export interface OutcomeRow { id: string; metric: string; definition: string; unit: string; direction: '' | 'lower' | 'higher' | 'target'; aggregation: string; criterion: string }
 export interface MapNode { id: string; type: 'entity' | 'variable' | 'stakeholder'; label: string; x: number; y: number }
 export interface MapRelation { id: string; from: string; to: string; label: string; directed: boolean }
-export interface Checkpoint { status: ReviewStatus; notes: string; reviewer: string; feedbackSource: '' | 'self' | 'teacher'; rubric: Record<string, number>; /** Target date, ISO yyyy-mm-dd or ''. */ due: string }
+export interface Checkpoint {
+  status: ReviewStatus; notes: string; reviewer: string; feedbackSource: '' | 'self' | 'teacher'; rubric: Record<string, number>; /** Target date, ISO yyyy-mm-dd or ''. */ due: string;
+  /** When the review status was last set (ISO time). Absent while in draft, and in projects saved before it was recorded. */
+  reviewedAt?: string;
+  /** What the copies of the checkpoint's steps held when it was reviewed: id, title and a hash of the data. Absent in older projects. */
+  reviewedCopies?: { id: string; title: string; hash: string }[];
+}
 export interface LensNote { id: string; lensId: string; text: string; createdAt: string }
 
 export interface Passport {
@@ -86,6 +93,9 @@ export interface StartProgress {
  * A Toolbox artefact as it was added to a project (schema v3, docs/TOOLBOX-SPEC.md §3.1).
  * The project keeps this copy, so its report is complete on its own; the copy remembers its source.
  */
+/** The backlog sandbox as schema v1 and v2 stored it. Read once, by the upgrade (docs/TOOLBOX-SPEC.md §3.1). */
+export interface LegacySandbox { baseline?: SandboxConfig; alternative?: SandboxConfig | null; lastRun?: RunRecord | null }
+
 export type Inclusion<K extends ArtefactKind = ArtefactKind> = { [P in K]: {
   /** Id of this copy inside the project. */
   id: string;
@@ -93,6 +103,11 @@ export type Inclusion<K extends ArtefactKind = ArtefactKind> = { [P in K]: {
   sourceId: string; sourceRevision: number;
   kind: P; title: string; addedAt: string;
   data: ArtefactData[P];
+  /**
+   * Project fields (dot paths) this copy wrote and that still held its text when it was stored. A live refresh refills
+   * only these, so a field the author cleared stays clear. Absent in projects saved before it existed.
+   */
+  wrote?: string[];
 } }[K];
 
 export interface ProjectDoc {
@@ -103,13 +118,16 @@ export interface ProjectDoc {
   updatedAt: string;
   /** Increments on every saved edit. */
   projectRevision: number;
-  /** Increments only when scientific sandbox inputs change. */
+  /** Legacy: counted changes to the backlog sandbox's inputs. Kept so older files keep their shape; nothing changes it any more. */
   modelRevision: number;
   origin: { kind: 'blank' | 'first-problem' | 'example' | 'import' | 'copy'; ref?: string };
   passport: Passport;
   start: StartProgress;
-  /** Legacy (schema v1 and v2): the backlog sandbox. New screens do not read it; its last run is copied into `artefacts` on upgrade. */
-  sandbox: { baseline: SandboxConfig; alternative: SandboxConfig | null; lastRun: RunRecord | null };
+  /**
+   * Legacy (schema v1 and v2): the backlog sandbox. Nothing reads it. It is present only on a project that has not been
+   * upgraded yet; the upgrade copies its last run into `artefacts` as a comparison and then drops the field.
+   */
+  sandbox?: LegacySandbox;
   methods: MethodDecision;
   /** Copies of the Toolbox artefacts added to this project (schema v3). */
   artefacts: Inclusion[];
@@ -185,7 +203,6 @@ export function createProject(opts: { title?: string; origin?: ProjectDoc['origi
     origin: opts.origin ?? { kind: 'blank' },
     passport: p,
     start: { step: 0, classification: {}, prediction: '', predictionNote: '', firstSessionDone: {} },
-    sandbox: { baseline: defaultConfig(), alternative: null, lastRun: null },
     methods: { ruleVersion: null, answers: null, answersKey: null, shortlist: [], decidedAt: null },
     artefacts: [],
     lensNotes: [],

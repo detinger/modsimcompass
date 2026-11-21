@@ -1,10 +1,10 @@
-# ModSim Essentials — Project Compass specification
+# ModSimCompass — Project Compass specification
 
 Version 2.0 · 21 November 2026 · supersedes the scope of PLAN.md v1. STYLE.md tokens and accessibility rules still apply.
 
 ## 1 Purpose
 
-ModSim Essentials is the **project checklist and compass** for a master's course in Modelling and Simulation. Students define their semester project as a **model passport**, step by step, and receive guidance and warnings along the way. The passport is ready to be **assessed at five checkpoints**. A small set of **tools** supports the project.
+ModSimCompass is the **project checklist and compass** for a master's course in Modelling and Simulation. Students define their semester project as a **model passport**, step by step, and receive guidance and warnings along the way. The passport is ready to be **assessed at five checkpoints**. A small set of **tools** supports the project.
 
 The app does not teach lectures, host lessons or quizzes, or duplicate the specialist apps.
 
@@ -24,7 +24,7 @@ Old routes redirect to `/`, `/project` or `/tools`.
 | # | Step | Passport fields | Helpers |
 | --- | --- | --- | --- |
 | 1 | **Frame** | title, stakeholder, observed problem, decision levers, outcome of interest, precise question, claim type | — |
-| 2 | **Scope and concept** | boundary, exclusions, horizon, time unit, level of detail, constraints, conceptual sketch | Conceptual-model diagram |
+| 2 | **Concept and scope** | boundary, exclusions, horizon, time unit, level of detail, constraints, conceptual sketch | Conceptual-model diagram |
 | 3 | **Choose a method** | primary method, alternative, both justifications, recorded rule version and answers | Method chooser (questionnaire → shortlist with reasons, caveats and what each method omits); method-family cards; specialist-app links |
 | 4 | **Inputs and assumptions** | inputs (value, unit, source, provenance, uncertainty), assumptions (rationale, consequence, planned check, evidence) | Distribution tools, with Send to project |
 | 5 | **Verification and validation plan** | verification checks, validation evidence plan, calibration (kept separate) | V&V diagram; backlog sandbox as a practice ground |

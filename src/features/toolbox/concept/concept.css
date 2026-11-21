@@ -1,0 +1,223 @@
+/* ModSimCompass — Conceptual model tool: the canvas, its frame, elements, connections, panels and the list view.
+   Colours only via tokens (tokens.css, playful.css) and the tool's tone; element colours come from the domain as --cm-c / --cm-s.
+   Imported by ConceptTool.tsx, not by main.tsx. React Flow's own styles sit in a cascade layer, so these win. */
+
+.cm-tool { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+
+/* ── Toolbar and palette ───────────────────────────── */
+.cm-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.cm-seg { display: inline-flex; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); overflow: hidden; background: var(--bg-elevated); }
+.cm-seg button { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 12px; border: 0; background: transparent; color: var(--text-muted); font: inherit; font-size: 13px; font-weight: 500; cursor: pointer; }
+.cm-seg button + button { border-left: 1px solid var(--border-strong); }
+.cm-seg button:hover { background: var(--bg-hover); color: var(--text); }
+.cm-seg button[aria-pressed="true"] { background: var(--primary-soft); color: var(--primary); font-weight: 650; }
+.cm-sep { width: 1px; height: 20px; background: var(--border); }
+.btn.cm-icon-btn { width: 28px; padding: 0; }
+.cm-toolbar .btn[aria-pressed="true"] { background: var(--primary-soft); border-color: var(--primary); color: var(--primary); }
+.cm-link-kind { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: var(--text-muted); }
+.cm-link-kind select { width: auto; height: 28px; min-height: 28px; padding: 2px 8px; font-size: 13px; }
+
+.cm-palette { display: flex; flex-wrap: wrap; gap: 6px; }
+.cm-chip { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px 0 4px; border-radius: 999px; border: 1.5px solid color-mix(in srgb, var(--cm-c) 50%, var(--border)); background: var(--bg-elevated); color: var(--text); font: inherit; font-size: 13px; font-weight: 600; cursor: grab; white-space: nowrap; }
+.cm-chip:hover { background: var(--cm-s); border-color: var(--cm-c); }
+.cm-chip:active { cursor: grabbing; }
+.cm-chip-badge { width: 24px; height: 24px; flex: none; border-radius: 50%; display: grid; place-items: center; background: var(--cm-s); color: var(--cm-c); }
+.cm-chip:hover .cm-chip-badge { background: var(--bg-elevated); }
+
+/* ── Canvas ────────────────────────────────────────── */
+.cm-canvas {
+  position: relative; height: clamp(460px, calc(100vh - 300px), 900px); min-width: 0;
+  border: 1px solid var(--border); border-radius: var(--radius-xl); background: var(--canvas-bg); overflow: hidden; box-shadow: var(--tile-shadow);
+}
+.cm-canvas .react-flow {
+  --xy-background-color: transparent;
+  --xy-edge-stroke: var(--ms-relation);
+  --xy-edge-stroke-selected: var(--primary);
+  --xy-connectionline-stroke: var(--primary);
+  --xy-selection-background-color: color-mix(in srgb, var(--primary) 8%, transparent);
+  --xy-selection-border: 1px dashed var(--primary);
+  font-family: var(--font-sans);
+}
+.cm-markers { position: absolute; width: 0; height: 0; overflow: hidden; }
+.cm-empty { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 5; pointer-events: none; margin: 0; padding: 8px 16px; border-radius: 999px; background: var(--bg-elevated); border: 1.5px dashed var(--border-strong); color: var(--text-muted); font-size: 14px; white-space: nowrap; box-shadow: var(--shadow-sm); }
+.cm-keys { margin: 0; font-size: 12px; color: var(--text-muted); text-align: center; }
+.cm-knob-sample { display: inline-block; width: 10px; height: 10px; border-radius: 50%; border: 2px solid var(--primary); background: var(--bg-elevated); vertical-align: -1px; }
+
+/* The frame: the “Parts of a conceptual model” layout. Only its three texts take the pointer. */
+.react-flow__node-frame { pointer-events: none !important; cursor: default; }
+.cm-frame { position: relative; pointer-events: none; }
+.cm-boundary {
+  position: absolute; left: 0; top: 0; border-radius: 22px; border: 2px solid var(--tone, var(--fam-uncertainty));
+  background: color-mix(in srgb, var(--tone-soft, var(--bg-subtle)) 50%, var(--canvas-bg));
+  box-shadow: 0 0 0 7px color-mix(in srgb, var(--tone-soft, var(--bg-subtle)) 70%, transparent);
+}
+.cm-band { position: absolute; left: 0; right: 0; display: flex; background: var(--bg-elevated); }
+.cm-head { top: 0; border-bottom: 1.5px solid var(--border); border-radius: 20px 20px 0 0; }
+.cm-foot { border-top: 1.5px solid var(--border); border-radius: 0 0 20px 20px; }
+.cm-band-part { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; gap: 2px; padding: 10px 16px 10px; }
+.cm-foot .cm-band-part + .cm-band-part { border-left: 1.5px dashed var(--border-strong); }
+.cm-band-label { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--text-muted); }
+.cm-objectives .cm-band-label svg { color: var(--tone); }
+.cm-assumptions .cm-band-label svg { color: var(--warning); }
+.cm-simplifications .cm-band-label svg { color: var(--fam-processes); }
+textarea.cm-band-text {
+  pointer-events: auto; flex: 1; min-height: 0; resize: none; margin: 0 -8px; padding: 4px 8px; line-height: 1.4;
+  font-size: 15px; color: var(--text); background: transparent; border: 1px dashed transparent; border-radius: 8px;
+}
+.cm-head textarea.cm-band-text { font-size: 16px; font-weight: 500; }
+textarea.cm-band-text::placeholder { color: var(--text-subtle); font-style: italic; }
+textarea.cm-band-text:hover { border-color: var(--border-strong); }
+textarea.cm-band-text:focus { background: var(--bg-elevated); border-style: solid; border-color: var(--primary); }
+.cm-col { position: absolute; }
+.cm-col + .cm-col { border-left: 1.5px dashed var(--border-strong); }
+.cm-col-inputs { background: color-mix(in srgb, var(--success-soft) 45%, transparent); }
+.cm-col-outputs { background: color-mix(in srgb, var(--fam-uncertainty-soft) 55%, transparent); }
+.cm-col-head { position: absolute; top: 5px; left: 14px; right: 14px; display: flex; flex-direction: column; align-items: center; line-height: 1.2; font-size: 11.5px; color: var(--text-muted); white-space: nowrap; }
+.cm-col-head > * { max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+.cm-col-head strong { font-size: 12.5px; font-weight: 750; letter-spacing: .06em; text-transform: uppercase; color: var(--text); }
+.cm-col-arrow { position: absolute; top: 12px; right: -15px; width: 28px; height: 2.5px; border-radius: 2px; background: var(--tone); z-index: 1; }
+.cm-col-arrow::after { content: ''; position: absolute; right: 0; top: -4px; width: 8px; height: 8px; border-top: 2.5px solid var(--tone); border-right: 2.5px solid var(--tone); transform: rotate(45deg); border-radius: 1px; }
+.cm-outside {
+  position: absolute; border: 2px dashed var(--border-strong); border-radius: 22px;
+  background: repeating-linear-gradient(135deg, transparent 0 12px, color-mix(in srgb, var(--border) 45%, transparent) 12px 24px);
+}
+.cm-outside-hint { position: absolute; left: 50%; bottom: 16px; transform: translateX(-50%); color: var(--text-subtle); opacity: .55; }
+
+/* Elements */
+.react-flow__node-element { border-radius: 14px; }
+.cm-node {
+  --cm-c: var(--primary); --cm-s: var(--primary-soft);
+  position: relative; width: 140px; min-height: 56px; display: flex; align-items: center; gap: 8px; padding: 7px 10px 7px 7px;
+  background: var(--model-fill); color: var(--model-label); border: 2px solid var(--cm-c); border-radius: 12px; box-shadow: var(--shadow-sm);
+  font-size: 13px; font-weight: 600; line-height: 1.22;
+}
+.cm-badge { width: 30px; height: 30px; flex: none; border-radius: 50%; display: grid; place-items: center; background: var(--cm-s); color: var(--cm-c); }
+.cm-label { min-width: 0; overflow-wrap: anywhere; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; line-clamp: 3; overflow: hidden; }
+.cm-label.is-empty { color: var(--text-subtle); font-style: italic; font-weight: 500; }
+.cm-abbr { display: inline-block; margin-left: 1px; padding: 0 5px; border-radius: 999px; background: var(--cm-s); color: var(--text-muted); font-size: 10.5px; font-weight: 700; letter-spacing: .03em; line-height: 1.5; vertical-align: 1px; }
+.cm-node.is-selected { box-shadow: 0 0 0 3px var(--canvas-bg), 0 0 0 5px var(--primary), var(--shadow); }
+.cm-t-actor { border-radius: 999px; padding-right: 14px; }
+.cm-t-stock { border-radius: 4px; border-width: 3px; }
+.cm-t-lever { border-left-width: 7px; }
+.cm-t-outcome { outline: 1.5px solid var(--cm-c); outline-offset: 3px; }
+.cm-t-external { border-style: dashed; background: var(--bg-subtle); }
+.cm-t-note { background: var(--cm-s); border-color: transparent; border-radius: 3px 3px 18px 3px; font-weight: 500; font-style: italic; box-shadow: 2px 3px 0 color-mix(in srgb, var(--cm-c) 30%, transparent); }
+.cm-t-note .cm-badge { background: var(--model-fill); }
+.cm-node.is-editing { z-index: 2; }
+.cm-inline { pointer-events: all; font: inherit; width: 100%; min-width: 0; min-height: 0; padding: 2px 5px; border: 1.5px solid var(--primary); border-radius: 6px; resize: none; background: var(--bg-elevated); color: var(--text); line-height: 1.25; }
+textarea.cm-inline { min-height: 38px; }
+.cm-edge-label input.cm-inline { width: 170px; height: 24px; min-height: 24px; font-size: 12px; }
+
+/* Handles: a knob to drag from, and the whole element as the place to drop. */
+.react-flow__handle.cm-knob { width: 14px; height: 14px; min-width: 0; min-height: 0; right: -8px; z-index: 3; border: 2px solid var(--primary); background: var(--bg-elevated); opacity: 0; }
+.react-flow__handle.cm-knob::before { content: ''; position: absolute; inset: -9px; border-radius: 50%; }
+.react-flow__handle.cm-knob::after { content: ''; position: absolute; inset: 3px; border-radius: 50%; background: var(--primary); }
+.react-flow__node:hover .react-flow__handle.cm-knob, .cm-node.is-selected .react-flow__handle.cm-knob, .react-flow__handle.cm-knob.connectingfrom { opacity: 1; }
+.react-flow__handle.cm-drop { inset: -7px; width: auto; height: auto; min-width: 0; min-height: 0; transform: none; border: 0; border-radius: 16px; background: transparent; z-index: 1; }
+.react-flow__handle.cm-drop.connectingto.valid { background: color-mix(in srgb, var(--primary) 8%, transparent); box-shadow: 0 0 0 2px var(--primary); }
+.react-flow__handle.cm-drop.connectingto:not(.valid) { box-shadow: 0 0 0 2px var(--error); }
+.cm-connecting path { stroke: var(--primary); stroke-width: 2; stroke-dasharray: 6 4; }
+.cm-connecting.is-valid path { stroke-dasharray: none; }
+.cm-connecting.is-invalid path { stroke: var(--error); }
+.cm-mk-connect { fill: var(--primary); }
+
+/* Connections. Their labels sit above the elements, so a label in a narrow gap stays readable. */
+.cm-canvas .react-flow__edgelabel-renderer { z-index: 5; }
+.cm-edge-halo { fill: none; stroke: var(--primary); stroke-opacity: .22; stroke-width: 12; stroke-linecap: round; }
+.react-flow__edge:focus, .react-flow__edge:focus-visible { outline: none; box-shadow: none; }
+.react-flow__edge:focus-visible .cm-edge { filter: drop-shadow(0 0 3px var(--primary)); }
+.cm-edge-label {
+  position: absolute; pointer-events: all; padding: 2px 9px; border-radius: 999px; background: var(--bg-elevated); border: 1px solid var(--border);
+  font-size: 11.5px; font-weight: 500; color: var(--text-muted); white-space: nowrap; max-width: 180px; overflow: hidden; text-overflow: ellipsis; cursor: pointer;
+}
+.cm-edge-label.is-selected { border-color: var(--primary); color: var(--text); }
+.cm-sign { position: absolute; pointer-events: all; width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; background: var(--primary-soft); border: 1.5px solid var(--primary); color: var(--primary); font-weight: 800; font-size: 14px; line-height: 1; cursor: pointer; }
+.cm-sign.is-selected { background: var(--primary); color: var(--text-on-primary); }
+
+/* Panels on the canvas */
+.cm-legend { display: flex; flex-wrap: wrap; gap: 4px 12px; max-width: calc(100% - 80px); padding: 6px 12px; background: color-mix(in srgb, var(--bg-elevated) 92%, transparent); border: 1px solid var(--border); border-radius: 999px; font-size: 11.5px; color: var(--text-muted); box-shadow: var(--shadow-sm); }
+.cm-legend span { display: inline-flex; align-items: center; gap: 5px; }
+.cm-zoom { display: flex; flex-direction: column; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; background: var(--bg-elevated); box-shadow: var(--shadow-sm); }
+.cm-zoom button { width: 34px; height: 34px; display: grid; place-items: center; border: 0; background: transparent; color: var(--text); cursor: pointer; }
+.cm-zoom button + button { border-top: 1px solid var(--border); }
+.cm-zoom button:hover { background: var(--bg-hover); }
+.cm-kind-sample { flex: none; }
+
+/* The panel docked above the canvas: edits the selection, or offers the connect form. */
+.cm-bar {
+  display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px 10px; min-height: 58px; padding: 8px 12px; min-width: 0;
+  background: var(--bg-elevated); border: 1px solid var(--border); border-radius: var(--radius-lg); box-shadow: var(--tile-shadow);
+}
+.cm-bar.is-selection { border-color: color-mix(in srgb, var(--primary) 45%, var(--border)); background: color-mix(in srgb, var(--primary-soft) 40%, var(--bg-elevated)); }
+.cm-f { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.cm-f > label, .cm-kinds legend { font-size: 11px; font-weight: 600; color: var(--text-muted); padding: 0; }
+.cm-f select, .cm-f input[type="text"] { height: 30px; min-height: 30px; padding: 3px 8px; font-size: 13px; width: auto; max-width: 170px; }
+.cm-f-name { flex: 1 1 110px; }
+.cm-f-name input[type="text"] { width: 100%; max-width: none; }
+.cm-bar-badge { width: 34px; height: 34px; flex: none; align-self: center; border-radius: 50%; display: grid; place-items: center; background: var(--cm-s); color: var(--cm-c); }
+.cm-bar-title { display: inline-flex; align-items: center; gap: 6px; align-self: center; margin-right: 2px; font-size: 13px; font-weight: 650; }
+.cm-bar-sep { width: 1px; align-self: stretch; background: var(--border); }
+.cm-bar-end { margin-left: auto; display: inline-flex; align-items: center; gap: 10px; align-self: center; }
+.cm-connect { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px 10px; min-width: 0; }
+.cm-connect-empty { display: inline-flex; align-items: center; gap: 6px; align-self: center; }
+.cm-ends { margin: 0; align-self: center; display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; font-size: 13px; max-width: 220px; overflow-wrap: anywhere; }
+.cm-kinds { border: 0; padding: 0; margin: 0; min-width: 0; display: flex; flex-wrap: wrap; gap: 4px; }
+.cm-kinds legend { margin-bottom: 2px; }
+.cm-kind { position: relative; display: inline-flex; align-items: center; gap: 5px; height: 30px; padding: 0 7px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg-elevated); font-size: 12.5px; cursor: pointer; white-space: nowrap; }
+.cm-kind:hover { background: var(--bg-hover); }
+.cm-kind input { position: absolute; inset: 0; opacity: 0; margin: 0; cursor: pointer; }
+.cm-kind:has(input:checked) { border-color: var(--primary); background: var(--primary-soft); font-weight: 650; }
+.cm-kind:has(input:focus-visible) { outline: 2px solid var(--ms-focus); outline-offset: 2px; box-shadow: var(--focus-ring); }
+.cm-sign-choice { min-width: 34px; justify-content: center; font-size: 15px; font-weight: 800; }
+.cm-sign-choice.is-none { font-size: 12.5px; font-weight: 500; }
+.cm-muted { color: var(--text-muted); font-size: 13px; margin: 0; }
+
+/* ── List view ─────────────────────────────────────── */
+.cm-list { display: grid; gap: 12px; min-width: 0; }
+.cm-list .field { margin-bottom: 0; }
+.cm-list-text label { display: inline-flex; align-items: center; gap: 6px; }
+.cm-list-zones { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.cm-list-zone, .cm-list-block { min-width: 0; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--bg-elevated); padding: 12px 14px; }
+.cm-lz-inputs { border-top: 4px solid var(--success); }
+.cm-lz-content { border-top: 4px solid var(--tone); }
+.cm-lz-outputs { border-top: 4px solid var(--fam-uncertainty); }
+.cm-lz-outside { border-style: dashed; border-top: 4px dashed var(--border-strong); background: var(--bg-subtle); }
+.cm-list h3 { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px; font-size: 14px; margin-bottom: 8px; }
+.cm-list h3 small { font-weight: 400; font-size: 12px; color: var(--text-muted); }
+.cm-count { margin-left: auto; font-size: 11px; font-weight: 700; padding: 1px 8px; border-radius: 999px; background: var(--bg-subtle); color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.cm-list ul { list-style: none; padding: 0; margin: 0 0 10px; display: grid; gap: 6px; }
+.cm-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; min-width: 0; }
+.cm-row .cm-badge { width: 28px; height: 28px; }
+.cm-row input.cm-row-name { flex: 1 1 110px; width: auto; }
+.cm-row select, .cm-row input.cm-row-name { min-height: 32px; height: 32px; padding: 4px 8px; font-size: 13px; }
+.cm-row select { width: auto; flex: 0 1 auto; max-width: 10em; }
+.cm-edge-row { padding: 6px 0; border-top: 1px solid var(--border); }
+.cm-edge-row:first-child { border-top: 0; }
+.cm-edge-row > select { flex: 1 1 120px; }
+.cm-edge-kind { display: inline-flex; align-items: center; gap: 4px; min-width: 0; }
+.cm-add { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px; }
+.cm-add .field { margin: 0; }
+.cm-grow { flex: 1 1 180px; }
+.cm-list-block .cm-connect { margin-top: 4px; }
+.cm-arrows { margin: -2px 0 8px; }
+.cm-arrows strong { color: var(--text); font-variant-numeric: tabular-nums; }
+.cm-list-foot { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+
+/* ── Motion, narrow screens, print ─────────────────── */
+@media (prefers-reduced-motion: no-preference) {
+  .cm-chip, .cm-chip-badge { transition: background 140ms, border-color 140ms, transform 160ms; }
+  .cm-chip:hover .cm-chip-badge { transform: rotate(-10deg) scale(1.08); }
+  .react-flow__handle.cm-knob { transition: opacity 120ms, scale 120ms; }
+  .react-flow__handle.cm-knob:hover { scale: 1.25; }
+  .cm-node { transition: box-shadow 140ms; }
+}
+@media (max-width: 720px) {
+  .cm-canvas { height: 62vh; min-height: 360px; }
+  .cm-legend { display: none; }
+  .cm-list-zones, .cm-list-foot { grid-template-columns: minmax(0, 1fr); }
+  .cm-keys { display: none; }
+  .cm-empty { white-space: normal; width: 80%; text-align: center; border-radius: var(--radius-lg); }
+}
+@media print {
+  .cm-toolbar, .cm-palette, .cm-keys, .cm-zoom, .cm-bar { display: none !important; }
+}

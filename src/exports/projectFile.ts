@@ -1,10 +1,10 @@
-import type { ProjectDoc } from '../domain/passport/schema';
+import { PASSPORT_SCHEMA, type ProjectDoc } from '../domain/passport/schema';
 
 /**
  * The re-importable project file and file-name slugs. Kept apart from the report writers so that screens
  * which only download a project file do not load the Markdown, HTML, CSV and ZIP code with it.
  */
-export const APP_NAME = 'ModSim Essentials';
+export const APP_NAME = 'ModSimCompass';
 export const APP_VERSION = '3.0.0';
 
 export function slugify(title: string): string {
@@ -13,5 +13,6 @@ export function slugify(title: string): string {
 }
 
 export function projectJson(doc: ProjectDoc): string {
-  return JSON.stringify({ ...doc, exportedBy: { app: APP_NAME, version: APP_VERSION } }, null, 2);
+  // A project saved under an earlier name of the app is written under the current one.
+  return JSON.stringify({ ...doc, schema: PASSPORT_SCHEMA, exportedBy: { app: APP_NAME, version: APP_VERSION } }, null, 2);
 }

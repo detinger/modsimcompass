@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { ArrowRight, BookOpenCheck, Compass, FileUp, HardDrive, Plus, RotateCcw, Trash2, Wrench } from 'lucide-react';
+import { ArrowRight, BookOpen, BookOpenCheck, Compass, FileUp, HardDrive, Plus, RotateCcw, Trash2, Wrench } from 'lucide-react';
 import { useStore } from '../../app/store';
 import { Link, useRouter } from '../../app/router';
 import { newId, type ProjectDoc } from '../../domain/passport/schema';
@@ -16,8 +16,9 @@ import '../../styles/tools.css';
 interface PendingImport { project: ProjectDoc; warnings: string[]; summary: string[] }
 
 const DOORS = [
-  { to: '/project', title: 'Project', text: 'Seven steps, five checkpoints.', icon: Compass, tone: 'tone-primary' },
+  { to: '/learn', title: 'Learn', text: 'The process and every method, in pictures.', icon: BookOpen, tone: 'tone-purple' },
   { to: '/toolbox', title: 'Toolbox', text: 'Five tools. Each makes an artefact.', icon: Wrench, tone: 'tone-teal' },
+  { to: '/project', title: 'Project', text: 'Seven steps, five checkpoints.', icon: Compass, tone: 'tone-primary' },
   { to: '/example', title: 'Worked example', text: 'A finished project to learn from.', icon: BookOpenCheck, tone: 'tone-orange' },
 ];
 
@@ -66,7 +67,7 @@ export default function Home() {
   const figure = <Quiet><div className="home-figure"><FigureCard id="compass-journey" /></div></Quiet>;
   const doors = (
     <nav aria-label="Areas">
-      <ul className="tiles three doors">
+      <ul className="tiles four doors">
         {DOORS.map((d) => (
           <li key={d.to}>
             <Link to={d.to} className={`tile door ${d.tone}`}>
@@ -85,7 +86,7 @@ export default function Home() {
     <div className="page home">
       <section className="hero home-hero">
         <div className="home-hero-text">
-          <p className="eyebrow">ModSim Essentials</p>
+          <p className="eyebrow">ModSimCompass</p>
           <h1>Your project compass</h1>
           <p className="lede">Plan, check and defend your modelling project, one step at a time.</p>
           <div className="btn-row">

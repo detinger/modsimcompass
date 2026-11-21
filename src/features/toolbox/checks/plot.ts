@@ -1,4 +1,4 @@
-import { compareValidation, formatNumber } from '../../../domain/artefacts/checkPlan';
+import { compareRecord, formatNumber } from '../../../domain/artefacts/checkPlan';
 import type { CheckPlan } from '../../../domain/artefacts/types';
 
 /**
@@ -45,8 +45,9 @@ export function axisTicks(lo: number, hi: number, target = 5): number[] {
 const tickLabel = (t: number) => formatNumber(t);
 
 export function validationPlotSvg(v: CheckPlan['validation'], { width, standalone = false }: PlotOptions): string | null {
-  const cmp = compareValidation(v.observed, v.simulated, v.tolerancePct);
-  if (!cmp.ok) return null;
+  // Both panels match value i of each list: without pairs there is no picture (the numbers are still shown).
+  const cmp = compareRecord(v);
+  if (!cmp.ok || !cmp.paired) return null;
   const col = (t: Token) => (standalone ? TOKENS[t][1] : `var(${TOKENS[t][0]}, ${TOKENS[t][1]})`);
   const n = cmp.n, obs = v.observed, sim = v.simulated;
 

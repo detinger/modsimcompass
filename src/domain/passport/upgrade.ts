@@ -11,8 +11,11 @@ import { PASSPORT_SCHEMA_VERSION, type Inclusion, type ProjectDoc } from './sche
  *
  * Version 3 adds `artefacts`. An older project gets a copy of what it already holds: its sketch as a conceptual
  * model, its method decision as a method choice, and its last sandbox run as a comparison. The project's own fields
- * are left exactly as they are. The copies have fixed ids, so upgrading the same project twice gives the same result,
- * and a project that is already at version 3 is returned untouched (same object).
+ * are left exactly as they are. The copies have fixed ids, so upgrading the same project twice gives the same result.
+ *
+ * The backlog sandbox is retired: its last run lives on as the comparison copy, and the legacy `sandbox` field (with
+ * the sandbox settings) is dropped from the result, as LEARN-TOOLBOX-PLAN.md §10 says. A project that is already at
+ * version 3 and carries no such field is returned untouched (same object).
  */
 export const UPGRADE_COPIES: Record<'concept-model' | 'method-choice' | 'comparison', { id: string; sourceId: string; title: string }> = {
   'concept-model': { id: 'inc-from-sketch', sourceId: 'project-sketch', title: 'Conceptual sketch' },
@@ -91,7 +94,8 @@ const BUILD: { [K in keyof typeof UPGRADE_COPIES]: (doc: ProjectDoc) => Artefact
 export function upgradeProject(doc: ProjectDoc, note: (m: string) => void = () => {}): ProjectDoc {
   const from = typeof doc.schemaVersion === 'number' ? doc.schemaVersion : 1;
   const hasList = Array.isArray(doc.artefacts);
-  if (from >= PASSPORT_SCHEMA_VERSION && hasList) return doc;
+  const legacy = Object.hasOwn(doc, 'sandbox');
+  if (from >= PASSPORT_SCHEMA_VERSION && hasList && !legacy) return doc;
   const artefacts: Inclusion[] = hasList ? [...doc.artefacts] : [];
   if (from < 3) {
     const made: string[] = [];
@@ -107,5 +111,7 @@ export function upgradeProject(doc: ProjectDoc, note: (m: string) => void = () =
     }
     if (made.length) note(`Kept as artefacts of the project: ${made.join(', ')}.`);
   }
-  return { ...doc, schemaVersion: Math.max(from, PASSPORT_SCHEMA_VERSION), artefacts };
+  const rest: ProjectDoc = { ...doc };
+  delete rest.sandbox;
+  return { ...rest, schemaVersion: Math.max(from, PASSPORT_SCHEMA_VERSION), artefacts };
 }

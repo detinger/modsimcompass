@@ -1,9 +1,11 @@
 import { METHOD_BY_ID } from '../domain/methods/registry';
 import { QUESTIONS } from '../domain/methods/rules';
 import {
-  CHECKPOINT_DEFS, COMPASS_RULES_VERSION, RUBRIC_LEVELS, STEPS, checkpointReadiness, compassWarnings, dataReadiness, stepsStarted,
-  type Severity, type StepDef, type StepId, type Warning,
+  COMPASS_RULES_VERSION, RUBRIC_LEVELS, STEPS, changedSinceReview, removedSinceReview, checkpointDefsFor, checkpointReadiness, compassWarnings, dataReadiness, effectiveProfile, evaluationFields,
+  experimentFields, inputsTitle, stepFor, stepsStarted,
+  type CheckpointDef, type Severity, type StepDef, type StepId, type Warning,
 } from '../domain/passport/compass';
+import { checkPlanMarkdown, wordsMethod } from '../domain/artefacts/checkPlan';
 import { inclusionsFor } from '../domain/artefacts/include';
 import { isArtefactKind, kindDef } from '../domain/artefacts/kinds';
 import { EVIDENCE_KINDS, REVIEW_LABELS, type Checkpoint, type Inclusion, type ProjectDoc } from '../domain/passport/schema';
@@ -133,9 +135,10 @@ function methodLines(doc: ProjectDoc): string[] {
 
 function inputLines(doc: ProjectDoc): string[] {
   const p = doc.passport, L: string[] = [];
-  if (!p.inputs.length) L.push(`Inputs: _${NOT_SPECIFIED}_`, '');
+  const name = inputsTitle(effectiveProfile(doc)); // Inputs, Measured variables or Parameters, by the method
+  if (!p.inputs.length) L.push(`${name}: _${NOT_SPECIFIED}_`, '');
   else {
-    L.push('Inputs:', '', '| Name | Value / range | Unit | Source type | Provenance | Uncertainty | Data status |', '| --- | --- | --- | --- | --- | --- | --- |');
+    L.push(`${name}:`, '', '| Name | Value / range | Unit | Source type | Provenance | Uncertainty | Data status |', '| --- | --- | --- | --- | --- | --- | --- |');
     p.inputs.forEach((r) => {
       const status = pick(AVAILABILITY_LABELS, r.availability ?? '') ?? 'Not decided';
       L.push(`| ${cell(r.name)} | ${cell(r.value)} | ${cell(r.unit)} | ${evLabel(r.sourceType)} | ${cell(r.provenance)} | ${cell(r.uncertainty)} | ${status}${filled(r.plan) ? `: ${cell(r.plan)}` : ''} |`);
@@ -157,10 +160,13 @@ function inputLines(doc: ProjectDoc): string[] {
 }
 
 function evaluationLines(doc: ProjectDoc): string[] {
-  const e = doc.passport.evaluation;
+  const e = doc.passport.evaluation, profile = effectiveProfile(doc);
+  // What calibration means depends on the method: tuning (the general reading), estimation, or the sources of parameters.
+  const calibration = !profile.known || profile.calibration === 'tuning' ? 'Calibration (kept separate from validation)'
+    : profile.calibration === 'estimation' ? 'Estimation (kept separate from validation)' : evaluationFields(profile)[2].label;
   return [
     `- **Verification checks:** ${v(e.verification)}`, `- **Validation evidence plan:** ${v(e.validation)}`,
-    `- **Calibration (kept separate from validation):** ${v(e.calibration)}`, '',
+    `- **${calibration}:** ${v(e.calibration)}`, '',
   ];
 }
 
@@ -172,8 +178,9 @@ function experimentLines(doc: ProjectDoc): string[] {
     p.outcomes.forEach((o) => L.push(`| ${cell(o.metric)} | ${cell(o.definition)} | ${cell(o.unit)} | ${o.direction || '—'} | ${cell(o.aggregation)} | ${cell(o.criterion)} |`));
     L.push('');
   }
-  L.push(`- **Baseline:** ${v(p.experiment.baseline)}`, `- **Alternatives:** ${v(p.experiment.alternatives)}`,
-    `- **Comparison logic:** ${v(p.experiment.comparison)}`, `- **Run settings:** ${v(p.experiment.runSettings)}`, '');
+  const t = experimentFields(effectiveProfile(doc)).label; // policy experiment, scenario analysis or analysis plan
+  L.push(`- **${t.baseline}:** ${v(p.experiment.baseline)}`, `- **${t.alternatives}:** ${v(p.experiment.alternatives)}`,
+    `- **${t.comparison}:** ${v(p.experiment.comparison)}`, `- **${t.runSettings}:** ${v(p.experiment.runSettings)}`, '');
   return L;
 }
 
@@ -195,7 +202,7 @@ function selfCheckLines(doc: ProjectDoc, step: StepDef): string[] {
   const answer = (id: string) => (Object.prototype.hasOwnProperty.call(answers, id) && typeof answers[id] === 'string' ? answers[id] : '');
   return [
     '| Self-check question | Answer in the author’s own words |', '| --- | --- |',
-    ...step.selfChecks.map((q) => `| ${cell(q.question)} | ${cell(answer(q.id), `_${NOT_ANSWERED}_`)} |`),
+    ...stepFor(step.id, effectiveProfile(doc)).selfChecks.map((q) => `| ${cell(q.question)} | ${cell(answer(q.id), `_${NOT_ANSWERED}_`)} |`),
     '',
   ];
 }
@@ -224,10 +231,23 @@ function rubricLevel(cp: Checkpoint, criterionId: string): string {
   return typeof lv === 'number' && Number.isInteger(lv) && lv >= 0 && lv < RUBRIC_LEVELS.length ? `${RUBRIC_LEVELS[lv]} (level ${lv} of ${RUBRIC_LEVELS.length - 1})` : NOT_RATED;
 }
 
+/** A recorded review that no longer matches the project: the copies of its steps that changed after it. */
+function changedLine(doc: ProjectDoc, id: CheckpointDef['id']): string[] {
+  const changed = changedSinceReview(doc, id), removed = removedSinceReview(doc, id);
+  if (!changed.length && !removed.length) return [];
+  const when = humanDate(doc.passport.review[id].reviewedAt ?? '');
+  const names = (xs: string[]) => xs.map((t) => `“${oneLine(t) || 'Untitled'}”`).join(', ');
+  const parts = [
+    ...(changed.length ? [`${names(changed.map((i) => String(i.title ?? '')))} changed after the review recorded ${when}.`] : []),
+    ...(removed.length ? [`${names(removed)} ${removed.length === 1 ? 'was' : 'were'} removed since the review recorded ${when}.`] : []),
+  ];
+  return [`- **Changed since review:** ${parts.join(' ')}`];
+}
+
 function checkpointLines(doc: ProjectDoc): string[] {
   const stepOf = Object.fromEntries(STEPS.map((s) => [s.id, s])) as Record<StepId, StepDef>;
   const L = ['## Checkpoints', '', `Rubric levels, lowest to highest: ${RUBRIC_LEVELS.join(', ')}.`, ''];
-  for (const def of CHECKPOINT_DEFS) {
+  for (const def of checkpointDefsFor(effectiveProfile(doc))) {
     const cp = doc.passport.review[def.id];
     const open = checkpointReadiness(doc, def.id).length;
     L.push(`### ${def.label} checkpoint (${def.steps.length > 1 ? 'steps' : 'step'} ${def.steps.map((id) => stepOf[id].number).join(' and ')})`, '',
@@ -236,7 +256,8 @@ function checkpointLines(doc: ProjectDoc): string[] {
       `- **Feedback source:** ${pick(FEEDBACK_LABELS, cp.feedbackSource) ?? 'Not recorded'}`,
       `- **Reviewer:** ${filled(cp.reviewer) ? oneLine(cp.reviewer) : 'Not recorded'}`,
       `- **Notes:** ${filled(cp.notes) ? v(cp.notes) : 'None'}`,
-      `- **Open items for its steps (missing or check):** ${open}`, '',
+      `- **Open items for its steps (missing or check):** ${open}`,
+      ...changedLine(doc, def.id), '',
       '| Rubric criterion | Level |', '| --- | --- |',
       ...def.rubric.map((c) => `| ${cell(c.criterion)} | ${rubricLevel(cp, c.id)} |`), '');
   }
@@ -258,12 +279,13 @@ export function reportableCopies(doc: ProjectDoc): Inclusion[] {
  * section. The kind escapes the user text it prints; a kind that fails leaves a line saying so instead of breaking
  * the whole report.
  */
-export function artefactMarkdown(inc: Inclusion): string[] {
+export function artefactMarkdown(inc: Inclusion, doc?: Pick<ProjectDoc, 'passport'>): string[] {
   const def = kindDef(inc.kind);
   const name = oneLine(String(inc.title ?? '')) || 'Untitled';
   const L = [`### ${ARTEFACT_HEADING} — ${def.label}: ${name}`, '', `Added ${humanDate(String(inc.addedAt ?? ''))}. This is the copy kept in the project, as it was when it was added.`, ''];
   let body: string[];
-  try { body = def.markdown(inc.data); } catch { body = ['_This artefact could not be shown._', '']; }
+  // A check plan with no method of its own is read in the words of the project's method, as step 5 is.
+  try { body = inc.kind === 'check-plan' ? checkPlanMarkdown(inc.data, wordsMethod(inc.data, doc)) : def.markdown(inc.data); } catch { body = ['_This artefact could not be shown._', '']; }
   // A kind returns lists, tables and paragraphs. A line that would open a section of the report is escaped out of that role.
   L.push(...body.map((l) => (/^#{1,6} /.test(l) ? `\\${l}` : l)));
   if (L[L.length - 1] !== '') L.push('');
@@ -291,12 +313,12 @@ export function reportOutline(doc: ProjectDoc, opts: { includeAuthor?: boolean }
   if (opts.includeAuthor && filled(p.identity.author)) H.push(`Author: ${oneLine(p.identity.author)}`);
   if (p.identity.stage === 'planning') H.push('Stage: planning. The model has not been run yet, so step 7 is not expected to be filled.');
   H.push('', `> ${started.length} of ${STEPS.length} steps started. This counts steps with any content; it is not a measure of model validity or of review status.`, '');
-  H.push(`Author-entered text only: unfilled fields are marked “${NOT_SPECIFIED}”. Self-check answers are the author’s own words and are never graded by the app.`, '');
+  H.push(`Author-entered text only: unfilled fields are marked “${NOT_SPECIFIED}”. Self-check answers are the author’s own words; the app never scores them.`, '');
 
   const sections: ReportSection[] = STEPS.map((step) => ({
     heading: stepHeading(step), step,
     md: [`## ${stepHeading(step)}`, '', started.includes(step.id) ? 'Step status: started.' : 'Step status: not started.', '', ...STEP_BODY[step.id](doc), ...selfCheckLines(doc, step)].join('\n'),
-    artefacts: inclusionsFor({ ...doc, artefacts: copies }, step.id).map((inclusion) => ({ inclusion, md: artefactMarkdown(inclusion).join('\n') })),
+    artefacts: inclusionsFor({ ...doc, artefacts: copies }, step.id).map((inclusion) => ({ inclusion, md: artefactMarkdown(inclusion, doc).join('\n') })),
   }));
   const closing = (lines: string[]) => sections.push({ heading: lines[0].slice(3), step: null, md: lines.join('\n'), artefacts: [] });
   if (doc.lensNotes.length) closing(['## Additional notes', '', ...doc.lensNotes.map((n) => `- (${oneLine(n.lensId)}) ${oneLine(n.text)}`), '']);

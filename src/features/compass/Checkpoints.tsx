@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
-import { ArrowRight, ChevronDown, Leaf, Milestone } from 'lucide-react';
+import { ArrowRight, ChevronDown, History, Leaf, Milestone } from 'lucide-react';
 import { Link, useRouter } from '../../app/router';
-import { CHECKPOINT_DEFS, RUBRIC_LEVELS, RUBRIC_LEVEL_MEANING, STEP_BY_ID, checkpointReadiness, type CheckpointDef, type StepId } from '../../domain/passport/compass';
+import { CHECKPOINT_DEFS, RUBRIC_LEVELS, checkpointDefsFor, effectiveProfile, RUBRIC_LEVEL_MEANING, STEP_BY_ID, changedSinceReview, checkpointReadiness, markReviewed, removedSinceReview, type CheckpointDef, type StepId } from '../../domain/passport/compass';
 import { REVIEW_LABELS, type Checkpoint, type CheckpointId, type ReviewStatus } from '../../domain/passport/schema';
 import { usePassport } from '../project/passportContext';
 import { Area, Choice, Txt } from '../project/fields';
@@ -26,6 +26,14 @@ function CheckpointCard({ def, index, open, onToggle }: { def: CheckpointDef; in
   const rubric = r.rubric ?? {};
   const ready = checkpointReadiness(doc, def.id);
   const rated = def.rubric.filter((c) => rubric[c.id] !== undefined).length;
+  // The project is live: a copy that changed after the review is no longer what the reviewer saw.
+  const changed = changedSinceReview(doc, def.id);
+  const removed = removedSinceReview(doc, def.id);
+  const setStatus = (v: ReviewStatus) => update((d) => {
+    const cp = d.passport.review[def.id];
+    cp.status = v;
+    if (v === 'draft') { delete cp.reviewedAt; delete cp.reviewedCopies; } else markReviewed(d, def.id, new Date().toISOString());
+  });
   const setLevel = (criterion: string, level: number) => update((d) => {
     const cp = d.passport.review[def.id];
     cp.rubric ??= {};
@@ -45,6 +53,7 @@ function CheckpointCard({ def, index, open, onToggle }: { def: CheckpointDef; in
             <span className={`cp-pill ${ready.length > 0 ? 'has-open' : 'calm'}`}>{ready.length > 0 ? `${ready.length} open` : 'Nothing open'}</span>
             <span className="cp-pill">{rated} of {def.rubric.length} rated</span>
             <span className={`cp-pill ${STATUS_CLASS[r.status]}`}>{REVIEW_LABELS[r.status]}</span>
+            {changed.length > 0 && <span className="cp-pill has-open"><History size={12} aria-hidden="true" /> Changed since review</span>}
           </span>
           <ChevronDown size={18} aria-hidden="true" className="cp-ck-chev" />
         </button>
@@ -103,8 +112,21 @@ function CheckpointCard({ def, index, open, onToggle }: { def: CheckpointDef; in
           </div>
           <section className="cp-ck-review" aria-label={`${def.label}: review`}>
             <h4>Review</h4>
+            {(changed.length > 0 || removed.length > 0) && (
+              <div className="callout warning" role="status">
+                <History size={18} aria-hidden="true" />
+                <div>
+                  <strong>Changed since review</strong>
+                  <div>
+                    {changed.length > 0 && <>{changed.map((i) => `“${i.title.trim() || 'Untitled'}”`).join(', ')} changed after the review of {new Date(r.reviewedAt ?? '').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}. </>}
+                    {removed.length > 0 && <>{removed.map((t) => `“${t.trim() || 'Untitled'}”`).join(', ')} {removed.length === 1 ? 'was' : 'were'} removed since. </>}
+                    {!readOnly && <button type="button" className="btn small" onClick={() => update((d) => { markReviewed(d, def.id, new Date().toISOString()); })}>Reviewed again</button>}
+                  </div>
+                </div>
+              </div>
+            )}
             <div className="cp-duo">
-              <Choice label="Status" value={r.status} onChange={(v) => update((d) => { d.passport.review[def.id].status = v; })} options={STATUS_OPTIONS} />
+              <Choice label="Status" value={r.status} onChange={setStatus} options={STATUS_OPTIONS} />
               <Choice label="Feedback source" value={r.feedbackSource} clearTo="" onChange={(v) => update((d) => { d.passport.review[def.id].feedbackSource = v; })}
                 options={SOURCE_OPTIONS} hint="Entered manually, not authenticated." />
             </div>
@@ -146,7 +168,7 @@ export function Checkpoints() {
           <p className="cp-short">Five reviews along the way. Review status stays separate from steps started.</p>
         </div>
       </div>
-      {CHECKPOINT_DEFS.map((def, i) => <CheckpointCard key={def.id} def={def} index={i} open={open.has(def.id)} onToggle={() => toggle(def.id)} />)}
+      {checkpointDefsFor(effectiveProfile(doc)).map((def, i) => <CheckpointCard key={def.id} def={def} index={i} open={open.has(def.id)} onToggle={() => toggle(def.id)} />)}
     </div>
   );
 }

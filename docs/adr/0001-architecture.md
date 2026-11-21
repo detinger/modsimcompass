@@ -1,4 +1,6 @@
-# ADR 0001 — Architecture of ModSim Essentials
+# ADR 0001 — Architecture of ModSimCompass
+
+Earlier names: ModSim101, ModSim Essentials.
 
 Status: accepted · 20 November 2026
 

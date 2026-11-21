@@ -1,5 +1,7 @@
+import { libraryPlanId } from '../domain/artefacts/checkPlan';
 import type { PlannedCheck } from '../domain/artefacts/types';
 import type { MethodId } from '../domain/methods/registry';
+import { profileFor } from '../domain/methods/profiles';
 
 /**
  * The library of standard checks behind the verification, validation and calibration tool
@@ -18,13 +20,18 @@ export interface StandardCheck {
   text: string;
   /** Why it is worth doing, in one line. */
   why: string;
+  /** A sub-heading within the method's checks, such as “Structural model”. */
+  part?: string;
 }
 
-const v = (id: string, text: string, why: string): StandardCheck => ({ id, group: 'verification', text, why });
-const a = (id: string, text: string, why: string): StandardCheck => ({ id, group: 'validation', text, why });
-const c = (id: string, text: string, why: string): StandardCheck => ({ id, group: 'calibration', text, why });
+const v = (id: string, text: string, why: string, part?: string): StandardCheck => ({ id, group: 'verification', text, why, ...(part ? { part } : {}) });
+const a = (id: string, text: string, why: string, part?: string): StandardCheck => ({ id, group: 'validation', text, why, ...(part ? { part } : {}) });
+const c = (id: string, text: string, why: string, part?: string): StandardCheck => ({ id, group: 'calibration', text, why, ...(part ? { part } : {}) });
 
-/** Checks that apply whatever the method. */
+/** Parts of the validation of a structural equation model. */
+const REFLECTIVE = 'Reflective measurement', FORMATIVE = 'Formative measurement', STRUCTURAL = 'Structural model', GLOBAL = 'Global fit';
+
+/** Checks that apply whatever the method, except those a method's profile leaves out (src/domain/methods/profiles.ts). */
 export const GENERAL_CHECKS: StandardCheck[] = [
   v('g-units', 'Check units on every equation and input', 'A unit mismatch is the cheapest error to find and the costliest to miss.'),
   v('g-known-answer', 'Run a case with a known answer and compare', 'A model that misses a case you can work out by hand cannot be trusted on the rest.'),
@@ -33,7 +40,7 @@ export const GENERAL_CHECKS: StandardCheck[] = [
   v('g-walk-through', 'Walk one entity or one time step through by hand', 'One case followed line by line shows whether the code does what you intended.'),
   v('g-against-concept', 'Compare the code with the conceptual model, part by part', 'Everything in the conceptual model should be in the code, and nothing else.'),
 
-  a('g-held-out', 'Compare model output with data that was not used for tuning', 'Matching the tuning data shows that the tuning worked, not that the model is right.'),
+  a('g-held-out', 'Compare model output with data that was not used to set its parameters', 'Matching the data the parameters came from shows they were set well, not that the model is right.'),
   a('g-expert', 'Show the model and its results to someone who knows the system', 'People who run the system notice behaviour that could not happen.'),
   a('g-direction', 'Change one input and check the output moves in the expected direction', 'More demand should not shorten the wait. A wrong direction means a wrong structure.'),
   a('g-simpler-model', 'Compare with a simpler model or a rough hand calculation', 'A large gap must be explained by something the simple version leaves out.'),
@@ -44,27 +51,61 @@ export const GENERAL_CHECKS: StandardCheck[] = [
   c('g-other-fits', 'Check whether other parameter values fit the data equally well', 'If several sets fit, the data cannot tell them apart and their predictions may differ.'),
 ];
 
+/**
+ * The general checks of the third group for a method whose parameters are estimated from data rather than tuned.
+ * They take the place of the tuning checks above.
+ */
+export const ESTIMATION_CHECKS: StandardCheck[] = [
+  c('e-record', 'Record what was estimated, with which estimator, on how many cases', 'The estimates belong to these choices: another estimator or sample can give other values.'),
+  c('e-holdout', 'Predict cases that were not used for estimation and compare with what happened', 'Fit within the sample always flatters. Prediction on unseen cases is the guard against overfitting.'),
+  c('e-data-aside', 'Name the data used for estimation and keep other cases aside for prediction', 'Cases used to estimate cannot also test the prediction.'),
+];
+
 /** Checks that belong to one method. */
 export const METHOD_CHECKS: Record<MethodId, StandardCheck[]> = {
   'path-analysis': [
-    v('pa-recover', 'Fit data simulated with known path values and check they are recovered', 'If the fitting cannot find values you planted, it will not find real ones.'),
-    v('pa-indirect', 'Check that each indirect effect equals the product of its paths', 'A mismatch means the model that was fitted is not the one that was drawn.'),
+    v('pa-spec', 'Check the specification against the theory: every path drawn, and no other', 'A path left out is a claim that it is zero.'),
     v('pa-sample', 'Confirm the cases and variables in the output match the data file', 'Dropped rows and miscoded variables change every estimate without any warning.'),
-    a('pa-rival', 'Fit a rival model with one path reversed or removed and compare', 'If a rival fits as well, the data do not support your direction.'),
-    a('pa-residuals', 'Inspect the residual correlations for relations the model misses', 'Large residuals show where the drawn paths fail to explain the data.'),
+    v('pa-indirect', 'Check that each indirect effect equals the product of its paths', 'A mismatch means the model that was fitted is not the one that was drawn.'),
+    v('pa-recover', 'Fit data simulated with known path values and check they are recovered', 'If the fitting cannot find values you planted, it will not find real ones.'),
+    c('pa-converged', 'Confirm the estimation converged and no estimate is impossible, such as a negative variance', 'Numbers from a failed or improper solution are not estimates.'),
+    a('pa-fit', 'Check global fit with several indices and the chi-square test, read together, when the model has degrees of freedom', 'A saturated model fits perfectly by construction. One index can look fine while another shows misfit.', GLOBAL),
+    a('pa-residuals', 'Inspect the residual correlations for relations the model misses', 'Large residuals show where the drawn paths fail to explain the data.', GLOBAL),
+    a('pa-intervals', 'Report direct and indirect effects with bootstrap intervals', 'An indirect effect is a product of paths and is rarely normal; a bootstrap interval allows for that.', STRUCTURAL),
+    a('pa-rival', 'Fit a rival model with one path reversed or removed and compare', 'If a rival fits as well, the data do not support your direction.', STRUCTURAL),
   ],
   'cb-sem': [
-    v('cb-identified', 'Count free parameters against the known variances and covariances', 'A model that is not identified has no unique answer, whatever the software prints.'),
-    v('cb-impossible', 'Look for impossible estimates: negative variances, standardised loadings above one', 'They signal a wrong specification or too little data, not a finding.'),
-    v('cb-converged', 'Confirm the estimation converged, and note the estimator used', 'Numbers from a run that did not converge are not estimates.'),
-    a('cb-measurement', 'Check the measurement model before reading the structural paths', 'Paths between badly measured constructs mean little.'),
-    a('cb-rival', 'Compare with a rival model that the theory also allows', 'Good fit does not single out one model: others may fit the same data equally well.'),
+    v('cb-spec', 'Check the specification against the theory: indicators, error terms and fixed parameters', 'A fixed or freed parameter is part of the theory being tested.'),
+    v('cb-identified', 'Check identification: free parameters no more than the known variances and covariances, and a scale for each latent variable', 'The count is necessary, not sufficient. A model that is not identified has no unique answer, whatever the software prints.'),
+    v('cb-data', 'Prepare the data: missing values, reverse-coded items, straight-lining, and the distribution the estimator assumes', 'Unreversed items and identical answers distort every loading; a skewed item can break the estimator.'),
+    v('cb-recover', 'Fit data simulated from planted values and check they are recovered', 'If the estimation cannot find values you planted, it will not find real ones.'),
+    c('cb-converged', 'Confirm the estimation converged, and note the estimator used', 'Numbers from a run that did not converge are not estimates.'),
+    c('cb-impossible', 'Look for impossible estimates: negative variances, standardised loadings above one', 'They signal a wrong specification or too little data, not a finding.'),
+    a('cb-measurement', 'Check the measurement model before the paths: loadings, reliability, average variance extracted (AVE), discriminant validity (HTMT)', 'Paths between badly measured constructs mean little.', REFLECTIVE),
+    a('cb-fit', 'Check global fit with several indices and the chi-square test, read together', 'One index can look fine while another shows misfit. No single cut-off settles it.', GLOBAL),
+    a('cb-modification', 'Treat a change suggested by the data as a new hypothesis, to be tested on new data', 'A change found in the data always fits the same data better.', GLOBAL),
+    a('cb-paths', 'Report each path with its standard error or interval', 'A path whose interval spans zero does not support the hypothesis.', STRUCTURAL),
+    a('cb-rival', 'Compare with a rival model that the theory also allows', 'Good fit does not single out one model: others may fit the same data equally well.', STRUCTURAL),
   ],
   'pls-sem': [
-    v('pls-indicators', 'Confirm each indicator is attached to the intended construct, in the intended direction', 'One misplaced indicator changes the meaning of the whole construct.'),
-    v('pls-bootstrap', 'Rerun the bootstrap with another seed and check the intervals are stable', 'Intervals that move with the seed need more resamples.'),
-    a('pls-constructs', 'Check indicator reliability and that the constructs are distinct from each other', 'Two constructs that cannot be told apart cannot have a relation worth reporting.'),
-    a('pls-holdout', 'Assess prediction on held-out cases, not only fit within the sample', 'A claim about prediction needs cases the model has not seen.'),
+    v('pls-indicators', 'Check the specification against the theory: each indicator on its intended construct, each construct reflective or formative as intended', 'One misplaced indicator, or the wrong mode, changes the meaning of the whole construct.'),
+    v('pls-data', 'Prepare the data: handle missing values, reverse-code negatively worded items, screen for straight-lining', 'Unreversed items and identical answers distort every weight and loading downstream.'),
+    v('pls-settings', 'Record the estimation settings: weighting scheme, stop criterion, iterations to converge, bootstrap resamples and seed', 'Results cannot be repeated or reviewed without the settings that produced them.'),
+    v('pls-bootstrap', 'Rerun the bootstrap with another seed and check the intervals barely move', 'Intervals that move with the seed need more resamples.'),
+    v('pls-recover', 'Estimate data simulated from planted values and check they are recovered', 'If the estimation cannot find values you planted, it will not find real ones.'),
+    c('pls-converged', 'Confirm the algorithm converged well within its iteration limit', 'Stopping at the limit gives numbers, not estimates.'),
+    a('pls-loadings', 'Check each indicator loading; a common guide is about 0.7 or more', 'A weak indicator adds more noise than signal to its construct.', REFLECTIVE),
+    a('pls-reliability', 'Check internal consistency: composite reliability and coefficient alpha; a common guide is 0.7 to 0.95', 'Too low means the items disagree; very high can mean they repeat each other.', REFLECTIVE),
+    a('pls-ave', 'Check convergent validity: average variance extracted (AVE); a common guide is 0.5 or more', 'Below half, a construct explains less of its items than error does.', REFLECTIVE),
+    a('pls-constructs', 'Check discriminant validity with the HTMT ratio; a common guide is below 0.85 to 0.9', 'Two constructs that cannot be told apart cannot have a relation worth reporting.', REFLECTIVE),
+    a('pls-f-collinearity', 'Check collinearity among formative indicators (VIF); a common guide is below 3 to 5', 'Overlapping indicators make the weights unstable and hard to read.', FORMATIVE),
+    a('pls-f-weights', 'Check the relevance of each weight with its bootstrap interval; drop an indicator only for a reason in theory', 'A formative construct is made of its indicators: dropping one changes what it means.', FORMATIVE),
+    a('pls-s-collinearity', 'Check collinearity among the predictors of each construct (VIF)', 'Collinear predictors share the credit between their paths unpredictably.', STRUCTURAL),
+    a('pls-s-paths', 'Report each path with its bootstrap interval, not only its size', 'A path whose interval spans zero is not supported.', STRUCTURAL),
+    a('pls-s-r2', 'Report R² for each outcome and the effect size (f²) of each predictor', 'How much is explained, and by what, is the substance of the model.', STRUCTURAL),
+    a('pls-holdout', 'Predict held-out cases and compare with a simple benchmark, such as a linear model of the indicators', 'A claim about prediction needs cases the model has not seen, and something to beat.', STRUCTURAL),
+    a('pls-rival', 'Compare with a rival model that the theory also allows', 'If a rival explains and predicts as well, the data do not single out yours.', STRUCTURAL),
+    a('pls-robust', 'Test robustness: non-linear effects, and differences between groups', 'An effect that holds only on average, or only as a straight line, can mislead.', STRUCTURAL),
   ],
   'petri-nets': [
     v('pn-by-hand', 'Fire transitions by hand from the initial marking and compare with the tool', 'The first few markings show whether the arcs and weights are as intended.'),
@@ -72,6 +113,7 @@ export const METHOD_CHECKS: Record<MethodId, StandardCheck[]> = {
     v('pn-deadlock', 'Search the reachable markings for deadlock and for places that grow without limit', 'These are the questions the method answers. Answer them before anything else.'),
     v('pn-dead-transition', 'Confirm every transition can fire at least once', 'A transition that never fires is a step the model cannot perform.'),
     a('pn-real-case', 'Walk a real case through the net with someone who runs the process', 'A tidy net can still describe a process nobody follows.'),
+    c('pn-marking', 'Take the initial marking from the real process: how many cases and resources there are at the start', 'Deadlock can depend on the starting tokens, not only on the arcs.'),
   ],
   'monte-carlo': [
     v('mc-input-means', 'Check the sample means of inputs against their specified means', 'It catches a wrong parameter or a wrong distribution before it reaches the outcome.'),
@@ -79,12 +121,14 @@ export const METHOD_CHECKS: Record<MethodId, StandardCheck[]> = {
     v('mc-at-means', 'Set every input to a fixed value and compare with the plain calculation', 'With chance removed, the answer can be worked out and compared exactly.'),
     v('mc-dependence', 'Check that the sampled inputs keep the dependence you intended', 'Inputs sampled independently when they move together understate the spread.'),
     a('mc-spread', 'Compare the simulated spread of the outcome with the spread in past records', 'A plausible mean can come with an implausible range.'),
+    c('mc-sources', 'Name the source of each input distribution: data, expert judgement or assumption', 'An input with no source is an assumption the result silently depends on.'),
   ],
   'markov-chains': [
     v('mk-rows', 'Check every row of the transition matrix sums to one', 'A row that does not sum to one creates or loses cases at every step.'),
     v('mk-two-steps', 'Multiply the state shares forward two steps by hand and compare', 'It confirms the matrix is applied the right way round.'),
-    v('mk-long-run', 'Compare long-run shares from stepping with the solved steady state', 'Two routes to the same answer catch errors in either.'),
+    v('mk-long-run', 'Compare long-run shares from stepping with the solved steady state', 'Stepping settles only for an irreducible, aperiodic chain. Two routes to the same answer catch errors in either.'),
     a('mk-memory', 'Check from data whether time already spent in a state changes the chance of leaving', 'If it does, the states hide memory and the chain will mislead.'),
+    c('mk-counts', 'Estimate each probability from counted transitions, and note how many each row rests on', 'A row built on a handful of transitions is a guess, whatever its decimals.'),
     c('mk-periods', 'Estimate the transition probabilities on one period and test them on another', 'Probabilities that drift between periods cannot be projected forward.'),
   ],
   'system-dynamics': [
@@ -100,6 +144,7 @@ export const METHOD_CHECKS: Record<MethodId, StandardCheck[]> = {
     v('qt-limits', 'Try the limiting cases: very low load, and many servers', 'Waiting should vanish in both. If it does not, the formula is misapplied.'),
     a('qt-arrivals', 'Check from data whether the arrival rate is steady over the period', 'The formulas assume it is. A rush hour breaks them.'),
     a('qt-observed-wait', 'Compare the predicted mean wait with waits that were measured', 'It tests the arrival and service assumptions together.'),
+    c('qt-rates', 'Estimate the arrival and service rates from records, and note the period they cover', 'A rate from a quiet month says little about a busy one.'),
   ],
   des: [
     v('des-formula', 'Compare a single-server case with the queueing formula', 'A simple case with a known answer tests the event logic end to end.'),
@@ -124,15 +169,21 @@ export const METHOD_CHECKS: Record<MethodId, StandardCheck[]> = {
   ],
 };
 
-export const ALL_STANDARD_CHECKS: StandardCheck[] = [...GENERAL_CHECKS, ...Object.values(METHOD_CHECKS).flat()];
+export const ALL_STANDARD_CHECKS: StandardCheck[] = [...GENERAL_CHECKS, ...ESTIMATION_CHECKS, ...Object.values(METHOD_CHECKS).flat()];
 
-/** The standard checks of one area: the general ones, then those of the chosen method (none while it is undecided). */
+/**
+ * The standard checks of one area: the general ones that suit the method, then the method's own (none while it is
+ * undecided). A method's profile leaves out general checks that do not apply; for a method estimated from data the
+ * third area offers estimation checks instead of the tuning ones.
+ */
 export function standardChecks(method: MethodId | '', group: CheckGroup): { general: StandardCheck[]; specific: StandardCheck[] } {
+  const profile = profileFor(method);
+  const pool = group === 'calibration' && profile?.calibration === 'estimation' ? ESTIMATION_CHECKS : GENERAL_CHECKS.filter((k) => k.group === group);
   return {
-    general: GENERAL_CHECKS.filter((k) => k.group === group),
+    general: pool.filter((k) => !profile?.skipGeneral.includes(k.id)),
     specific: method ? METHOD_CHECKS[method].filter((k) => k.group === group) : [],
   };
 }
 
 /** The id a plan gives to a check taken from the library, so the library can show it as added. */
-export const planIdFor = (standardId: string): string => `std-${standardId}`;
+export const planIdFor = libraryPlanId;

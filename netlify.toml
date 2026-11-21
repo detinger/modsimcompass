@@ -1,4 +1,4 @@
-# Netlify — static build of ModSim Essentials (no functions, no backend).
+# Netlify — static build of ModSimCompass (no functions, no backend).
 [build]
   command = "npm run build"
   publish = "dist"
@@ -12,7 +12,7 @@
   to = "/not-found.txt"
   status = 404
 
-# SPA fallback: deep links such as /challenges/C04 survive refresh.
+# SPA fallback: deep links such as /project/scope survive refresh.
 # Existing files (index.html, assets, favicon) are served first because force = false.
 [[redirects]]
   from = "/*"

@@ -22,6 +22,8 @@ export interface CsvColumn {
   index: number; name: string;
   /** The numbers, in file order. */
   values: number[];
+  /** One entry per data row: the number in that row, or null for a blank cell or a cell that is not a number. Keeps rows of two columns aligned. */
+  byRow: (number | null)[];
   blank: number;
   /** Cells that hold something that is not a number. */
   rejected: number;
@@ -182,16 +184,16 @@ export function parseCsv(source: string, opts: { separator?: CsvSeparator; heade
     const usesComma = cells.some((t) => COMMA_NUMBER.test(t));
     const usesPoint = cells.some((t) => t.includes('.') && PLAIN_NUMBER.test(t));
     const decimalComma = usesComma && !usesPoint;
-    const values: number[] = [], rejectedSamples: CsvRejected[] = [];
+    const values: number[] = [], byRow: (number | null)[] = new Array(cells.length).fill(null), rejectedSamples: CsvRejected[] = [];
     let blank = 0, rejected = 0;
     cells.forEach((t, k) => {
       if (t === '') { blank++; return; }
       const v = PLAIN_NUMBER.test(t) ? Number(t) : decimalComma && COMMA_NUMBER.test(t) ? Number(t.replace(',', '.')) : NaN;
-      if (Number.isFinite(v)) { values.push(v); return; }
+      if (Number.isFinite(v)) { values.push(v); byRow[k] = v; return; }
       rejected++;
       if (rejectedSamples.length < 5) rejectedSamples.push({ line: body[k].line, text: t.replace(/\s+/g, ' ').slice(0, 40) });
     });
-    return { index, name, values, blank, rejected, rejectedSamples, decimalComma, offered: values.length >= CSV_MIN_NUMBERS && values.length >= rejected };
+    return { index, name, values, byRow, blank, rejected, rejectedSamples, decimalComma, offered: values.length >= CSV_MIN_NUMBERS && values.length >= rejected };
   });
 
   return {
@@ -202,4 +204,20 @@ export function parseCsv(source: string, opts: { separator?: CsvSeparator; heade
       preview: body.slice(0, 5).map((r) => Array.from({ length: width }, (_, i) => (r.cells[i] ?? '').replace(/\s+/g, ' ').slice(0, 40))),
     },
   };
+}
+
+/**
+ * Two columns read row by row: only rows where both cells hold a number are kept, so row i of each list
+ * still comes from the same line of the file. `dropped` counts the rows left out.
+ */
+export function pairedColumns(a: CsvColumn, b: CsvColumn): { first: number[]; second: number[]; dropped: number } {
+  const first: number[] = [], second: number[] = [];
+  const n = Math.max(a.byRow.length, b.byRow.length);
+  let dropped = 0;
+  for (let i = 0; i < n; i++) {
+    const x = a.byRow[i] ?? null, y = b.byRow[i] ?? null;
+    if (x === null || y === null) { if (x !== null || y !== null) dropped++; continue; }
+    first.push(x); second.push(y);
+  }
+  return { first, second, dropped };
 }

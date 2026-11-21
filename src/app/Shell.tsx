@@ -1,25 +1,28 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import {
-  AlertTriangle, BookOpen, CheckCircle2, ChevronsLeft, ChevronsRight, CircleHelp, Compass, House, Loader2, Menu, Settings as SettingsIcon, Wrench, X,
+  AlertTriangle, BookOpen, CheckCircle2, ChevronsLeft, ChevronsRight, Compass, House, Loader2, Menu, Monitor, Moon, Sun, Wrench, X,
 } from 'lucide-react';
 import { Link, useRouter } from './router';
 import { useStore } from './store';
 import { Dialog } from '../ui/controls';
-import { KIND_ORDER, KINDS } from '../domain/artefacts/kinds';
-import { STEPS, type StepId } from '../domain/passport/compass';
+import { KINDS, TOOL_ORDER } from '../domain/artefacts/kinds';
+import { STEP_LABEL, STEPS } from '../domain/passport/compass';
+import type { ThemePref } from '../persistence/prefs';
 import { TOOL_META } from '../features/toolbox/toolMeta';
 
-export function BrandMark({ size = 20 }: { size?: number }) {
-  // A frame holding two alternative representations: a small node graph and a stock bar.
+/**
+ * The app's mark: a compass with a blue ring, a four-point star and an orange needle pointing north-east, in the
+ * family of the Home dial and the compass wheel. `public/favicon.svg` is the same drawing with fixed colours.
+ */
+export function BrandMark({ size = 30 }: { size?: number }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 20 20" fill="none" aria-hidden="true">
-      <rect x="1.5" y="1.5" width="17" height="17" rx="3" stroke="currentColor" strokeWidth="1.5" />
-      <circle cx="6" cy="7" r="1.8" fill="currentColor" />
-      <circle cx="6" cy="13.5" r="1.8" fill="currentColor" />
-      <path d="M6 8.8v2.9" stroke="currentColor" strokeWidth="1.3" />
-      <line x1="10" y1="3.5" x2="10" y2="16.5" stroke="currentColor" strokeWidth="1" opacity="0.6" />
-      <rect x="12.5" y="9" width="4" height="6" rx="0.8" fill="currentColor" />
-      <rect x="12.5" y="5" width="4" height="3" rx="0.8" stroke="currentColor" strokeWidth="1" />
+    <svg className="brand-compass" width={size} height={size} viewBox="0 0 32 32" aria-hidden="true">
+      <circle className="bc-disc" cx="16" cy="16" r="14" strokeWidth="2.6" />
+      <path className="bc-star" d="M16,4.4 L18,16 L16,27.6 L14,16 Z M4.4,16 L16,14 L27.6,16 L16,18 Z" />
+      <path className="bc-tail" d="M9.92,22.08 L19.04,19.04 L12.96,12.96 Z" />
+      <path className="bc-north" d="M24.70,7.30 L19.04,19.04 L16.00,16.00 Z" />
+      <path className="bc-north-lit" d="M24.70,7.30 L12.96,12.96 L16.00,16.00 Z" />
+      <circle className="bc-hub" cx="16" cy="16" r="1.5" strokeWidth="1.1" />
     </svg>
   );
 }
@@ -28,40 +31,49 @@ export function BrandMark({ size = 20 }: { size?: number }) {
 interface SubLink { to: string; label: string; /** Step number, shown before the label. */ num?: number; /** Current only on exactly this address. */ exact?: boolean }
 interface Section { to: string; label: string; icon: typeof Compass; links: SubLink[]; /** Other address prefixes that belong to the section. */ also?: string[] }
 
-const STEP_SHORT: Record<StepId, string> = { frame: 'Frame', scope: 'Scope', method: 'Method', inputs: 'Inputs', evaluation: 'Check', experiment: 'Experiment', conclude: 'Conclude' };
 const SECTIONS: Section[] = [
   { to: '/', label: 'Home', icon: House, links: [] },
   { to: '/learn', label: 'Learn', icon: BookOpen, links: [
-    { to: '/learn/process', label: 'Process' }, { to: '/learn/methods', label: 'Methods' }, { to: '/learn/ideas', label: 'Key ideas' },
+    { to: '/learn/process', label: 'Process' }, { to: '/learn/methods', label: 'Methods' }, { to: '/learn/ideas', label: 'Key ideas' }, { to: '/learn/glossary', label: 'Glossary' },
   ] },
   { to: '/toolbox', label: 'Toolbox', icon: Wrench, links: [
-    ...KIND_ORDER.map((k) => ({ to: KINDS[k].toolPath, label: TOOL_META[k].short })),
+    ...TOOL_ORDER.map((k) => ({ to: KINDS[k].toolPath, label: TOOL_META[k].short })),
     { to: '/toolbox/artefacts', label: 'My artefacts' },
   ] },
   { to: '/project', label: 'Project', icon: Compass, also: ['/example'], links: [
     { to: '/project', label: 'Overview', exact: true },
-    ...STEPS.map((s) => ({ to: `/project/${s.id}`, label: STEP_SHORT[s.id], num: s.number })),
+    ...STEPS.map((s) => ({ to: `/project/${s.id}`, label: STEP_LABEL[s.id], num: s.number })),
     { to: '/project/checkpoints', label: 'Checkpoints' },
   ] },
 ];
-const UTILITY = [
-  { to: '/help', label: 'Help', icon: CircleHelp },
-  { to: '/settings', label: 'Settings', icon: SettingsIcon },
+const THEMES: { value: ThemePref; label: string; icon: typeof Sun }[] = [
+  { value: 'light', label: 'Light', icon: Sun }, { value: 'dark', label: 'Dark', icon: Moon }, { value: 'system', label: 'System', icon: Monitor },
 ];
+
+/** The only setting: light, dark, or follow the system. A narrow (collapsed) sidebar shows one button that cycles. */
+function ThemeSwitch() {
+  const { prefs, setPrefs } = useStore();
+  const i = Math.max(0, THEMES.findIndex((t) => t.value === prefs.theme));
+  const cur = THEMES[i], next = THEMES[(i + 1) % THEMES.length], CurIcon = cur.icon;
+  return (
+    <>
+      <div className="theme-switch" role="group" aria-label="Theme">
+        {THEMES.map((t) => (
+          <button key={t.value} type="button" aria-pressed={prefs.theme === t.value} aria-label={t.label} title={t.label} onClick={() => setPrefs({ theme: t.value })}>
+            <t.icon size={15} aria-hidden="true" />
+          </button>
+        ))}
+      </div>
+      <button type="button" className="nav-item theme-cycle" data-label={`Theme: ${cur.label}`} aria-label={`Theme: ${cur.label}. Switch to ${next.label}`} onClick={() => setPrefs({ theme: next.value })}>
+        <CurIcon size={18} aria-hidden="true" />
+      </button>
+    </>
+  );
+}
 
 const clean = (path: string) => path.split(/[?#]/)[0].replace(/\/+$/, '') || '/';
 const under = (p: string, to: string) => (to === '/' ? p === '/' : p === to || p.startsWith(`${to}/`));
 const onLink = (p: string, l: SubLink) => (l.exact ? p === l.to : under(p, l.to));
-
-function NavItem({ to, label, icon: Icon, onNav }: { to: string; label: string; icon: typeof Compass; onNav: () => void }) {
-  const { path } = useRouter();
-  return (
-    <Link to={to} className="nav-item" aria-current={under(clean(path), to) ? 'page' : undefined} data-label={label} onClick={onNav}>
-      <Icon size={18} aria-hidden="true" />
-      <span className="nav-text">{label}</span>
-    </Link>
-  );
-}
 
 /** A section and its pages. The section itself is the current page only when none of its pages is. */
 function NavSection({ section, onNav }: { section: Section; onNav: () => void }) {
@@ -153,15 +165,16 @@ export function Shell({ children }: { children: ReactNode }) {
       <div className="drawer-backdrop" onClick={closeDrawer} aria-hidden="true" />
       <nav className="sidebar" aria-label="Primary">
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <Link to="/" className="brand" aria-label="ModSim Essentials — Home">
-            <span className="brand-mark"><BrandMark /></span>
-            <span className="brand-text"><span className="brand-name">ModSim Essentials</span><br /><span className="brand-sub">Modelling and Simulation</span></span>
+          <Link to="/" className="brand">
+            <span className="brand-mark" aria-hidden="true"><BrandMark /></span>
+            <span className="brand-text"><span className="brand-name">ModSimCompass</span><br /><span className="brand-sub">Modelling and Simulation</span></span>
+            <span className="sr-only">, Home</span>
           </Link>
           <button className="btn ghost small mobile-only" onClick={closeDrawer} aria-label="Close navigation"><X size={16} /></button>
         </div>
         <ul className="nav-sections">{SECTIONS.map((sec) => <NavSection key={sec.to} section={sec} onNav={closeDrawer} />)}</ul>
         <div className="nav-group sidebar-bottom">
-          {UTILITY.map((n) => <NavItem key={n.to} {...n} onNav={closeDrawer} />)}
+          <ThemeSwitch />
           <button type="button" className="nav-item nav-collapse desktop-only" data-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
             aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'} title={collapsed ? undefined : 'Collapse sidebar'} onClick={() => setPrefs({ sidebarCollapsed: !collapsed })}>
             {collapsed ? <ChevronsRight size={18} aria-hidden="true" /> : <ChevronsLeft size={18} aria-hidden="true" />}

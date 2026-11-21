@@ -1,7 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { createProject, newId, type ProjectDoc } from '../domain/passport/schema';
 import { upgradeProject } from '../domain/passport/upgrade';
-import { configHash } from '../domain/sandbox/engine';
 import { createRepo, type Repo, type TrashEntry } from '../persistence/db';
 import { applyTheme, loadActiveId, loadPrefs, saveActiveId, savePrefs, type Prefs } from '../persistence/prefs';
 
@@ -24,8 +23,11 @@ interface Store {
   toasts: Toast[];
   toast: (text: string, tone?: Toast['tone'], action?: Toast['action']) => void;
   dismissToast: (id: string) => void;
-  /** Command: apply an edit to the active project (autosaved). */
-  update: (fn: (d: ProjectDoc) => void) => void;
+  /**
+   * Command: apply an edit to the active project (autosaved). `silent`: a live refresh of included copies, which
+   * other tabs take in without a notice, and which gives way to a newer revision instead of raising a conflict.
+   */
+  update: (fn: (d: ProjectDoc) => void, opts?: { silent?: boolean }) => void;
   createAndActivate: (opts?: Parameters<typeof createProject>[0]) => ProjectDoc;
   activate: (id: string) => Promise<void>;
   addProject: (doc: ProjectDoc, activate: boolean) => Promise<void>;
@@ -45,11 +47,6 @@ const now = () => new Date().toISOString();
 const SAVE_DELAY = 500;
 const SAVE_MAX_WAIT = 2000; // never postpone a pending save longer than this
 
-function bumpModelRevision(before: ProjectDoc, after: ProjectDoc) {
-  const h = (d: ProjectDoc) => `${configHash(d.sandbox.baseline)}|${d.sandbox.alternative ? configHash(d.sandbox.alternative) : ''}`;
-  if (h(before) !== h(after)) after.modelRevision = before.modelRevision + 1;
-}
-
 const UNSAVED = 'Your latest changes could not be saved, so this project stays open. Download a project file first, then try again.';
 
 export function StoreProvider({ children }: { children: ReactNode }) {
@@ -66,6 +63,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const activeRef = useRef<ProjectDoc | null>(null);
   const savedRevRef = useRef<number | null>(null); // revision stored in the DB for the active project
   const dirtyRef = useRef(false);
+  /** True while every unsaved change is a silent live refresh (it can always be made again on a newer revision). */
+  const silentRef = useRef(true);
   const timerRef = useRef<number | null>(null);
   const savingRef = useRef(false);
   const inFlightRef = useRef<Promise<void> | null>(null);
@@ -133,8 +132,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setSaveStatus('saving');
     const base = savedRevRef.current;
     const candidate: ProjectDoc = { ...doc, projectRevision: (base ?? 0) + 1, updatedAt: now() };
+    const silent = silentRef.current;
     dirtyRef.current = false;
+    silentRef.current = true;
     const res = await r.saveProject(candidate, base);
+    // Changes made while the save was running: are they all silent too?
+    const laterSilent = !dirtyRef.current || silentRef.current;
     savingRef.current = false;
     if (res.ok) {
       savedRevRef.current = candidate.projectRevision;
@@ -148,14 +151,22 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       setProjects((list) => [candidate, ...list.filter((p) => p.id !== candidate.id)]);
       setSaveStatus('saved');
       setSaveError(null);
-      channelRef.current?.postMessage({ type: 'saved', id: candidate.id, revision: candidate.projectRevision });
+      channelRef.current?.postMessage({ type: 'saved', id: candidate.id, revision: candidate.projectRevision, silent });
       if (dirtyRef.current) timerRef.current = window.setTimeout(() => { void persist(); }, SAVE_DELAY);
+    } else if ('conflict' in res && silent && laterSilent) {
+      // Only refreshed copies were waiting: take the newer revision. The refresh runs again on it if it is still needed.
+      const fresh = upgradeProject(res.conflict);
+      dirtyRef.current = false; silentRef.current = true;
+      activeRef.current = fresh; savedRevRef.current = fresh.projectRevision; setActive(fresh);
+      setSaveStatus('saved');
     } else if ('conflict' in res) {
+      silentRef.current = silent && laterSilent;
       dirtyRef.current = true;
       setConflict({ mine: doc, theirs: upgradeProject(res.conflict) });
       setSaveStatus('failed');
       setSaveError('Another tab saved a newer revision. Keep both versions or review the changes.');
     } else {
+      silentRef.current = silent && laterSilent;
       dirtyRef.current = true;
       setSaveStatus('failed');
       setSaveError('Your latest changes could not be saved on this device. Download a project file to keep them.');
@@ -181,17 +192,20 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     const ch = new BroadcastChannel('modsim101');
     channelRef.current = ch;
     ch.onmessage = async (ev: MessageEvent) => {
-      const m = ev.data as { type: string; id: string; revision: number };
+      const m = ev.data as { type: string; id: string; revision: number; silent?: boolean };
       if (m?.type !== 'saved') return;
       await refreshList(repo);
       const cur = activeRef.current;
       if (cur && cur.id === m.id && savedRevRef.current !== null && m.revision > savedRevRef.current) {
-        if (!dirtyRef.current) {
+        // Unsaved changes that are only a live refresh give way: the newer revision is taken, and refreshed again if needed.
+        if (!dirtyRef.current || silentRef.current) {
           const stored = await repo.getProject(m.id);
           const fresh = stored && upgradeProject(stored);
           if (fresh) {
+            dirtyRef.current = false; silentRef.current = true;
             activeRef.current = fresh; savedRevRef.current = fresh.projectRevision; setActive(fresh);
-            toast('This project was updated in another tab; showing the newer revision.', 'info');
+            // A save that only refreshed copies is taken in quietly.
+            if (!m.silent) toast('This project was updated in another tab; showing the newer revision.', 'info');
           }
         }
         // If dirty, the next save detects the conflict and offers a choice.
@@ -212,14 +226,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     return () => { window.removeEventListener('pagehide', flush); window.removeEventListener('beforeunload', warn); document.removeEventListener('visibilitychange', flush); };
   }, [persist]);
 
-  const update = useCallback((fn: (d: ProjectDoc) => void) => {
+  const update = useCallback((fn: (d: ProjectDoc) => void, opts?: { silent?: boolean }) => {
     const cur = activeRef.current;
     if (!cur) return;
     const next = structuredClone(cur);
     fn(next);
-    bumpModelRevision(cur, next);
     activeRef.current = next;
     setActive(next);
+    silentRef.current = (dirtyRef.current ? silentRef.current : true) && !!opts?.silent;
     dirtyRef.current = true;
     schedule();
   }, [schedule]);
@@ -237,6 +251,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     activeRef.current = doc;
     savedRevRef.current = savedRev;
     dirtyRef.current = false;
+    silentRef.current = true;
     setActive(doc);
     saveActiveId(doc ? doc.id : null);
   }, []);

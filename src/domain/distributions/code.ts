@@ -51,30 +51,46 @@ const PY: Partial<Record<Kind, (f: Fields) => string>> = {
   minextreme: (f) => `gumbel_l(loc=${v(f, 0)}, scale=${v(f, 1)})`,
 };
 
-export function rCode(kind: Kind, f: Fields, n: number): string {
+/** R's own seed: the app's seed when it is a plain whole number, otherwise 42. R and Python draw their own numbers either way. */
+export function scriptSeed(seed: string | number = 42): number {
+  const t = String(seed).trim();
+  return /^\d{1,9}$/.test(t) ? Number(t) : 42;
+}
+
+export function rCode(kind: Kind, f: Fields, n: number, seed: string | number = 42): string {
   const r = R[kind]?.(f);
   if (!r) return '# Not available';
   const lines = r[0].split('\n');
   const call = lines.pop()!;
-  return [`n <- ${n}`, 'set.seed(42)', ...lines, `x <- ${call}`, 'hist(x, probability = TRUE)', `# density / mass at x: ${r[1]}`].join('\n');
+  return [`n <- ${n}`, `set.seed(${scriptSeed(seed)})`, ...lines, `x <- ${call}`, 'hist(x, probability = TRUE)', `# density / mass at x: ${r[1]}`].join('\n');
 }
 
-export function pythonCode(kind: Kind, f: Fields, n: number): string {
-  if (kind === 'categorical') return `import numpy as np\n\np = [${v(f, 0)}]\nrng = np.random.default_rng(42)\nx = rng.choice(np.arange(1, len(p) + 1), size=${n}, p=p)`;
-  if (kind === 'empirical') return `import numpy as np\n\nobs = [${v(f, 0)}]\nrng = np.random.default_rng(42)\nx = rng.choice(obs, size=${n}, replace=True)`;
+export function pythonCode(kind: Kind, f: Fields, n: number, seed: string | number = 42): string {
+  const s = scriptSeed(seed);
+  if (kind === 'categorical') return `import numpy as np\n\np = [${v(f, 0)}]\nrng = np.random.default_rng(${s})\nx = rng.choice(np.arange(1, len(p) + 1), size=${n}, p=p)`;
+  if (kind === 'empirical') return `import numpy as np\n\nobs = [${v(f, 0)}]\nrng = np.random.default_rng(${s})\nx = rng.choice(obs, size=${n}, replace=True)`;
   if (kind === 'constant') return `import numpy as np\n\nx = np.full(${n}, ${v(f, 0)})`;
   const d = PY[kind]?.(f);
   if (!d) return '# Not available';
   const name = d.split('(')[0];
-  return `import numpy as np\nimport matplotlib.pyplot as plt\nfrom scipy.stats import ${name}\n\ndist = ${d}\nx = dist.rvs(size=${n}, random_state=42)\nplt.hist(x, density=True)\nplt.show()`;
+  return `import numpy as np\nimport matplotlib.pyplot as plt\nfrom scipy.stats import ${name}\n\ndist = ${d}\nx = dist.rvs(size=${n}, random_state=${s})\nplt.hist(x, density=True)\nplt.show()`;
 }
 
+/** Up to this many values are written into a fit script; a longer sample, or none, is read from a CSV file instead. */
+export const SCRIPT_MAX_VALUES = 200;
+
 export function fitRCode(values: number[]): string {
-  return `# install.packages("fitdistrplus")\nlibrary(fitdistrplus)\n\nx <- c(${values.slice(0, 200).join(', ')}${values.length > 200 ? ', ...' : ''})\nfits <- list(\n  norm    = fitdist(x, "norm"),\n  lnorm   = fitdist(x, "lnorm"),\n  exp     = fitdist(x, "exp"),\n  gamma   = fitdist(x, "gamma"),\n  weibull = fitdist(x, "weibull"),\n  logis   = fitdist(x, "logis")\n)\ngofstat(fits)          # AIC, BIC, KS statistic\ndenscomp(fits); qqcomp(fits); cdfcomp(fits)`;
+  const data = values.length && values.length <= SCRIPT_MAX_VALUES
+    ? `x <- c(${values.join(', ')})`
+    : `x <- read.csv("data.csv")$value   # your own data: one column named "value"`;
+  return `# install.packages("fitdistrplus")\nlibrary(fitdistrplus)\n\n${data}\nfits <- list(\n  norm    = fitdist(x, "norm"),\n  lnorm   = fitdist(x, "lnorm"),\n  exp     = fitdist(x, "exp"),\n  gamma   = fitdist(x, "gamma"),\n  weibull = fitdist(x, "weibull"),\n  logis   = fitdist(x, "logis")\n)\ngofstat(fits)          # AIC, BIC, KS statistic\ndenscomp(fits); qqcomp(fits); cdfcomp(fits)`;
 }
 
 export function fitPythonCode(values: number[]): string {
-  return `import numpy as np\nfrom scipy import stats\n\nx = np.array([${values.slice(0, 200).join(', ')}${values.length > 200 ? ', ...' : ''}])\nfor name in ["norm", "lognorm", "expon", "gamma", "weibull_min", "logistic"]:\n    dist = getattr(stats, name)\n    fixed = {"floc": 0} if name in ("lognorm", "expon", "gamma", "weibull_min") else {}\n    params = dist.fit(x, **fixed)\n    ll = np.sum(dist.logpdf(x, *params))\n    k = len(params) - len(fixed)\n    print(name, params, "logLik", ll, "AIC", 2 * k - 2 * ll)`;
+  const data = values.length && values.length <= SCRIPT_MAX_VALUES
+    ? `x = np.array([${values.join(', ')}])`
+    : `x = np.loadtxt("data.csv", delimiter=",", skiprows=1)   # your own data: one column with a header`;
+  return `import numpy as np\nfrom scipy import stats\n\n${data}\nfor name in ["norm", "lognorm", "expon", "gamma", "weibull_min", "logistic"]:\n    dist = getattr(stats, name)\n    fixed = {"floc": 0} if name in ("lognorm", "expon", "gamma", "weibull_min") else {}\n    params = dist.fit(x, **fixed)\n    ll = np.sum(dist.logpdf(x, *params))\n    k = len(params) - len(fixed)\n    print(name, params, "logLik", ll, "AIC", 2 * k - 2 * ll)`;
 }
 
 export const LETTERS_CODE = {

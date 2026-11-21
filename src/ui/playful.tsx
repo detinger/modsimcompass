@@ -1,4 +1,4 @@
-import { lazy, Suspense, useMemo, useState } from 'react';
+import { lazy, Suspense, useMemo, useState, type ReactNode } from 'react';
 import { Copy } from 'lucide-react';
 import { lawFor, type Kind } from '../domain/distributions/laws';
 
@@ -10,12 +10,12 @@ const DiagramText = lazy(() => import('./diagrams/DiagramView').then((m) => ({ d
  * One of the app's five diagrams (ids in src/content/diagrams/types.ts), with its title, caption and a text equivalent.
  * The diagram code is loaded on demand, so cards cost nothing until one is shown.
  */
-export function FigureCard({ id, caption }: { id: string; caption?: string }) {
+export function FigureCard({ id, caption, stage }: { id: string; caption?: string; /** Shown instead of the plain diagram, for example the same diagram with props. */ stage?: ReactNode }) {
   return (
     <figure className="figure-card diagram-card" data-diagram={id}>
       <Suspense fallback={<div className="dg-loading" style={{ minHeight: 220 }} aria-hidden="true" />}>
         <DiagramHeading id={id} caption={caption} />
-        <div className="dgm-stage"><DiagramView id={id} /></div>
+        <div className="dgm-stage">{stage ?? <DiagramView id={id} />}</div>
         <details className="dgm-as-text"><summary>As text</summary><DiagramText id={id} /></details>
       </Suspense>
     </figure>

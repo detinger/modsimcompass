@@ -8,10 +8,11 @@ import { AVAILABILITY, EVIDENCE_KINDS, newId, type Assumption, type ClaimType, t
 import { METHODS, type MethodId } from '../../domain/methods/registry';
 import { evaluateRules } from '../../domain/methods/rules';
 import { dataReadiness } from '../../domain/passport/compass';
+import { isArtefactKind, kindDef } from '../../domain/artefacts/kinds';
 import { Badge } from '../../ui/controls';
 import { usePassport } from './passportContext';
 import { Area, Choice, FieldCard, Pick, Txt } from './fields';
-import { ConceptMap } from './ConceptMap';
+import { DataModelInvite, IncludedCard } from './ArtefactSlot';
 
 /** The passport field forms, one group per compass step. All read and write through `usePassport()`. */
 
@@ -72,7 +73,7 @@ export function FrameFields() {
   );
 }
 
-// ── Step 2 · Scope and concept ────────────────────────────────────────────
+// ── Step 2 · Concept and scope ────────────────────────────────────────────
 export function ScopeFields() {
   const { doc, update } = usePassport();
   const s = doc.passport.scope;
@@ -96,13 +97,28 @@ export function ScopeFields() {
   );
 }
 
-export function ConceptSketch() {
+/**
+ * The concept in words: what a conceptual model would otherwise hold. An earlier sketch of the project (version 2)
+ * is listed as it was; it is drawn and changed in the Toolbox now.
+ */
+export function ConceptNotes() {
   const { doc, update, readOnly } = usePassport();
   const r = doc.passport.representation;
+  const included = (doc.artefacts ?? []).some((i) => i.kind === 'concept-model');
+  const name = (id: string) => r.nodes.find((n) => n.id === id)?.label || 'unnamed';
   return (
-    <FieldCard icon={Waypoints} title="Conceptual sketch" sub="Elements and labelled relations. An arrow means only what its label says.">
-      <ConceptMap />
-      <Area label="Notes on the sketch" value={r.notes} onChange={(v) => update((d) => { d.passport.representation.notes = v; })} rows={2} />
+    <FieldCard icon={Waypoints} title="The concept in words" sub="Objectives, main elements, assumptions, simplifications.">
+      <Area label="Concept" value={r.notes} onChange={(v) => update((d) => { d.passport.representation.notes = v; })} rows={4} />
+      {!included && r.nodes.length > 0 && (
+        <div className="field">
+          <span className="field-label">Earlier sketch ({r.nodes.length} elements)</span>
+          <ul className="cp-relations">
+            {r.relations.length > 0
+              ? r.relations.map((x) => <li key={x.id}>{name(x.from)} <span>→ {x.label || 'relates to'} →</span> {name(x.to)}</li>)
+              : r.nodes.map((n) => <li key={n.id}>{n.label || 'unnamed'} <span>({n.type})</span></li>)}
+          </ul>
+        </div>
+      )}
       {doc.lensNotes.length > 0 && (
         <div className="field">
           <span className="field-label">Earlier notes</span>
@@ -167,32 +183,44 @@ function useOpenRows<T extends { id: string }>(rows: T[], isEmpty: (r: T) => boo
   return { isOpen: (id: string) => !!open[id], set };
 }
 
-export function InputsForm() {
+/**
+ * Step 4's rows. A row owned by an included copy (a data model, measurement data) shows that copy's card instead; it is
+ * changed in the Toolbox. `title`, `sub` and `invite` let a method name the rows and offer its own way to bring data in;
+ * the defaults are the general ones.
+ */
+export function InputsForm({ title = 'Inputs', sub = 'Value, unit, source, uncertainty.', invite }: { title?: string; sub?: string; invite?: ReactNode | null } = {}) {
   const { doc, update, readOnly } = usePassport();
   const { toast } = useStore();
   const rows = doc.passport.inputs;
   const open = useOpenRows(rows, (r) => !r.name.trim());
   const edit = (id: string, fn: (r: InputRow) => void) => update((d) => { const r = d.passport.inputs.find((x) => x.id === id); if (r) fn(r); });
   const missing = (r: InputRow) => (!r.value.trim() ? 'No value' : !r.unit.trim() ? 'No unit' : r.sourceType === 'unspecified' || !r.provenance.trim() ? 'No source' : null);
+  // A row owned by an included copy (any kind that `ownsRows`) shows the copy's card, once however many rows it owns.
+  const owners = (doc.artefacts ?? []).filter((i) => !!i && isArtefactKind(i.kind) && !!kindDef(i.kind).ownsRows);
+  const ownerOf = (r: InputRow) => (r.inclusion ? owners.find((m) => m.id === r.inclusion) : undefined);
+  const orphans = owners.filter((m) => !rows.some((r) => r.inclusion === m.id));
+  const owned = [...new Set([...rows.map(ownerOf).filter((m): m is NonNullable<typeof m> => !!m), ...orphans])];
+  const manual = rows.filter((r) => !ownerOf(r));
   return (
-    <FieldCard icon={SlidersHorizontal} title="Inputs" sub="Value, unit, source, uncertainty." aside={rows.length > 0 ? <span className="cp-count">{rows.length}</span> : undefined}>
-      {rows.length === 0 && <p className="cp-empty-row">No inputs yet.</p>}
+    <FieldCard icon={SlidersHorizontal} title={title} sub={sub} aside={rows.length > 0 ? <span className="cp-count">{rows.length}</span> : undefined}>
+      {rows.length === 0 && orphans.length === 0 && <p className="cp-empty-row">No inputs yet.</p>}
       {rows.length > 0 && <DataReadiness />}
+      {owned.length > 0 && <div className="cp-slot-cards cp-models">{owned.map((m) => <IncludedCard key={m.id} inc={m} headingLevel={4} />)}</div>}
       {readOnly ? (
         <ul className="list-reset cp-facts">
-          {rows.map((r, i) => (
+          {manual.map((r, n) => (
             <li key={r.id}>
-              <div className="cp-fact-top"><strong>{r.name || `Input ${i + 1}`}</strong><span className="cp-fact-value">{r.value || '—'}{r.unit && <small> {r.unit}</small>}</span></div>
+              <div className="cp-fact-top"><strong>{r.name || `Input ${n + 1}`}</strong><span className="cp-fact-value">{r.value || '—'}{r.unit && <small> {r.unit}</small>}</span></div>
               <p><Badge>{evidenceLabel(r.sourceType)}</Badge>{r.availability && <> <Badge tone={r.availability === 'have' ? 'success' : undefined}>{availabilityLabel(r.availability)}</Badge></>} {r.provenance}</p>
               {r.plan && <p><span className="cp-fact-key">Plan</span> {r.plan}</p>}
               {r.uncertainty && <p><span className="cp-fact-key">Uncertainty</span> {r.uncertainty}</p>}
             </li>
           ))}
         </ul>
-      ) : rows.map((r, i) => (
+      ) : manual.map((r, n) => { const i = rows.indexOf(r); return (
         <details key={r.id} className="cp-row" open={open.isOpen(r.id)} onToggle={(e) => open.set(r.id, e.currentTarget.open)}>
           <summary>
-            <span className="cp-row-n" aria-hidden="true">{i + 1}</span>
+            <span className="cp-row-n" aria-hidden="true">{n + 1}</span>
             <span className="cp-row-sum">{r.name || 'New input'}{r.value.trim() && <span className="cp-row-val"> · {r.value} {r.unit}</span>}</span>
             {missing(r) && <Badge tone="warning"><TriangleAlert size={11} aria-hidden="true" /> {missing(r)}</Badge>}
           </summary>
@@ -210,20 +238,21 @@ export function InputsForm() {
             <Area label={r.availability === 'assume' ? 'How will you replace or test the assumption?' : 'Plan to get it'} value={r.plan ?? ''} onChange={(v) => edit(r.id, (x) => { x.plan = v; })} placeholder="Who gets it, from where, by when?" rows={1} />
           </div>
           <Area label="Uncertainty" value={r.uncertainty} onChange={(v) => edit(r.id, (x) => { x.uncertainty = v; })} placeholder="Range, distribution or unknown" rows={1} />
-          <button type="button" className="btn small ghost" aria-label={`Remove input ${i + 1}`} onClick={() => {
+          <button type="button" className="btn small ghost" aria-label={`Remove input ${n + 1}: ${r.name || 'new input'}`} onClick={() => {
             const removed = structuredClone(r);
             update((d) => { d.passport.inputs = d.passport.inputs.filter((x) => x.id !== r.id); });
             toast('Input removed.', 'info', { label: 'Undo', run: () => update((d) => { d.passport.inputs.splice(i, 0, removed); }) });
           }}><Trash2 size={14} aria-hidden="true" /> Remove input</button>
         </details>
-      ))}
+      ); })}
+      {invite === undefined ? <DataModelInvite /> : invite}
       {!readOnly && (
         <button type="button" className="btn cp-add" onClick={() => {
           const id = newId('in');
           open.set(id, true);
           update((d) => { d.passport.inputs.push({ id, name: '', value: '', unit: '', sourceType: 'unspecified', provenance: '', uncertainty: '' }); });
         }}>
-          <Plus size={16} aria-hidden="true" /> Add input
+          <Plus size={16} aria-hidden="true" /> Add an input by hand
         </button>
       )}
     </FieldCard>
@@ -349,16 +378,8 @@ export function OutcomesForm() {
 }
 
 export function ExperimentFields() {
-  const { doc, update, readOnly } = usePassport();
-  const { toast } = useStore();
+  const { doc, update } = usePassport();
   const x = doc.passport.experiment;
-  const appendSandbox = () => {
-    const b = doc.sandbox.baseline;
-    const text = `ModSim Essentials sandbox (engine backlog-daily-v1, RNG sfc32-cyrb128-v1): horizon ${b.horizon} days; initial backlog ${b.initialBacklog} req-eq; demand ${b.demand.mode}${b.demand.mode === 'random' ? ` (values ${b.demand.values.join('/')}, probabilities ${b.demand.probs.join('/')}); ${b.replications} replications; seed "${b.seed}"` : ''}; capacity ${b.capacity.mode}${doc.sandbox.alternative ? '; one alternative policy, paired on shared arrivals where demand is identical' : ''}.`;
-    if (x.runSettings.includes(text)) { toast('These sandbox settings are already in Run settings.', 'info'); return; }
-    update((d) => { d.passport.experiment.runSettings = d.passport.experiment.runSettings ? `${d.passport.experiment.runSettings}\n${text}` : text; });
-    toast('Current sandbox settings appended to Run settings.', 'success');
-  };
   return (
     <FieldCard icon={FlaskConical} title="Experiment" sub="Change one thing. Keep the rest identical.">
       <div className="cp-duo">
@@ -367,7 +388,6 @@ export function ExperimentFields() {
       </div>
       <Area label="Comparison logic" value={x.comparison} onChange={(v) => update((d) => { d.passport.experiment.comparison = v; })} hint="What stays identical? Which outcome decides?" />
       <Area label="Run settings" value={x.runSettings} onChange={(v) => update((d) => { d.passport.experiment.runSettings = v; })} hint="Horizon, replications, seed, software version." />
-      {!readOnly && <button type="button" className="btn small" onClick={appendSandbox}><Sparkles size={14} aria-hidden="true" /> Append current sandbox settings</button>}
     </FieldCard>
   );
 }

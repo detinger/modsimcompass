@@ -58,7 +58,7 @@ export function OpenItems({ warnings }: { warnings: Warning[] }) {
 export function QuickGuide({ step }: { step: StepDef }) {
   return (
     <details className="cp-quick">
-      <summary><Lightbulb size={15} aria-hidden="true" /> Why this step matters, with a good and a weak example</summary>
+      <summary><Lightbulb size={15} aria-hidden="true" /> Why it matters, with examples</summary>
       <p>{step.why}</p>
       <div className="cp-ex good"><p className="cp-ex-tag"><ThumbsUp size={13} aria-hidden="true" /> Good example</p><p>{step.good}</p></div>
       <div className="cp-ex weak"><p className="cp-ex-tag"><ThumbsDown size={13} aria-hidden="true" /> Weak example</p><p>{step.weak}</p></div>

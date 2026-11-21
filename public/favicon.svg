@@ -1,1 +1,21 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 30 30"><rect width="30" height="30" rx="6" fill="#1f5f8b"/><g transform="translate(5 5)" fill="none" stroke="#fff"><rect x="1.5" y="1.5" width="17" height="17" rx="3" stroke-width="1.5"/><circle cx="6" cy="7" r="1.8" fill="#fff" stroke="none"/><circle cx="6" cy="13.5" r="1.8" fill="#fff" stroke="none"/><path d="M6 8.8v2.9" stroke-width="1.3"/><line x1="10" y1="3.5" x2="10" y2="16.5" stroke-width="1" opacity=".6"/><rect x="12.5" y="9" width="4" height="6" rx=".8" fill="#fff" stroke="none"/><rect x="12.5" y="5" width="4" height="3" rx=".8" stroke-width="1"/></g></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <title>ModSimCompass</title>
+  <style>
+    .disc { fill: #ffffff; stroke: #1f5f8b; }
+    .star { fill: #b5c7d9; }
+    .n1 { fill: #d9822b; } .n2 { fill: #e7984b; } .s { fill: #8a97a8; }
+    .hub { fill: #ffffff; stroke: #1f5f8b; }
+    @media (prefers-color-scheme: dark) {
+      .disc { fill: #171e27; stroke: #5aa7d8; }
+      .star { fill: #44566d; }
+      .n1 { fill: #f0a457; } .n2 { fill: #f5b673; } .s { fill: #6b7787; }
+      .hub { fill: #171e27; stroke: #5aa7d8; }
+    }
+  </style>
+  <circle class="disc" cx="16" cy="16" r="14" stroke-width="2.6"/>
+  <path class="star" d="M16,4.4 L18,16 L16,27.6 L14,16 Z M4.4,16 L16,14 L27.6,16 L16,18 Z"/>
+  <path class="s" d="M9.92,22.08 L19.04,19.04 L12.96,12.96 Z"/>
+  <path class="n1" d="M24.70,7.30 L19.04,19.04 L16.00,16.00 Z"/>
+  <path class="n2" d="M24.70,7.30 L12.96,12.96 L16.00,16.00 Z"/>
+  <circle class="hub" cx="16" cy="16" r="1.5" stroke-width="1.1"/>
+</svg>

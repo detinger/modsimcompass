@@ -6,10 +6,8 @@ import { Shell } from './Shell';
 import { ErrorBoundary } from './ErrorBoundary';
 import { redirectFor } from './redirects';
 import Home from '../features/home/Home';
-import Settings from '../features/settings/Settings';
-import Help from '../features/help/Help';
 import NotFound from '../features/help/NotFound';
-import { KIND_ORDER, KINDS } from '../domain/artefacts/kinds';
+import { KINDS, TOOL_ORDER } from '../domain/artefacts/kinds';
 import { TOOL_META } from '../features/toolbox/toolMeta';
 
 // The project screens, Learn and the Toolbox are loaded when first opened.
@@ -30,8 +28,8 @@ const isTool = (slug: string): slug is keyof typeof TOOL_PAGES => Object.hasOwn(
 /** Page titles by address prefix; the first match wins, so the more specific address comes first. */
 const TITLES: [string, string][] = [
   ['/learn', 'Learn'], ['/toolbox/artefacts', 'My artefacts'],
-  ...KIND_ORDER.map((k): [string, string] => [KINDS[k].toolPath, TOOL_META[k].name]),
-  ['/toolbox', 'Toolbox'], ['/project', 'Project'], ['/example', 'Worked example'], ['/settings', 'Settings'], ['/help', 'Help'],
+  ...TOOL_ORDER.map((k): [string, string] => [KINDS[k].toolPath, TOOL_META[k].name]),
+  ['/toolbox', 'Toolbox'], ['/project', 'Project'], ['/example', 'Worked example'],
 ];
 const Loading = ({ what }: { what: string }) => <p className="muted" role="status">Loading {what}…</p>;
 
@@ -43,7 +41,7 @@ function Routes() {
   const redirect = redirectFor(p);
   useEffect(() => {
     const t = TITLES.find(([pre]) => p === pre || p.startsWith(`${pre}/`))?.[1];
-    document.title = t ? `${t} · ModSim Essentials` : 'ModSim Essentials';
+    document.title = t ? `${t} · ModSimCompass` : 'ModSimCompass';
   }, [p]);
   useEffect(() => { if (redirect) navigate(redirect, { replace: true }); }, [redirect, navigate]);
   if (!ready || !artefacts.ready) return <p className="muted" role="status">Loading your local workspace…</p>;
@@ -62,8 +60,6 @@ function Routes() {
   }
   if ((m = match('/project', p)) || (m = match('/project/:step', p))) return <Suspense fallback={<Loading what="the project" />}><Compass step={m.step} /></Suspense>;
   if ((m = match('/example', p)) || (m = match('/example/:step', p))) return <Suspense fallback={<Loading what="the worked example" />}><Compass step={m.step} example /></Suspense>;
-  if (p === '/settings') return <Settings />;
-  if (p === '/help') return <Help />;
   return <NotFound />;
 }
 

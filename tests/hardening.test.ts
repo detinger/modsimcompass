@@ -1,36 +1,42 @@
 import { describe, expect, it } from 'vitest';
 import { match } from '../src/app/router';
+import { legacyProject } from '../src/content/fixtures';
 import { workedExample } from '../src/content/workedExample';
 import { isStepId } from '../src/domain/passport/compass';
-import { wrapLabel } from '../src/features/project/ConceptMap';
 import { importProjectObject, isIsoDate } from '../src/domain/passport/importer';
 import type { ProjectDoc } from '../src/domain/passport/schema';
-import { projectJson, renderPart } from '../src/exports/bundle';
-import { sandboxRecorded } from '../src/exports/runInfo';
-import { runToCsv } from '../src/exports/csv';
+import { upgradeProject } from '../src/domain/passport/upgrade';
+import { projectJson } from '../src/exports/bundle';
 import { passportHtml } from '../src/exports/html';
 import { passportMarkdown } from '../src/exports/markdown';
+import { isSafeSvg } from '../src/features/toolbox/SvgFigure';
 
 /** A fresh, plain-JSON copy of the worked example, as it would arrive from a file. */
 const raw = () => JSON.parse(projectJson(workedExample()));
+/** A version 2 file with a backlog sandbox run, as the earlier app wrote it. */
+const rawLegacy = () => JSON.parse(JSON.stringify(legacyProject()));
 const imported = (r: unknown): ProjectDoc => { const res = importProjectObject(r); if (!res.ok) throw new Error(res.error); return res.project; };
 /** Everything a screen or an export does with a project must work on whatever the importer lets through. */
 const exportsWork = (d: ProjectDoc) => {
   expect(() => passportMarkdown(d, { includeAuthor: true })).not.toThrow();
   const html = passportHtml(d, { includeAuthor: true });
-  expect(html).not.toMatch(/<(script|img|iframe|object|embed|svg)\b/i);
-  if (d.sandbox.lastRun) expect(() => runToCsv(d, d.sandbox.lastRun!)).not.toThrow();
+  expect(html).not.toMatch(/<(script|img|iframe|object|embed|foreignObject)\b/i);
+  // Pictures of included artefacts are the only markup that is not escaped, and each one passes the safety check.
+  for (const svg of html.match(/<svg[\s\S]*?<\/svg>/g) ?? []) expect(isSafeSvg(svg)).toBe(true);
   return html;
 };
+const kinds = (d: ProjectDoc) => d.artefacts.map((i) => i.kind);
 
-describe('imported sandbox results are accepted only when every field has the expected type', () => {
-  it('the app’s own export round-trips unchanged', () => {
-    const d = imported(raw());
-    expect(d.sandbox.lastRun).toEqual(workedExample().sandbox.lastRun);
+describe('a backlog sandbox run in an older file becomes a comparison only when every field has the expected type', () => {
+  it('the earlier app’s own file upgrades: the run is kept as a comparison and the sandbox is not imported', () => {
+    const d = imported(rawLegacy());
+    expect(kinds(d)).toEqual(['concept-model', 'method-choice', 'comparison']);
+    expect(d.artefacts).toEqual(upgradeProject(legacyProject()).artefacts);
+    expect('sandbox' in d).toBe(false);
     exportsWork(d);
   });
 
-  const tamper: [string, (r: ReturnType<typeof raw>) => void][] = [
+  const tamper: [string, (r: ReturnType<typeof rawLegacy>) => void][] = [
     ['seed is a number', (r) => { r.sandbox.lastRun.seed = 5; }],
     ['engine version missing', (r) => { delete r.sandbox.lastRun.engineVersion; }],
     ['model revision is markup', (r) => { r.sandbox.lastRun.modelRevision = '<script>alert(1)</script>'; }],
@@ -39,30 +45,53 @@ describe('imported sandbox results are accepted only when every field has the ex
     ['day is markup', (r) => { r.sandbox.lastRun.baseline.retainedTrace.rows[0].day = '<img src=x onerror=alert(1)>'; }],
     ['day is a formula', (r) => { r.sandbox.lastRun.baseline.retainedTrace.rows[0].day = '=HYPERLINK("http://x","y")'; }],
     ['replication is a formula', (r) => { r.sandbox.lastRun.baseline.summaries[0].replication = '=1+1'; }],
-    ['a metric is text', (r) => { r.sandbox.lastRun.baseline.summaries[3].totalServed = '12'; }],
+    ['a metric is text', (r) => { r.sandbox.lastRun.baseline.summaries[3].averageEndBacklog = '12'; }],
+    ['a metric is not finite', (r) => { r.sandbox.lastRun.baseline.summaries[3].totalServed = 'Infinity'; }],
     ['partial alternative', (r) => { r.sandbox.lastRun.alternative = { summaries: r.sandbox.lastRun.alternative.summaries }; }],
     ['arrival preview is not a list of number lists', (r) => { r.sandbox.lastRun.arrivalPreview = [['a']]; }],
     ['unknown comparison kind', (r) => { r.sandbox.lastRun.comparisonKind = 'whatever'; }],
     ['unknown status', (r) => { r.sandbox.lastRun.status = 'done'; }],
     ['not an object', (r) => { r.sandbox.lastRun = 'results'; }],
+    ['too many replications', (r) => { r.sandbox.lastRun.baseline.summaries = new Array(100_001).fill(r.sandbox.lastRun.baseline.summaries[0]); }],
   ];
   for (const [name, change] of tamper) {
-    it(`drops the results when ${name}, and says so`, () => {
-      const r = raw(); change(r);
+    it(`makes no comparison when ${name}, and says so`, () => {
+      const r = rawLegacy(); change(r);
       const res = importProjectObject(r);
       if (!res.ok) throw new Error(res.error);
-      expect(res.project.sandbox.lastRun).toBeNull();
-      expect(res.warnings.join(' ')).toMatch(/sandbox results were not in a recognised format/);
+      expect(kinds(res.project)).toEqual(['concept-model', 'method-choice']);
+      expect('sandbox' in res.project).toBe(false);
+      expect(res.warnings.join(' ')).toMatch(/sandbox results were not in a recognised format, so no comparison was made from them/);
       const html = exportsWork(res.project);
-      expect(html).not.toMatch(/Appendix|Sandbox results/);
+      expect(html).not.toMatch(/Comparison:|Appendix|alert\(1\)<|HYPERLINK\("/);
     });
   }
 
   it('keeps only known fields of a valid run', () => {
-    const r = raw();
+    const r = rawLegacy();
     r.sandbox.lastRun.extra = '<script>'; r.sandbox.lastRun.baseline.extra = 1; r.sandbox.lastRun.baseline.summaries[0].extra = 'x';
-    const run = imported(r).sandbox.lastRun!;
-    expect(run).toEqual(workedExample().sandbox.lastRun);
+    const d = imported(r);
+    expect(d.artefacts).toEqual(upgradeProject(legacyProject()).artefacts);
+    expect(JSON.stringify(d)).not.toMatch(/"extra"|<script>/);
+  });
+  it('a version 3 file’s sandbox field is ignored, whatever it holds', () => {
+    for (const junk of [{ lastRun: rawLegacy().sandbox.lastRun }, { lastRun: '<script>alert(1)</script>' }, '<b>x</b>', [1, 2], null]) {
+      const r = raw(); r.sandbox = junk;
+      const res = importProjectObject(r);
+      if (!res.ok) throw new Error(res.error);
+      expect(res.project.artefacts).toEqual(workedExample().artefacts);
+      expect('sandbox' in res.project).toBe(false);
+      expect(res.project.preservedUnknown).toBeUndefined();
+      expect(res.warnings).toEqual([]);
+    }
+  });
+  it('the settings of the sandbox are never read: hostile settings change nothing', () => {
+    const r = rawLegacy();
+    r.sandbox.baseline = { horizon: '<script>', __proto__: { polluted: true } }; r.sandbox.alternative = 'x';
+    const d = imported(r);
+    expect(kinds(d)).toEqual(['concept-model', 'method-choice', 'comparison']);
+    expect(({} as Record<string, unknown>).polluted).toBeUndefined();
+    expect(JSON.stringify(d)).not.toMatch(/<script>/);
   });
 });
 
@@ -112,60 +141,15 @@ describe('other tampered fields', () => {
   });
 });
 
-describe('exports of a scenario comparison and of numbering', () => {
-  it('call it a difference, not a paired difference, when the inputs differ', () => {
-    const d = workedExample();
-    expect(passportHtml(d)).toMatch(/<p>Paired difference in terminal backlog/);
-    d.sandbox.lastRun!.comparisonKind = 'scenario';
-    const html = passportHtml(d);
-    expect(html).toMatch(/<p>Difference in terminal backlog/);
-    expect(html).not.toMatch(/Paired difference/);
-    d.sandbox.lastRun!.alternative!.summaries = [];
-    expect(passportHtml(d)).not.toMatch(/ifference in terminal backlog/);
-  });
-  it('CSV replications are numbered from 1, as on screen', () => {
-    const d = workedExample();
-    const lines = runToCsv(d, d.sandbox.lastRun!).trim().split('\r\n');
-    const reps = lines.filter((l) => l.includes(',replication,Baseline,')).map((l) => Number(l.split(',')[5]));
-    expect(reps[0]).toBe(1);
-    expect(reps[reps.length - 1]).toBe(100);
-    expect(lines.find((l) => l.includes(',daily,Baseline,'))!.split(',')[5]).toBe('1');
-  });
-});
-
-describe('sandbox results in reports', () => {
-  const OPTS = { includeAuthor: false, generatedAt: '2026-11-21T10:00:00.000Z' };
-  it('belong to a report only when the project says it used the sandbox', () => {
-    const d = workedExample();
-    expect(sandboxRecorded(d)).toBe(true); // its run settings name the sandbox
-    d.passport.experiment.runSettings = 'Horizon 30 days, 100 replications, seed 7, SimPy 4.1';
-    expect(sandboxRecorded(d)).toBe(false);
-    d.passport.experiment.runSettings += `\nBacklog sandbox run ${d.sandbox.lastRun!.id}`;
-    expect(sandboxRecorded(d)).toBe(true);
-    d.sandbox.lastRun = null;
-    expect(sandboxRecorded(d)).toBe(false);
-  });
-  it('can be left out of every report while the project file keeps them', () => {
-    const d = workedExample();
-    const without = { ...OPTS, includeSandbox: false };
-    for (const part of ['passport-md', 'report-html'] as const) {
-      expect(renderPart(d, part, OPTS)).toMatch(/Baseline daily table|Sandbox run/);
-      expect(renderPart(d, part, without)).not.toMatch(/Appendix|Sandbox run|run-example|Baseline daily table/);
-    }
-    expect(renderPart(d, 'results-csv', without)).toBeNull();
-    expect(JSON.parse(renderPart(d, 'project-json', without)!).sandbox.lastRun.id).toBe('run-example');
-    expect(d.sandbox.lastRun).not.toBeNull(); // the project itself is untouched
-  });
-});
-
-describe('concept sketch labels', () => {
-  it('wrap onto at most two lines and mark what does not fit', () => {
-    expect(wrapLabel('Students', 14)).toEqual(['Students']);
-    expect(wrapLabel('Pickers on night shift', 14)).toEqual(['Pickers on', 'night shift']);
-    expect(wrapLabel('Lines picked before the cut-off time today', 14)).toEqual(['Lines picked', 'before the…']);
-    expect(wrapLabel('Supercalifragilistic', 10)).toEqual(['Supercali…']);
-    for (const l of wrapLabel('A very long label that keeps going and going', 12)) expect(l.length).toBeLessThanOrEqual(12);
-    expect(wrapLabel('  ', 10)).toEqual([]);
+describe('the retired sandbox in reports', () => {
+  it('an older project’s run is reported as its comparison, under step 6, and nothing else of the sandbox appears', () => {
+    const d = imported(rawLegacy());
+    const md = passportMarkdown(d);
+    const step6 = md.slice(md.indexOf('## Step 6'), md.indexOf('## Step 7'));
+    expect(step6).toContain('### Included artefact — Comparison: Backlog sandbox results');
+    expect(step6).toMatch(/Copied from the backlog sandbox run of this project \(seed compass-example, 100 replications\)/);
+    expect(md).not.toMatch(/Appendix|Baseline daily table|run-example/i);
+    expect(passportHtml(d)).not.toMatch(/Appendix|Baseline daily table/i);
   });
 });
 

@@ -1,106 +1,108 @@
-# ModSim Essentials
+# ModSimCompass
 
-**A project compass for modelling and simulation.** ModSim Essentials helps students and professionals define a modelling project properly: frame the question, set the scope, choose a method, document data and assumptions, plan verification and validation, design a fair experiment, and state a conditional recommendation.
-
-The result is one living project record that can be reviewed at five checkpoints and exported as a **project report** for assessment or sign-off.
+**A project compass for modelling and simulation.** Learn the process, make the pieces of a model with focused tools, and pull them together into one living project, from the first question to a recommendation you can defend.
 
 Everything runs in the browser. There are no accounts, no backend and no analytics.
 
-## Three areas
+Earlier names: ModSim101, ModSim Essentials.
 
-| Area | What it does |
+## Three sections
+
+| Section | What it does |
 | --- | --- |
-| **Home** (`/`) | Your projects, a new project, import, and the worked example. |
-| **Project** (`/project/:step`) | The compass: seven guided steps, checkpoints and export. |
-| **Tools** (`/tools/*`) | Small practical tools that feed the project. |
+| **Learn** | A short, visual tour: the simulation process on the compass, eleven methods with a moving picture each, four key ideas, and a glossary. |
+| **Toolbox** | Five tools. Each makes an **artefact** that is saved on this device, can be exported on its own, and can be added to a project. |
+| **Project** | Seven steps on the project compass, five checkpoints, and a project report. Included artefacts stay live. |
 
-### The seven steps
+### The compass
 
-1. **Frame** — stakeholder, observed problem, levers, measurable outcome, precise question.
-2. **Scope and concept** — boundary, exclusions, horizon, level of detail, conceptual sketch.
-3. **Choose a method** — an explainable shortlist with reasons, caveats and what each method omits; a primary method and a justified alternative.
-4. **Inputs and assumptions** — values, units, sources, uncertainty and a data status for each input (have it, can get it, must assume); assumptions with consequences and planned checks.
-5. **Verification and validation** — checks that the model is built right and is the right model, with calibration kept separate.
-6. **Outcomes and experiment** — computable metrics, baseline, alternatives, a fair comparison and reproducible run settings.
-7. **Conclude and share** — results, a conditional recommendation, limitations, and what would change the decision.
+Seven stops, shown as a circle with a compass needle (or as a line, if you prefer):
 
-Every step shows:
+1. **Frame**: who decides what, and how you will know it worked.
+2. **Concept and scope**: what is inside the model, and what is left out on purpose.
+3. **Choose a method**: a primary method and a justified alternative.
+4. **Inputs and assumptions**: where every number comes from.
+5. **Verification and validation**: is the model built right, and is it the right model.
+6. **Outcomes and experiment**: a fair comparison, a scenario analysis or an analysis plan, depending on the method.
+7. **Conclude and share**: a conditional recommendation and its limits.
 
-- **why it matters**, with a good and a weak example;
-- **open items**, computed from the project by a versioned rule table (missing information, things to check, suggestions);
-- **self-check questions**, answered in your own words and never scored;
-- a peek at the **worked example** (a complete, self-reviewed project for a student-support backlog study).
+The steps adapt to the chosen method. A PLS-SEM project collects measured constructs, checks its measurement and structural model and plans an analysis; a discrete-event simulation fits input distributions, separates tuning from validation and compares policies over paired replications; a queueing model solves scenarios by formula. What a project actually includes takes precedence over the method's default.
 
-### Checkpoints
+### The Toolbox
 
-Proposal, Design, Baseline, Evaluation and Final. Each shows a readiness list, a rubric and a review status.
+| Tool | Artefact | Highlights |
+| --- | --- | --- |
+| **Conceptual model** | Conceptual model | A canvas on the "parts of a conceptual model" frame: inputs, content, outputs, assumptions and what is left out. Ten element types, four kinds of link, starters (including technology acceptance), constructs from measurement data, undo, auto-arrange, keyboard use and a list view. Exports SVG, PNG and Markdown. |
+| **Method chooser** | Method choice | Pick a family or answer questions; a shortlist with reasons, cautions and what each method leaves out; up to three methods side by side. |
+| **Data and inputs** | Data model, or measurement data | Distributions: import a CSV or paste numbers, ranked fits (AIC, no p-values), Q–Q plot, seeded synthetic data, R and Python code, several columns at once. Measurement data: survey items grouped into constructs, Likert-aware summaries, a reliability screen and a sample-size note. Raw rows are kept only if you ask. |
+| **Verify and validate** | Check plan | Standard checks per method, a validation calculator with a tolerance set beforehand, and a calibration or estimation record. Checks can be marked not applicable, with a reason. |
+| **Fair comparison** | Comparison | Paste or import results from any simulator: paired or Welch intervals (unpaired unless you confirm shared random inputs), a dot plot, and the replications a target precision needs. A seeded example shows why pairing matters. |
 
-Completeness ("N of 7 steps started") is kept separate from review status and from model validity. Reviewer feedback is a manual label; the app has no logins.
+### Live projects
 
-A project can be marked as **still planning**. Step 7 is then due later instead of missing, so a project definition can be complete before any model is run.
-
-### Tools
-
-- **Backlog sandbox:** a transparent daily model with replications and paired policy comparison. Every number can be reconstructed from its daily table.
-- **Distributions:** explore 22 families, choose one from a decision tree, or fit one to data (maximum likelihood, AIC/BIC, Q–Q plot).
-- **Sampling** and **Regression:** see how chance and noise behave.
-- **Specialist apps:** links to method-specific apps. Handoff is manual: export the project first.
-
-Distributions can be sent to the project's inputs. A count distribution can drive the sandbox. A tool opened from a step offers the way back to that step.
+Adding an artefact to a project puts a copy in the project file, so the report is complete on its own. The copy follows its original: edit it in the Toolbox (every card has **Edit** and a way back to its step) and the project updates. Text you write by hand in a step is never overwritten by a refresh. A checkpoint that was reviewed shows **Changed since review** when an included artefact changes or is removed afterwards.
 
 ### Exports
 
-A project report as standalone HTML (print to PDF from the browser) or Markdown, the project file as JSON (re-importable), CSV of sandbox results, and a ZIP with a manifest. Reports include self-check answers, open items, data readiness and rubric records, so a reviewer can work from the file alone. Sandbox results are included only when the project says it used the sandbox.
+A project report as standalone HTML (print to PDF from the browser) or Markdown, the project file as JSON (re-importable), and a ZIP bundle with a manifest. Each artefact also exports on its own (pictures, CSV, Markdown, HTML, code) and as an artefact file that can be imported again. Files written under the app's earlier names still import.
 
 ## Getting started
 
-Requires Node ≥ 20.19 (`.nvmrc`: 22).
+Requires Node 20.19 or newer (`.nvmrc`: 22).
 
 ```bash
 npm install
-npm run dev          # http://localhost:5173
-npm run check        # typecheck + tests + production build
-npm run lint
-npm run gen:layouts  # recompute the stored diagram layouts after changing a diagram graph
-npm start            # serve dist/ with the production server (after npm run build)
+npm run dev     # http://localhost:5173
 ```
+
+| Script | What it does |
+| --- | --- |
+| `npm run dev` | Development server with hot reload |
+| `npm run check` | Typecheck, tests and production build |
+| `npm test` | Vitest suites |
+| `npm run lint` | ESLint (TypeScript, React hooks) |
+| `npm run build` | Production build into `dist/` |
+| `npm start` | Serve `dist/` with the production server (after a build) |
+| `npm run gen:layouts` | Recompute stored diagram layouts after changing a diagram graph |
 
 ## Project layout
 
 ```
 src/
-  app/          shell, router, store (autosave, conflict handling)
-  domain/       pure logic
-    passport/   schema v2, compass (steps, warnings, rubrics), importer
-    methods/    method registry and explainable rule table
-    sandbox/    recurrence, seeded RNG, statistics, experiments
-    distributions/  laws, decision tree, fitting, experiments, code snippets
-  content/      worked example, diagram specs, sandbox presets
-  features/     home, compass, tools (sandbox, distributions, …), help, settings
-  exports/      Markdown, HTML, CSV, JSON bundle, ZIP
-  persistence/  IndexedDB repository, preferences
-  ui/           controls, charts, diagrams
-  workers/      replication worker
-tests/          Vitest suites
-docs/           spec, build plan, decisions, evidence, guide
+  app/            shell, router, project store (autosave, conflicts, tabs), artefact store and live sync
+  domain/         pure logic, all tested
+    artefacts/    the six artefact kinds, files, inclusion in projects
+    passport/     project schema, compass (steps, open items, checkpoints), importer, upgrades
+    methods/      method registry, rule table, method profiles
+    distributions/ laws, fitting, sampling, CSV
+    measurement/  reliability and item statistics
+    sandbox/      daily backlog model (example data) and interval statistics
+  content/        worked example, standard checks, Learn text, diagram specs
+  features/       home, learn, toolbox (one folder per tool), compass and project steps
+  exports/        Markdown, HTML, JSON, ZIP
+  persistence/    IndexedDB repository, preferences
+  ui/             controls, charts, diagrams (the compass circle and line)
+tests/            Vitest suites
+docs/             plan, specifications, decisions, evidence
 ```
 
-Specification: [docs/COMPASS-SPEC.md](docs/COMPASS-SPEC.md). Visual tokens and accessibility rules: [STYLE.md](STYLE.md).
+Product intent: [docs/LEARN-TOOLBOX-PLAN.md](docs/LEARN-TOOLBOX-PLAN.md). Contracts: [docs/TOOLBOX-SPEC.md](docs/TOOLBOX-SPEC.md) and [docs/COMPASS-SPEC.md](docs/COMPASS-SPEC.md). Visual tokens and accessibility: [STYLE.md](STYLE.md).
 
 ## Data and privacy
 
-- Projects are stored in this browser's IndexedDB (database `modsim101`). Preferences are in `localStorage`.
-- Autosave shows saved, saving or save-failed status. Each save keeps the previous revision, and deleted projects can be restored.
-- If two tabs edit the same project, the app asks whether to keep both versions.
-- Work does not move between browsers or devices. Export a project file and import it on the other side.
+- Projects and artefacts are stored in this browser's local database (IndexedDB). Nothing is uploaded.
+- Autosave shows its status. Each save keeps the previous revision, and deleted projects can be restored.
+- If two tabs edit the same project, the app asks which version to keep. Only the tab showing a project writes synced artefacts into it.
+- Work does not move between browsers or devices by itself: export a project file and import it on the other side.
 
 ## Deployment
 
-The app builds to static files in `dist/`.
+The app builds to static files in `dist/`. Both hosts run `npm run build`.
 
-- **Netlify:** `netlify.toml` (build, SPA fallback, real 404s for missing assets).
-- **Railway:** `railway.json` builds and starts `node server.mjs`, a dependency-free static server with SPA fallback, `/healthz` and graceful shutdown.
+**Netlify.** `netlify.toml` sets the build command, publishes `dist/`, uses Node 22, serves the app for deep links, returns a real 404 for missing assets and caches hashed assets for a year. Connect the repository in Netlify, or run `npx netlify deploy --prod --dir dist` after a build.
+
+**Railway.** `railway.json` builds with Nixpacks (`npm ci && npm run build`) and starts `node server.mjs`, a dependency-free static server that binds `0.0.0.0:$PORT`, serves the app for deep links, returns 404 for missing assets, answers `GET /healthz`, and shuts down gracefully. Connect the repository in Railway; no environment variables are needed.
 
 ## Status
 
-See [docs/release-evidence.md](docs/release-evidence.md) for what was verified and for known limitations.
+See [docs/release-evidence.md](docs/release-evidence.md) for what was verified in earlier releases and for known limitations.

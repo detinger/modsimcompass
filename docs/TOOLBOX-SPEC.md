@@ -37,7 +37,7 @@ An artefact is what a tool produces. It lives on the device in its own store, in
 ### 2.1 Types — `src/domain/artefacts/types.ts`
 
 ```ts
-export const ARTEFACT_SCHEMA = 'modsim-essentials/artefact';
+export const ARTEFACT_SCHEMA = 'modsimcompass/artefact'; // files named modsim-essentials/artefact still import
 export const ARTEFACT_SCHEMA_VERSION = 1;
 export type ArtefactKind = 'concept-model' | 'method-choice' | 'data-model' | 'check-plan' | 'comparison';
 
@@ -325,7 +325,7 @@ The foundation is in place and tested. Where this section differs from the text 
 **Types and helpers**
 
 - `Inclusion<K>` is a discriminated union: narrowing on `inc.kind` types `inc.data`.
-- `ProjectDoc.sandbox` is still a required field. Package F decides how it is retired.
+- `ProjectDoc.sandbox` is retired: an optional legacy field that nothing creates or reads. The importer reads only `lastRun` from version 1–2 files (validated field by field); the upgrade turns it into a comparison copy and drops the field. Version 3 files ignore it. The legacy fixture is `legacyProject()` in `src/content/fixtures.ts`.
 - `src/domain/artefacts/clean.ts` has the sanitizer helpers (`LIMITS`, `isObj`, `isId`, `isNum`, `own`, `text`, `oneOf`, `numOrNull`, `items`, `numbers`, `sameData`). Use them.
 - `kinds.ts` also exports `KIND_ORDER`, `isArtefactKind(k)` and `kindDef(k)`.
 - `file.ts` also exports `storable`, `defaultTitle`, `ARTEFACT_FILE_SUFFIX`.
@@ -364,4 +364,18 @@ The foundation is in place and tested. Where this section differs from the text 
 
 - `src/app/redirects.ts` holds `redirectFor(path)`.
 - Sidebar labels come from `TOOL_META.short`; step labels are Frame, Scope, Method, Inputs, Check, Experiment, Conclude.
-- Stub pages exist for every tool and for Learn. `src/features/toolbox/StubTool.tsx` is removed by the coordinator once all stubs are replaced.
+- `src/features/tools/` and `src/features/methods/` are deleted; their content lives in Learn and the Toolbox.
+
+**Shared screen parts added during the build**
+
+- `FigureCard` takes an optional `stage` node that replaces the plain diagram (Learn uses it to pass props to the compass).
+- `CompassJourney` takes `project` (overview mode), or `onSelect(step)` and `selected` (selection mode); with neither it behaves as a plain diagram.
+- `tone-green` lives in `playful.css` with the other tones.
+
+**Live projects** (owner decision, 21 November 2026; replaces "Update from Toolbox" and "never changes silently")
+
+- The project file still stores a full copy of each included artefact, so exports and reports stand on their own. The copy is kept current: `ArtefactsProvider` (`src/app/artefacts.tsx`) refreshes every copy in the open project whose original on this device has a higher revision, when an artefact is saved, when the list reloads after another tab saved, and when a project is opened. The refresh is an ordinary `update` of the project: saved with it and seen by other tabs. A copy whose original is not on this device (an upgraded project, one from another device) stays as it is; the worked example is read-only and never refreshes.
+- **Adding** an artefact (or replacing a copy with a different artefact) is a deliberate choice: the copy writes every field its kind writes, overwriting what was there. Any hand-written text it replaces is named in the undo toast ("Replaced your text in: …"), so it is never silent.
+- **Live refresh** keeps the author's later edits (`include.ts`): each field the old copy wrote that still holds exactly what it wrote is taken back to empty (`unwrite`); the new copy then writes only into empty fields (`write`). Text edited by hand after inclusion is never overwritten by a refresh. Rows owned by a kind (`ownsRows`: data models, measurement data) belong to it and always follow it. Removing a check plan takes back its untouched lines; removing any other kind leaves the step's fields as they are.
+- A step's card has a primary **Edit**: `/toolbox/<tool>/<id>?from=<step>`, and `ToolPage` shows "Back to <step>". With the original missing, Edit first copies it into My artefacts and relinks the inclusion, which is live from then on. There is no Update button; `ToolPage` shows "In <project>" once added. The card's date is the last refresh ("Updated").
+- `Checkpoint.reviewedAt` (optional ISO time) is set when a review status is chosen and removed for draft. `changedSinceReview(doc, id)` lists the copies of the checkpoint's steps refreshed after it; the checkpoints view and the report show "Changed since review", and "Reviewed again" sets the time anew.

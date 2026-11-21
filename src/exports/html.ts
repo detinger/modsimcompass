@@ -47,7 +47,8 @@ export function markdownToHtml(md: string): string {
       i += 2; // skip separator
       const rows: string[][] = [];
       while (i < lines.length && lines[i].startsWith('|')) { rows.push(splitRow(lines[i])); i++; }
-      out.push('<div class="table-wrap"><table><thead><tr>' + header.map((h) => `<th scope="col">${inline(escapeHtml(h))}</th>`).join('') + '</tr></thead><tbody>'
+      // A wide table scrolls inside its frame; the frame takes focus so the keyboard can scroll it too.
+      out.push('<div class="table-wrap" tabindex="0"><table><thead><tr>' + header.map((h) => `<th scope="col">${inline(escapeHtml(h))}</th>`).join('') + '</tr></thead><tbody>'
         + rows.map((r) => '<tr>' + r.map((c) => `<td>${inline(escapeHtml(c))}</td>`).join('') + '</tr>').join('') + '</tbody></table></div>');
     } else if (/^- /.test(raw)) {
       const items: string[] = [];
@@ -113,7 +114,9 @@ h1{font-size:28px;font-weight:680;line-height:1.2;letter-spacing:-.015em;margin:
 .toc .plain a{padding-left:11px}
 .sec{border-left:6px solid var(--tone,var(--border))}
 .t1{--tone:var(--t1)}.t2{--tone:var(--t2)}.t3{--tone:var(--t3)}.t4{--tone:var(--t4)}.t5{--tone:var(--t5)}.t6{--tone:var(--t6)}.t7{--tone:var(--t7)}
-h2{font-size:20px;font-weight:670;line-height:1.25;margin:0 0 10px;color:var(--tone,var(--text))}
+h2{font-size:20px;font-weight:670;line-height:1.25;margin:0 0 10px;color:var(--text)}
+.sec h2{display:flex;align-items:center;gap:10px}.sec h2::before{content:'';flex:none;width:10px;height:10px;border-radius:50%;background:var(--tone,var(--border))}
+.table-wrap:focus-visible{outline:2px solid var(--primary);outline-offset:2px}
 h3{font-size:15px;font-weight:650;margin:20px 0 6px}p{margin:8px 0}ul,ol{margin:8px 0;padding-left:22px}li{margin:5px 0}li ul{margin:4px 0}
 code{font-family:'JetBrains Mono','IBM Plex Mono',ui-monospace,Menlo,monospace;font-size:12.5px;background:var(--subtle);padding:1px 4px;border-radius:4px}
 .table-wrap{overflow-x:auto;margin:12px 0;border:1px solid var(--border);border-radius:10px}table{border-collapse:collapse;width:100%;font-size:13px}

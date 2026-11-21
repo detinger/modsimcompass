@@ -1,6 +1,6 @@
-# ModSim Essentials Design and Interaction Specification
+# ModSimCompass Design and Interaction Specification
 
-> Product renamed from ModSim101 to **ModSim Essentials** (20 Nov 2026). Visual QA evidence: [docs/release-evidence.md](./docs/release-evidence.md).
+> Product name: **ModSimCompass** (earlier names: ModSim101, ModSim Essentials). Visual QA evidence: [docs/release-evidence.md](./docs/release-evidence.md).
 
 > Agent-ready visual contract · Version 1.0 · 20 November 2026  
 > Companion: [PLAN.md](./PLAN.md). PLAN defines scientific and educational semantics, content IDs, data, exports and delivery. STYLE defines layout, components, interactions, charts, themes and accessible states. This specification is a target, not a description of an inspected implementation.
@@ -17,7 +17,7 @@ Blue identifies actions, focus and selection. Orange identifies an active experi
 
 ## 2 Exact inherited theme tokens
 
-Copy the following base tokens into a central stylesheet. They reproduce the supplied source theme; aliases for ModSim Essentials follow separately. Do not define private palettes in feature components. Source colours are not evidence that every foreground/background pairing passes contrast.
+Copy the following base tokens into a central stylesheet. They reproduce the supplied source theme; aliases for ModSimCompass follow separately. Do not define private palettes in feature components. Source colours are not evidence that every foreground/background pairing passes contrast.
 
 ```css
 :root, :root[data-theme="light"] {
@@ -172,7 +172,7 @@ Copy the following base tokens into a central stylesheet. They reproduce the sup
 }
 ```
 
-### 2.1 ModSim Essentials semantic aliases
+### 2.1 ModSimCompass semantic aliases
 
 ```css
 :root {
@@ -233,7 +233,7 @@ Primary navigation in this order:
 
 Secondary group: Learn, Examples, Challenges, Glossary. Bottom utilities: Projects, Settings, Help. Model Detective and Challenges refer to the same case records; do not show duplicate progress totals. A small active-project label is visible in the toolbar, with saved state and a project switcher.
 
-Use labelled Lucide outline icons or existing equivalent: 18px navigation, 16px controls, 13–14px inline. ModSim Essentials brand uses the family’s 30px primary square and 15px wordmark, with a simple 20px mark showing a frame and two alternative representations. Do not reuse the Monte Carlo dice/dart identity. Icons are not the sole labels on mobile.
+Use labelled Lucide outline icons or existing equivalent: 18px navigation, 16px controls, 13–14px inline. ModSimCompass brand uses the family’s 30px primary square and 15px wordmark, with a simple 20px mark showing a frame and two alternative representations. Do not reuse the Monte Carlo dice/dart identity. Icons are not the sole labels on mobile.
 
 Navigation selection: primary text, primary-soft fill, 6px radius, 8px 10px padding. Collapsed navigation has accessible names and focus-triggered tooltips. On narrow screens use a compact header plus labelled navigation drawer; this deliberately improves the source’s icon-only horizontal navigation for first-time learners. Drawer close restores focus.
 

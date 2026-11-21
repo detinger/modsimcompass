@@ -1,16 +1,17 @@
 import { IDBFactory } from 'fake-indexeddb';
 import { describe, expect, it } from 'vitest';
 import { redirectFor } from '../src/app/redirects';
+import { legacyProject } from '../src/content/fixtures';
 import { workedExample } from '../src/content/workedExample';
 import { ID_PATTERN, LIMITS } from '../src/domain/artefacts/clean';
 import { checkLines } from '../src/domain/artefacts/checkPlan';
 import { describeModel, lawFields } from '../src/domain/artefacts/dataModel';
 import { ARTEFACT_FILE_MAX_BYTES, artefactJson, createArtefact, parseArtefactJson } from '../src/domain/artefacts/file';
 import { includeArtefact, inclusionOf, inclusionState, inclusionsFor, removeInclusion } from '../src/domain/artefacts/include';
-import { KIND_ORDER, KINDS, isArtefactKind, kindDef } from '../src/domain/artefacts/kinds';
+import { KIND_ORDER, KINDS, TOOL_ORDER, isArtefactKind, kindDef } from '../src/domain/artefacts/kinds';
 import {
   ARTEFACT_SCHEMA, ARTEFACT_SCHEMA_VERSION,
-  type Artefact, type ArtefactData, type ArtefactKind, type CheckPlan, type Comparison, type ConceptModel, type DataModel, type MethodChoice,
+  type Artefact, type ArtefactData, type ArtefactKind, type CheckPlan, type Comparison, type ConceptModel, type DataModel, type MeasurementData, type MethodChoice,
 } from '../src/domain/artefacts/types';
 import { lawFor } from '../src/domain/distributions/laws';
 import { RULE_VERSION, answersKey, emptyAnswers } from '../src/domain/methods/rules';
@@ -62,17 +63,29 @@ const checks = (): CheckPlan => ({
     { id: 'c2', group: 'verification', text: 'Same seed, same result.', status: 'planned', evidence: '' },
     { id: 'c3', group: 'validation', text: 'Compare with held-out records.', status: 'failed', evidence: 'Mean off by 31%.' },
   ],
-  validation: { measure: 'Mean end-of-day backlog', tolerancePct: 20, observed: [30, 31], simulated: [28, 33] },
+  validation: { measure: 'Mean end-of-day backlog', tolerancePct: 20, toleranceOn: 'pairs', observed: [30, 31], simulated: [28, 33] },
   calibration: { parameters: 'Arrival rate', tunedOn: 'First 30 days', validatedOn: 'Next 30 days' },
 });
 const compare = (): Comparison => ({
   outcome: 'Average end-of-day backlog', unit: 'requests', direction: 'lower', baselineLabel: 'Capacity 10', alternativeLabel: 'Capacity 12',
   baseline: [30, 28, 33, 31], alternative: [6, 5, 8, 7], paired: true, minimumDifference: 5, targetHalfWidth: 1.5, origin: 'pasted', note: 'From the spreadsheet model.',
 });
-const SAMPLE: { [K in ArtefactKind]: () => ArtefactData[K] } = { 'concept-model': concept, 'method-choice': method, 'data-model': data, 'check-plan': checks, 'comparison': compare };
+const measurement = (): MeasurementData => ({
+  source: 'Staff survey, spring', origin: 'imported', cases: 3, scale: { min: 1, max: 7 }, missing: 'listwise',
+  items: [
+    { id: 'PU1', column: 'PU1', label: 'Helps me work faster', reverse: false, summary: { n: 3, missing: 0, mean: 5, sd: 1, min: 4, max: 6, skew: 0 } },
+    { id: 'PU2', column: 'PU2', label: 'Wastes my time', reverse: true, summary: { n: 3, missing: 0, mean: 4.667, sd: 1.528, min: 3, max: 6, skew: -0.935 } },
+    { id: 'BI1', column: 'BI1', label: 'I intend to use it', reverse: false, summary: null },
+  ],
+  constructs: [
+    { id: 'PU', name: 'Perceived usefulness', mode: 'reflective', items: ['PU1', 'PU2'], alpha: 0.82 },
+    { id: 'BI', name: 'Intention', mode: 'single', items: ['BI1'], alpha: null },
+  ],
+  maxArrows: 2, note: 'Items translated and back-translated.', keepData: true, data: [[4, 3, 5], [5, 5, null], [6, 6, 7]],
+});
+const SAMPLE: { [K in ArtefactKind]: () => ArtefactData[K] } = { 'concept-model': concept, 'method-choice': method, 'data-model': data, 'measurement-data': measurement, 'check-plan': checks, 'comparison': compare };
 
 /** What a file would carry: plain JSON, free to be damaged. */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const raw = (k: ArtefactKind): any => JSON.parse(JSON.stringify(SAMPLE[k]()));
 const clean = (k: ArtefactKind, r: unknown) => { const warnings: string[] = []; return { out: kindDef(k).sanitize(r, (m) => warnings.push(m)) as never, warnings }; };
 function artefact<K extends ArtefactKind>(kind: K, change: Partial<Artefact<K>> = {}): Artefact<K> {
@@ -86,6 +99,7 @@ describe('kinds', () => {
       ['concept-model', 'scope', false, '/toolbox/concept', 'Conceptual model'],
       ['method-choice', 'method', false, '/toolbox/method', 'Method choice'],
       ['data-model', 'inputs', true, '/toolbox/data', 'Data model'],
+      ['measurement-data', 'inputs', true, '/toolbox/data', 'Measurement data'],
       ['check-plan', 'evaluation', false, '/toolbox/checks', 'Check plan'],
       ['comparison', 'experiment', true, '/toolbox/compare', 'Comparison'],
     ]);
@@ -184,7 +198,7 @@ describe('conceptual model: sanitize', () => {
   });
   it('resets a position that is not a finite number and a zone that does not exist', () => {
     const r = raw(k);
-    r.nodes[0].x = '10'; r.nodes[0].y = null; r.nodes[1].x = 1e400; r.nodes[2].zone = 'basement'; delete r.nodes[3].zone;
+    r.nodes[0].x = '10'; r.nodes[0].y = null; r.nodes[1].x = Number.POSITIVE_INFINITY; r.nodes[2].zone = 'basement'; delete r.nodes[3].zone;
     const { out } = clean(k, r) as { out: ConceptModel };
     expect(out.nodes[0]).toMatchObject({ x: 0, y: 0 });
     expect(out.nodes[1].x).toBe(0);
@@ -372,7 +386,7 @@ describe('check plan: sanitize', () => {
     expect(out.checks[0].evidence).toBe('');
     expect(Object.keys(out.checks[0])).toEqual(['id', 'group', 'text', 'status', 'evidence']);
     expect(out.validation.measure).toBe('');
-    expect(Object.keys(out.validation)).toEqual(['measure', 'tolerancePct', 'observed', 'simulated']);
+    expect(Object.keys(out.validation)).toEqual(['measure', 'tolerancePct', 'toleranceOn', 'observed', 'simulated']);
     expect(Object.keys(out.calibration)).toEqual(['parameters', 'tunedOn', 'validatedOn']);
   });
   it('cuts lists that are longer than the limits', () => {
@@ -461,7 +475,7 @@ describe('artefact files', () => {
   it('the file names the app and holds no raw data that was not meant to be kept', () => {
     const a = artefact('data-model', { data: { ...data(), keepData: false } });
     const file = JSON.parse(artefactJson(a));
-    expect(file.exportedBy.app).toBe('ModSim Essentials');
+    expect(file.exportedBy.app).toBe('ModSimCompass');
     expect(file.data.data).toEqual([]);
     expect(a.data.data).toEqual([8, 9, 12, 16]); // the artefact in memory is untouched
     expect(JSON.parse(artefactJson(artefact('data-model'))).data.data).toEqual([8, 9, 12, 16]);
@@ -473,8 +487,8 @@ describe('artefact files', () => {
     expect(fail('')).toMatch(/not valid JSON/);
     expect(fail('[1,2]')).toMatch(/does not contain an artefact/);
     expect(fail('"text"')).toMatch(/does not contain an artefact/);
-    expect(fail(JSON.stringify({ ...good, schema: 'something/else' }))).toMatch(/not a ModSim Essentials artefact file/);
-    expect(fail(JSON.stringify({ ...good, schema: undefined }))).toMatch(/not a ModSim Essentials artefact file/);
+    expect(fail(JSON.stringify({ ...good, schema: 'something/else' }))).toMatch(/not a ModSimCompass artefact file/);
+    expect(fail(JSON.stringify({ ...good, schema: undefined }))).toMatch(/not a ModSimCompass artefact file/);
     expect(fail(projectJson(createProject()))).toMatch(/project file, not an artefact file/);
     expect(fail(JSON.stringify({ ...good, schemaVersion: 2 }))).toMatch(/newer schema \(version 2\); this app supports version 1/);
     for (const bad of [0, 1.5, '1', null, -1]) expect(fail(JSON.stringify({ ...good, schemaVersion: bad })), String(bad)).toMatch(/invalid schema version/);
@@ -614,7 +628,7 @@ describe('adding an artefact to a project', () => {
     const plan = { ...checks(), calibration: { parameters: '', tunedOn: '', validatedOn: '' } };
     includeArtefact(doc, artefact('check-plan', { data: plan }), LATER);
     expect(doc.passport.evaluation.verification).toBe('1. Conservation holds every day. — passed. Evidence: Residual 0 in all runs.\n2. Same seed, same result. — planned');
-    expect(doc.passport.evaluation.validation).toBe('1. Compare with held-out records. — failed. Evidence: Mean off by 31%.\nMeasure: Mean end-of-day backlog; tolerance set beforehand ±20%');
+    expect(doc.passport.evaluation.validation).toBe('1. Compare with held-out records. — failed. Evidence: Mean off by 31%.\nMeasure: Mean end-of-day backlog; tolerance set beforehand ±20% on each pair');
     // A group with nothing in it leaves the project's own text alone.
     expect(doc.passport.evaluation.calibration).toBe('Written by hand');
     expect(checkLines(checks(), 'calibration')).toEqual(['Parameters tuned: Arrival rate', 'Tuned on: First 30 days', 'Validated on: Next 30 days']);
@@ -644,7 +658,7 @@ describe('adding an artefact to a project', () => {
     for (const k of KIND_ORDER) includeArtefact(doc, k === 'data-model' ? a : k === 'comparison' ? c : artefact(k), NOW);
     expect(inclusionsFor(doc, 'scope').map((i) => i.kind)).toEqual(['concept-model']);
     expect(inclusionsFor(doc, 'method').map((i) => i.kind)).toEqual(['method-choice']);
-    expect(inclusionsFor(doc, 'inputs').map((i) => i.kind)).toEqual(['data-model']);
+    expect(inclusionsFor(doc, 'inputs').map((i) => i.kind)).toEqual(['data-model', 'measurement-data']);
     expect(inclusionsFor(doc, 'evaluation').map((i) => i.kind)).toEqual(['check-plan']);
     expect(inclusionsFor(doc, 'experiment').map((i) => i.kind)).toEqual(['comparison']);
     expect(inclusionsFor(doc, 'frame')).toEqual([]);
@@ -669,14 +683,17 @@ describe('adding an artefact to a project', () => {
 describe('project files with artefacts (schema version 3)', () => {
   const withAll = () => {
     const doc = createProject({ title: 'Round trip', now: NOW });
-    for (const k of KIND_ORDER) includeArtefact(doc, artefact(k), NOW);
+    // One copy of each tool's kind; measurement data has its own round trip in tests/measurement.test.ts.
+    for (const k of TOOL_ORDER) includeArtefact(doc, artefact(k), NOW);
     includeArtefact(doc, artefact('data-model', { data: { ...data(), name: 'Second input' } }), NOW);
     return doc;
   };
-  it('a project is created at version 3 with an empty list, and so is the worked example for now', () => {
+  it('a project is created at version 3 with an empty list; the worked example holds one copy of each kind', () => {
     expect(PASSPORT_SCHEMA_VERSION).toBe(3);
     expect(createProject()).toMatchObject({ schemaVersion: 3, artefacts: [] });
-    expect(workedExample()).toMatchObject({ schemaVersion: 3, artefacts: [] });
+    expect('sandbox' in createProject()).toBe(false); // the backlog sandbox is retired
+    expect(workedExample().schemaVersion).toBe(3);
+    expect(workedExample().artefacts.map((i) => i.kind)).toEqual(KIND_ORDER.filter((k) => k !== 'measurement-data')); // the backlog case measures no survey
     expect(compassWarnings(workedExample())).toEqual([]);
   });
   it('included artefacts and the rows they own survive a round trip, without warnings', () => {
@@ -714,7 +731,8 @@ describe('project files with artefacts (schema version 3)', () => {
     if (!res.ok) throw new Error(res.error);
     const copy = res.project.artefacts[0];
     expect(copy.kind === 'concept-model' && copy.data.nodes.map((n) => n.id)).toEqual(['n2', 'n3', 'n4', 'n5', 'n6', 'n7']);
-    expect(Object.keys(copy).sort()).toEqual(['addedAt', 'data', 'id', 'kind', 'sourceId', 'sourceRevision', 'title']);
+    // `wrote` (the fields the copy wrote) is a known field and travels; `extra` does not.
+    expect(Object.keys(copy).sort()).toEqual(['addedAt', 'data', 'id', 'kind', 'sourceId', 'sourceRevision', 'title', 'wrote']);
     expect(copy).toMatchObject({ title: '', addedAt: LATER });
     expect(res.warnings.join('\n')).toMatch(/artefacts\[0\]\.nodes\[0\]: not a valid element/);
   });
@@ -727,7 +745,11 @@ describe('project files with artefacts (schema version 3)', () => {
     if (!res.ok) throw new Error(res.error);
     expect(res.project.artefacts.filter((i) => i.kind === 'concept-model')).toHaveLength(1);
     expect(res.warnings.join('\n')).toMatch(/a project holds one conceptual model/);
-    expect(res.project.passport.inputs.some((row) => 'inclusion' in row)).toBe(false);
+    // The two tampered rows lose their links; each data model left without a row gets its own row written again.
+    const tampered = new Set([r.passport.inputs[0].id, r.passport.inputs[1].id]);
+    expect(res.project.passport.inputs.filter((row) => tampered.has(row.id)).some((row) => 'inclusion' in row)).toBe(false);
+    const models = res.project.artefacts.filter((i) => i.kind === 'data-model').map((i) => i.id);
+    expect(res.project.passport.inputs.filter((row) => row.inclusion !== undefined).map((row) => row.inclusion).sort()).toEqual([...models].sort());
   });
   it('a list that is not a list imports as none', () => {
     const r = JSON.parse(projectJson(withAll()));
@@ -751,16 +773,23 @@ describe('upgrading older projects', () => {
     expect(upgradeProject(d)).toBe(d);
     const example = workedExample();
     expect(upgradeProject(example)).toBe(example);
-    expect(example.artefacts).toEqual([]); // no copies are invented for a version 3 project
+    expect(upgradeProject(example).artefacts).toBe(example.artefacts); // no copies are invented for a version 3 project
+    // A version 3 project saved while the sandbox field still existed loses only that field.
+    const carrying = { ...createProject(), sandbox: legacyProject().sandbox } as ProjectDoc;
+    const up = upgradeProject(carrying);
+    const { sandbox: dropped, ...rest } = carrying;
+    expect(dropped).toBeDefined();
+    expect(up).toEqual(rest);
   });
   it('a version 2 project gets a copy of its sketch, its method decision and its sandbox run', () => {
-    const before = old();
+    const before = legacyProject();
     const snapshot = JSON.stringify(before);
     const notes: string[] = [];
     const d = upgradeProject(before, (m) => notes.push(m));
     expect(JSON.stringify(before)).toBe(snapshot); // the stored object is not changed
     expect(d.schemaVersion).toBe(3);
     expect(d.passport).toBe(before.passport); // the project's own fields are exactly as they were
+    expect('sandbox' in d).toBe(false); // the sandbox itself is dropped; its run lives on as the comparison
     expect(d.artefacts.map((i) => [i.kind, i.id, i.sourceId, i.sourceRevision])).toEqual([
       ['concept-model', 'inc-from-sketch', 'project-sketch', 0], ['method-choice', 'inc-from-method', 'project-method', 0], ['comparison', 'inc-from-sandbox', 'project-sandbox', 0],
     ]);
@@ -773,7 +802,7 @@ describe('upgrading older projects', () => {
     expect(sketch.data.edges.map((e) => [e.from, e.to, e.label, e.kind, e.sign])).toEqual(example.passport.representation.relations.map((r) => [r.from, r.to, r.label, 'influence', '']));
     expect(choice.data).toMatchObject({ primary: 'system-dynamics', alternative: 'des', justification: example.passport.representation.justification, shortlist: example.methods.shortlist });
     expect(choice.data.answers).toEqual(example.methods.answers);
-    const summaries = example.sandbox.lastRun!;
+    const summaries = before.sandbox!.lastRun!;
     expect(run.data.baseline).toEqual(summaries.baseline.summaries.map((s) => s.averageEndBacklog));
     expect(run.data.alternative).toEqual(summaries.alternative!.summaries.map((s) => s.averageEndBacklog));
     expect(run.data).toMatchObject({ paired: true, direction: 'lower', origin: 'imported', outcome: 'Average end-of-day backlog', baselineLabel: summaries.baseline.label });
@@ -799,9 +828,9 @@ describe('upgrading older projects', () => {
     expect(UPGRADE_COPIES.comparison.id).toBe('inc-from-sandbox');
   });
   it('copies only what is there: a single policy, a cancelled run, a method without a sketch', () => {
-    const d = old();
+    const d = legacyProject();
     d.passport = { ...d.passport, representation: { ...d.passport.representation, nodes: [], relations: [] } };
-    const run = d.sandbox.lastRun!;
+    const run = d.sandbox!.lastRun!;
     d.sandbox = { ...d.sandbox, lastRun: { ...run, alternative: null, comparisonKind: 'none', status: 'partial' } };
     const up = upgradeProject(d);
     expect(up.artefacts.map((i) => i.kind)).toEqual(['method-choice', 'comparison']);
@@ -829,17 +858,19 @@ describe('upgrading older projects', () => {
     expect(upgradeProject(noList).artefacts).toEqual([]);
   });
   it('the importer upgrades version 1 and 2 files the same way and says what it kept', () => {
-    for (const v of [1, 2]) {
-      const file = JSON.parse(projectJson(workedExample()));
-      delete file.artefacts; file.schemaVersion = v;
+    for (const v of [1, 2] as const) {
+      const file = JSON.parse(projectJson(legacyProject(v)));
       const res = importProjectObject(file);
       if (!res.ok) throw new Error(res.error);
       expect(res.project.schemaVersion).toBe(3);
       expect(res.project.artefacts.map((i) => i.kind)).toEqual(['concept-model', 'method-choice', 'comparison']);
       expect(res.warnings.join('\n')).toMatch(new RegExp(`schema version ${v} upgraded to version 3`));
       expect(res.warnings.join('\n')).toMatch(/Kept as artefacts of the project: conceptual model, method choice, comparison\./);
-      expect(res.project.passport).toEqual(workedExample().passport);
-      expect(res.project.sandbox).toEqual(workedExample().sandbox);
+      expect(res.project.passport).toEqual(legacyProject(v).passport);
+      // The comparison is the stored run, as the upgrade of a stored project makes it; the sandbox is not imported.
+      expect(res.project.artefacts).toEqual(upgradeProject(legacyProject(v)).artefacts);
+      expect('sandbox' in res.project).toBe(false);
+      expect(res.project.preservedUnknown).toBeUndefined();
       expect(compassWarnings(res.project)).toEqual([]);
     }
   });
@@ -863,9 +894,8 @@ describe('storage: database version 2', () => {
     const factory = new IDBFactory();
     const v1 = await openV1(factory);
     expect([...v1.objectStoreNames].sort()).toEqual(['backups', 'progress', 'projects', 'trash']);
-    // What the earlier version of the app stored: a version 2 project without an artefacts list.
-    const stored = workedExample() as Partial<ProjectDoc>;
-    delete stored.artefacts; stored.schemaVersion = 2;
+    // What the earlier version of the app stored: a version 2 project without an artefacts list, with a sandbox run.
+    const stored = legacyProject();
     const second = { ...createProject({ title: 'Second', id: 'prj-second', now: NOW }), schemaVersion: 2 };
     const deleted = createProject({ title: 'Deleted', id: 'prj-deleted', now: NOW });
     await put(v1, 'projects', stored);
@@ -963,8 +993,13 @@ describe('pictures: only a plain, self-contained SVG is shown', () => {
     ['an animation that rewrites a link', inside('<animate attributeName="href" to="#p"/>')], ['an animation that rewrites an xlink', inside("<set attributeName='xlink:href' to='#p'/>")],
   ];
   for (const [name, value] of refused) it(`shows nothing for ${name}`, () => { expect(isSafeSvg(value)).toBe(false); });
-  it('no kind draws a picture yet, so nothing is injected', () => {
-    for (const k of KIND_ORDER) expect(kindDef(k).figure(SAMPLE[k]() as never)).toBeNull();
+  it('every picture a kind draws, for an empty and a sample artefact, passes the same check before it is shown', () => {
+    for (const k of KIND_ORDER) {
+      for (const data of [kindDef(k).empty(), SAMPLE[k]()]) {
+        const svg = kindDef(k).figure(data as never);
+        if (svg !== null) expect(isSafeSvg(svg), k).toBe(true);
+      }
+    }
   });
 });
 
@@ -979,15 +1014,149 @@ describe('old addresses', () => {
   });
   it('earlier redirects keep working, straight to the final address', () => {
     const table: Record<string, string> = {
-      '/start': '/', '/projects': '/', '/glossary': '/', '/methods': '/project/method', '/sandbox': '/toolbox/compare', '/labs': '/toolbox', '/legacy': '/toolbox',
+      '/start': '/', '/projects': '/', '/glossary': '/learn/glossary', '/methods': '/project/method', '/sandbox': '/toolbox/compare', '/labs': '/toolbox', '/legacy': '/toolbox',
       '/labs/linear-model': '/learn/ideas', '/legacy/linear-model': '/learn/ideas', '/labs/fitting': '/toolbox/data', '/legacy/sampling': '/learn/ideas',
-      '/lenses': '/', '/detective/x': '/', '/lectures/1': '/',
+      '/lenses': '/', '/detective/x': '/', '/lectures/1': '/', '/help': '/', '/settings': '/',
     };
     for (const [from, to] of Object.entries(table)) expect(redirectFor(from), from).toBe(to);
   });
   it('the new addresses are not redirected', () => {
-    for (const p of ['/', '/learn', '/learn/process', '/learn/methods/des', '/toolbox', '/toolbox/concept', '/toolbox/data/art-12345678', '/toolbox/artefacts', '/project', '/project/scope', '/project/checkpoints', '/example', '/settings', '/help', '/toolsmith']) {
+    for (const p of ['/', '/learn', '/learn/process', '/learn/methods/des', '/toolbox', '/toolbox/concept', '/toolbox/data/art-12345678', '/toolbox/artefacts', '/project', '/project/scope', '/project/checkpoints', '/example', '/toolsmith']) {
       expect(redirectFor(p), p).toBeNull();
     }
+  });
+});
+
+describe('review fixes: check-plan lines, repeated copies, rows of data models, project ids', () => {
+  const planWith = (id: string, checks: CheckPlan['checks'], calibration: CheckPlan['calibration'] = { parameters: '', tunedOn: '', validatedOn: '' }) =>
+    artefact('check-plan', { id, data: { ...checks_(), checks, calibration } });
+  const checks_ = (): CheckPlan => SAMPLE['check-plan']();
+  const ev = (doc: ProjectDoc) => ({ ...doc.passport.evaluation });
+
+  it('replacing a check plan clears the lines the earlier plan wrote, group by group', () => {
+    const doc = createProject({ now: NOW });
+    const a = artefact('check-plan', { id: 'art-plan-a' });
+    includeArtefact(doc, a, NOW);
+    expect(ev(doc).validation).toBe(checkLines(a.data, 'validation').join('\n'));
+    expect(ev(doc).calibration).toBe(checkLines(a.data, 'calibration').join('\n'));
+    const b = planWith('art-plan-b', [{ id: 'b1', group: 'verification', text: 'Same seed, same result.', status: 'planned', evidence: '' }]);
+    b.data.validation.measure = '';
+    includeArtefact(doc, b, LATER);
+    expect(doc.artefacts.map((i) => i.sourceId)).toEqual(['art-plan-b']);
+    expect(ev(doc).verification).toBe(checkLines(b.data, 'verification').join('\n'));
+    expect(ev(doc).validation).toBe('');
+    expect(ev(doc).calibration).toBe('');
+  });
+
+  it('refreshing the same plan clears a group it no longer has', () => {
+    const doc = createProject({ now: NOW });
+    const a = artefact('check-plan', { id: 'art-plan-a' });
+    includeArtefact(doc, a, NOW);
+    const newer = { ...a, revision: a.revision + 1, data: { ...a.data, calibration: { parameters: '', tunedOn: '', validatedOn: '' } } };
+    includeArtefact(doc, newer, LATER);
+    expect(ev(doc).calibration).toBe('');
+    expect(ev(doc).verification).toBe(checkLines(newer.data, 'verification').join('\n'));
+  });
+
+  it('text the author edited after the plan wrote it is kept, on replace and on remove', () => {
+    const doc = createProject({ now: NOW });
+    includeArtefact(doc, artefact('check-plan', { id: 'art-plan-a' }), NOW);
+    doc.passport.evaluation.validation += '\nAlso asked the support lead.';
+    const edited = doc.passport.evaluation.validation;
+    const b = planWith('art-plan-b', [{ id: 'b1', group: 'verification', text: 'Units.', status: 'planned', evidence: '' }]);
+    b.data.validation.measure = ''; // plan B writes no validation lines of its own
+    const { inclusionId } = includeArtefact(doc, b, LATER);
+    expect(ev(doc).validation).toBe(edited);
+    doc.passport.evaluation.verification = 'Written by hand.';
+    removeInclusion(doc, inclusionId);
+    expect(ev(doc).verification).toBe('Written by hand.');
+    expect(ev(doc).validation).toBe(edited);
+  });
+
+  it('removing a check plan clears the lines it wrote and nothing else', () => {
+    const doc = createProject({ now: NOW });
+    doc.passport.evaluation.calibration = 'Tuned by hand on January.';
+    const a = planWith('art-plan-a', SAMPLE['check-plan']().checks);
+    const { inclusionId } = includeArtefact(doc, a, NOW);
+    expect(ev(doc).verification).not.toBe('');
+    removeInclusion(doc, inclusionId);
+    expect(ev(doc).verification).toBe('');
+    expect(ev(doc).validation).toBe('');
+    expect(ev(doc).calibration).toBe('Tuned by hand on January.'); // the plan wrote no calibration lines, so this was never its text
+  });
+
+  it('a file with two copies of the same artefact keeps the first; a data model keeps one input row', () => {
+    const doc = createProject({ now: NOW });
+    includeArtefact(doc, artefact('data-model', { id: 'art-dm-1' }), NOW);
+    const o = JSON.parse(projectJson(doc));
+    o.artefacts.push({ ...o.artefacts[0], id: 'inc-second' });
+    o.passport.inputs.push({ ...o.passport.inputs[0], id: 'in-second' });
+    const res = importProjectObject(o, { now: NOW });
+    if (!res.ok) throw new Error(res.error);
+    expect(res.project.artefacts.map((i) => i.id)).toEqual([doc.artefacts[0].id]);
+    expect(res.project.passport.inputs.filter((r) => r.inclusion === doc.artefacts[0].id)).toHaveLength(1);
+    expect(res.warnings.join('\n')).toMatch(/second copy of the same artefact/);
+    expect(res.warnings.join('\n')).toMatch(/repeating the row of an included artefact removed/);
+  });
+
+  it('two copies with the same source but of different kinds are both kept', () => {
+    const doc = createProject({ now: NOW });
+    includeArtefact(doc, artefact('data-model', { id: 'art-same' }), NOW);
+    includeArtefact(doc, artefact('comparison', { id: 'art-other' }), NOW);
+    const o = JSON.parse(projectJson(doc));
+    o.artefacts[1].sourceId = 'art-same';
+    const res = importProjectObject(o, { now: NOW });
+    if (!res.ok) throw new Error(res.error);
+    expect(res.project.artefacts.map((i) => i.kind)).toEqual(['data-model', 'comparison']);
+  });
+
+  it('a data model whose input row is missing gets its row written again on import', () => {
+    const doc = createProject({ now: NOW });
+    const dm = artefact('data-model', { id: 'art-dm-1' });
+    includeArtefact(doc, dm, NOW);
+    const o = JSON.parse(projectJson(doc));
+    o.passport.inputs = [];
+    const res = importProjectObject(o, { now: NOW });
+    if (!res.ok) throw new Error(res.error);
+    const rows = res.project.passport.inputs;
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ inclusion: res.project.artefacts[0].id, name: dm.data.name, unit: dm.data.unit });
+    expect(compassWarnings(res.project).some((w) => w.id === 'inputs')).toBe(false);
+    expect(res.warnings.join('\n')).toMatch(/was missing and has been written again/);
+  });
+
+  it('a project id that is not a plain id is replaced, with a warning; a plain one is kept', () => {
+    const doc = createProject({ now: NOW });
+    for (const bad of ['abc`\n\n## Injected heading', '', ' spaced id', 'x'.repeat(65), '-leading']) {
+      const res = importProjectObject({ ...JSON.parse(projectJson(doc)), id: bad }, { now: NOW });
+      if (!res.ok) throw new Error(res.error);
+      expect(res.project.id, JSON.stringify(bad)).toMatch(ID_PATTERN);
+      expect(res.warnings.join('\n')).toMatch(/project id was not in a recognised format/);
+    }
+    const kept = importProjectObject({ ...JSON.parse(projectJson(doc)), id: 'worked-example' }, { now: NOW });
+    if (!kept.ok) throw new Error(kept.error);
+    expect(kept.project.id).toBe('worked-example');
+    expect(kept.warnings.join('\n')).not.toMatch(/project id/);
+  });
+});
+
+describe('raw data leaves the device only when kept, for every kind that holds it', () => {
+  it('storable() empties `data` whenever `keepData` is false: data models and measurement data alike', async () => {
+    const { storable } = await import('../src/domain/artefacts/file');
+    const dm = artefact('data-model', { data: { ...SAMPLE['data-model'](), keepData: false, data: [8, 9, 12] } });
+    expect(storable(dm).data.data).toEqual([]);
+    expect(dm.data.data).toEqual([8, 9, 12]); // the original is not changed
+    const kept = artefact('data-model', { data: { ...SAMPLE['data-model'](), keepData: true, data: [8, 9] } });
+    expect(storable(kept)).toBe(kept);
+    const ms = { ...createArtefact('measurement-data', { now: NOW }), revision: 1 } as Artefact<'measurement-data'>;
+    ms.data = { ...ms.data, keepData: false, data: [[1, 2], [3, null]] };
+    const s = storable(ms);
+    expect(s.data.data).toEqual([]);
+    expect(JSON.parse(artefactJson(ms)).data.data).toEqual([]);
+    const doc = createProject({ now: NOW });
+    includeArtefact(doc, ms, NOW);
+    expect(doc.artefacts[0].kind === 'measurement-data' && doc.artefacts[0].data.data).toEqual([]);
+    const empty = artefact('concept-model');
+    expect(storable(empty)).toBe(empty); // a kind without raw data is passed as it is
   });
 });

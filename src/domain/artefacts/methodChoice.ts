@@ -38,10 +38,14 @@ function sanitize(raw: unknown, warn: Warn): MethodChoice | null {
   };
   const shortlist = [...new Set(rawShortlist.filter(isMethod))];
   if (shortlist.length !== rawShortlist.length) warn('shortlist: unknown or repeated methods removed.');
+  const primary = method('primary');
+  let alternative = method('alternative');
+  // A method holds one role at a time, as on screen. The written reasons stay.
+  if (primary && alternative === primary) { warn('alternative: the same method as the primary; cleared.'); alternative = ''; }
   return {
     answers: readAnswers(rawAnswers, warn),
     ruleVersion: text(own(raw, 'ruleVersion'), 'ruleVersion', warn, 200) || RULE_VERSION,
-    shortlist, primary: method('primary'), alternative: method('alternative'),
+    shortlist, primary, alternative,
     justification: text(own(raw, 'justification'), 'justification', warn),
     alternativeJustification: text(own(raw, 'alternativeJustification'), 'alternativeJustification', warn),
   };
@@ -87,6 +91,87 @@ export function decisionCautions(d: MethodChoice): string[] {
   const out: string[] = [];
   if (d.primary && d.primary === d.alternative) out.push('The primary and the alternative are the same method. Name a different alternative, or leave it open.');
   return out;
+}
+
+// ── Editing (pure; the tool calls these inside `setData`) ───────────────
+
+const suggestedBy = (answers: MethodAnswers): MethodId[] => evaluateRules(answers).candidates.map((c) => c.method);
+
+/**
+ * Sets one answer. The stored shortlist follows: the methods the new answers suggest, then the ones kept by hand.
+ * A method that only an earlier answer suggested leaves the list, as it would on screen.
+ */
+export function setAnswer<Q extends keyof MethodAnswers>(d: MethodChoice, key: Q, value: MethodAnswers[Q]): void {
+  const kept = keptByHand(d);
+  d.answers = { ...d.answers, [key]: value };
+  d.ruleVersion = RULE_VERSION;
+  d.shortlist = [...new Set([...suggestedBy(d.answers), ...kept])];
+}
+
+/** All answers back to “not sure yet”. Methods kept by hand stay on the list. */
+export function clearAnswers(d: MethodChoice): void {
+  d.shortlist = keptByHand(d);
+  d.answers = emptyAnswers();
+  d.ruleVersion = RULE_VERSION;
+}
+
+/** Puts a method on the shortlist by hand (for example from a family). */
+export function keepMethod(d: MethodChoice, m: MethodId): void {
+  if (!d.shortlist.includes(m)) d.shortlist.push(m);
+}
+
+/** Takes a method that was kept by hand off the list. A method the answers suggest cannot be dropped: it follows the answers. */
+export function dropMethod(d: MethodChoice, m: MethodId): void {
+  if (suggestedBy(d.answers).includes(m)) return;
+  d.shortlist = d.shortlist.filter((x) => x !== m);
+}
+
+export type MethodRole = 'primary' | 'alternative';
+
+/** Gives a method a role. A method holds one role at a time, so it leaves the other role if it had it. */
+export function chooseMethod(d: MethodChoice, role: MethodRole, m: MethodId): void {
+  const other: MethodRole = role === 'primary' ? 'alternative' : 'primary';
+  if (d[other] === m) d[other] = '';
+  d[role] = m;
+  keepMethod(d, m);
+}
+
+/** Clears a role. The written reasons stay, so nothing typed is lost. */
+export function clearRole(d: MethodChoice, role: MethodRole): void {
+  d[role] = '';
+}
+
+/** Swaps primary and alternative, with their reasons. */
+export function swapRoles(d: MethodChoice): void {
+  [d.primary, d.alternative] = [d.alternative, d.primary];
+  [d.justification, d.alternativeJustification] = [d.alternativeJustification, d.justification];
+}
+
+// ── Side by side ─────────────────────────────────────────────────────────
+
+/** The rows of the side-by-side comparison, in reading order. All text comes from the method registry. */
+export const COMPARE_ROWS: readonly { key: string; label: string; cell: (m: MethodId) => string[] }[] = [
+  { key: 'family', label: 'Family', cell: (m) => [FAMILIES[METHOD_BY_ID[m].family].label] },
+  { key: 'purpose', label: 'For', cell: (m) => [METHOD_BY_ID[m].purpose] },
+  { key: 'representation', label: 'Shows', cell: (m) => [METHOD_BY_ID[m].representation] },
+  { key: 'time', label: 'Time', cell: (m) => [METHOD_BY_ID[m].time] },
+  { key: 'randomness', label: 'Chance', cell: (m) => [METHOD_BY_ID[m].randomness] },
+  { key: 'aggregation', label: 'Level', cell: (m) => [METHOD_BY_ID[m].aggregation] },
+  { key: 'needs', label: 'Needs', cell: (m) => METHOD_BY_ID[m].dataNeeds },
+  { key: 'assumes', label: 'Assumes', cell: (m) => METHOD_BY_ID[m].assumptions },
+  { key: 'omits', label: 'Leaves out', cell: (m) => METHOD_BY_ID[m].omits },
+  { key: 'fails', label: 'Fails when', cell: (m) => METHOD_BY_ID[m].failureConditions },
+];
+
+/** At most three methods side by side; repeats and unknown ids are dropped. */
+export const MAX_COMPARED = 3;
+export function compareSet(list: readonly string[]): MethodId[] {
+  return [...new Set(list.filter(isMethod))].slice(0, MAX_COMPARED);
+}
+
+/** The methods a comparison starts with: primary, alternative, then the shortlist in order. */
+export function defaultCompared(d: MethodChoice): MethodId[] {
+  return compareSet([d.primary, d.alternative, ...shortlistEntries(d).map((e) => e.method)]);
 }
 
 /** The questions that were answered, with the prompt and the label of the chosen option. */
@@ -166,7 +251,7 @@ const FIGURE_STYLE = '<style>'
 function figure(d: MethodChoice): string | null {
   const list = new Set(shortlistEntries(d).map((e) => e.method));
   if (!d.primary && !d.alternative && list.size === 0) return null;
-  const W = 720, pad = 12, gap = 8, colW = (W - 2 * pad - 3 * gap) / 4, pillH = 24, step = 29, top = 10, head = 34;
+  const W = 840, pad = 12, gap = 8, colW = (W - 2 * pad - 3 * gap) / 4, pillH = 24, step = 29, top = 10, head = 34;
   const colH = head + 4 * step + 5, H = top + colH + 44;
   const parts: string[] = [`<svg xmlns="http://www.w3.org/2000/svg" class="mcf" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}">${FIGURE_STYLE}`];
   FAMILY_STRIP.forEach((f, i) => {
@@ -179,7 +264,10 @@ function figure(d: MethodChoice): string | null {
       parts.push(`<g${primary ? ' class="on"' : ''}><rect class="pill${primary ? ' on' : alternative ? ' alt' : ''}" x="${x + 8}" y="${y}" width="${colW - 16}" height="${pillH}" rx="12"/>`);
       if (!primary && !alternative && list.has(m.id)) parts.push(`<circle class="dot" cx="${x + 20}" cy="${y + pillH / 2}" r="3.5"/>`);
       const inset = !primary && !alternative && list.has(m.id) ? 30 : 20;
-      parts.push(`<text${alternative ? ' class="s"' : ''} x="${x + inset}" y="${y + 16}">${xml(m.name)}</text></g>`);
+      // A long name in bold would run past its pill: squeeze it to the room there is, never beyond.
+      const room = colW - 14 - inset, wide = (primary || alternative ? 6.8 : 6.3) * m.name.length;
+      const fit = wide > room ? ` textLength="${room.toFixed(1)}" lengthAdjust="spacingAndGlyphs"` : '';
+      parts.push(`<text${alternative ? ' class="s"' : ''} x="${x + inset}" y="${y + 16}"${fit}>${xml(m.name)}</text></g>`);
     });
     parts.push('</g>');
   });

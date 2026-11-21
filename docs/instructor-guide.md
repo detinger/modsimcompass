@@ -2,7 +2,7 @@
 
 ## What the app is for
 
-ModSim Essentials is a project compass. A student or a professional team uses it to define a modelling project and to carry that definition through the work as one project record, exported as a **project report**. It deliberately does not teach methods or build specialist models; those belong in lectures and in the method-specific apps.
+ModSimCompass is a project compass. A student or a professional team uses it to define a modelling project and to carry that definition through the work as one project record, exported as a **project report**. It deliberately does not teach methods or build specialist models; those belong in lectures and in the method-specific apps.
 
 ## Using it in a course
 
