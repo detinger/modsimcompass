@@ -109,3 +109,15 @@ There are about five purposeful diagrams, each readable at card size, using auto
 ## 9 Not in scope
 
 Lectures, lessons, examples, quizzes, case libraries, a glossary page, standalone modelling lenses, accounts and backends.
+
+## Amendments after review (21 November 2026)
+
+Two independent reviews of the built app (a code review and a first-time-user walkthrough as a student and as a working analyst) led to these changes. Where they differ from the text above, this section governs.
+
+- **Naming.** The app says "project" throughout. The exported document is the "project report". "Model passport" survives only as an internal name in the code.
+- **Rules are `compass-rules-v2`.** Added: a data status per input (have it, can get it, must assume) with a plan; a planning stage that makes step 7 due later instead of missing; suggestions for a question with no amount or period, a problem that opens like a solution, a one-word outcome and unlabelled arrows; checks for observed data whose source reads like a guess and for data to be obtained without a plan. Suggestions never affect checkpoint readiness.
+- **The worked example is self-reviewed.** All five checkpoints carry ratings and notes by its own author, with four criteria at Developing and the reason given. No reviewer is named. A practice copy starts with empty checkpoints.
+- **Sandbox results are opt-in for reports.** They are included by default only when the project's run settings name the sandbox; the export dialog has a switch. The project file always keeps them.
+- **Specialist apps without a verified address are hidden**, not shown as "not configured".
+- **Schema stays at version 2.** The new fields (`inputs[].availability`, `inputs[].plan`, `identity.stage`) are optional, so earlier files and stored projects remain valid.
+- **Diagram layouts are computed at build time** and stored; the layout engine is not shipped.

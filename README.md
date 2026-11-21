@@ -2,7 +2,7 @@
 
 **A project compass for modelling and simulation.** ModSim Essentials helps students and professionals define a modelling project properly: frame the question, set the scope, choose a method, document data and assumptions, plan verification and validation, design a fair experiment, and state a conditional recommendation.
 
-The result is a **model passport**: one living document that can be reviewed at five checkpoints and exported for assessment or sign-off.
+The result is one living project record that can be reviewed at five checkpoints and exported as a **project report** for assessment or sign-off.
 
 Everything runs in the browser. There are no accounts, no backend and no analytics.
 
@@ -19,7 +19,7 @@ Everything runs in the browser. There are no accounts, no backend and no analyti
 1. **Frame** — stakeholder, observed problem, levers, measurable outcome, precise question.
 2. **Scope and concept** — boundary, exclusions, horizon, level of detail, conceptual sketch.
 3. **Choose a method** — an explainable shortlist with reasons, caveats and what each method omits; a primary method and a justified alternative.
-4. **Inputs and assumptions** — values, units, sources, uncertainty; assumptions with consequences and planned checks.
+4. **Inputs and assumptions** — values, units, sources, uncertainty and a data status for each input (have it, can get it, must assume); assumptions with consequences and planned checks.
 5. **Verification and validation** — checks that the model is built right and is the right model, with calibration kept separate.
 6. **Outcomes and experiment** — computable metrics, baseline, alternatives, a fair comparison and reproducible run settings.
 7. **Conclude and share** — results, a conditional recommendation, limitations, and what would change the decision.
@@ -27,9 +27,9 @@ Everything runs in the browser. There are no accounts, no backend and no analyti
 Every step shows:
 
 - **why it matters**, with a good and a weak example;
-- **open items**, computed from the passport by a versioned rule table (missing information, things to check, suggestions);
-- **self-check questions**, answered in your own words and never auto-graded;
-- a peek at the **worked example** (a complete passport for a student-support backlog study).
+- **open items**, computed from the project by a versioned rule table (missing information, things to check, suggestions);
+- **self-check questions**, answered in your own words and never scored;
+- a peek at the **worked example** (a complete, self-reviewed project for a student-support backlog study).
 
 ### Checkpoints
 
@@ -37,18 +37,20 @@ Proposal, Design, Baseline, Evaluation and Final. Each shows a readiness list, a
 
 Completeness ("N of 7 steps started") is kept separate from review status and from model validity. Reviewer feedback is a manual label; the app has no logins.
 
+A project can be marked as **still planning**. Step 7 is then due later instead of missing, so a project definition can be complete before any model is run.
+
 ### Tools
 
 - **Backlog sandbox:** a transparent daily model with replications and paired policy comparison. Every number can be reconstructed from its daily table.
 - **Distributions:** explore 22 families, choose one from a decision tree, or fit one to data (maximum likelihood, AIC/BIC, Q–Q plot).
 - **Sampling** and **Regression:** see how chance and noise behave.
-- **Specialist apps:** links to the course's method-specific apps. Handoff is manual: export the passport.
+- **Specialist apps:** links to method-specific apps. Handoff is manual: export the project first.
 
-Distributions can be sent to the project's inputs. A count distribution can drive the sandbox.
+Distributions can be sent to the project's inputs. A count distribution can drive the sandbox. A tool opened from a step offers the way back to that step.
 
 ### Exports
 
-Markdown, standalone HTML (print to PDF from the browser), JSON (re-importable), CSV of sandbox results, and a ZIP with a manifest. Exports include self-check answers, open items and rubric records, so a reviewer can work from the file alone.
+A project report as standalone HTML (print to PDF from the browser) or Markdown, the project file as JSON (re-importable), CSV of sandbox results, and a ZIP with a manifest. Reports include self-check answers, open items, data readiness and rubric records, so a reviewer can work from the file alone. Sandbox results are included only when the project says it used the sandbox.
 
 ## Getting started
 

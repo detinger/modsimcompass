@@ -45,7 +45,8 @@ const server = createServer((req, res) => {
   if (req.method !== 'GET' && req.method !== 'HEAD') { res.writeHead(405, { Allow: 'GET, HEAD' }); res.end(); return; }
   if (url.pathname === '/healthz') { res.writeHead(200, { 'Content-Type': 'text/plain', 'Cache-Control': 'no-store' }); res.end('ok'); return; }
   let pathname;
-  try { pathname = decodeURIComponent(url.pathname); } catch { res.writeHead(400); res.end('Bad request'); return; }
+  // A malformed percent sequence names no file: let the app show its own Page not found.
+  try { pathname = decodeURIComponent(url.pathname); } catch { send(res, 200, join(ROOT, 'index.html')); return; }
   const target = normalize(join(ROOT, pathname));
   if (target !== ROOT && !target.startsWith(ROOT + sep)) { res.writeHead(403); res.end('Forbidden'); return; }
   if (existsSync(target) && statSync(target).isFile()) { send(res, 200, target); return; }
