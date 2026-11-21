@@ -98,7 +98,7 @@ Distribution tools can add an input row to the active project. Discrete laws can
 
 ## 8 Visuals
 
-There are about five purposeful diagrams, each readable at card size, using automatic layout (elkjs) and build-up animation:
+There are about five purposeful diagrams, each readable at card size, using automatic layout (elkjs, run at build time and stored) and build-up animation:
 
 - the compass journey on Home;
 - conceptual-model components (step 2);

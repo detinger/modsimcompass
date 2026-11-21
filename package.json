@@ -11,10 +11,10 @@
     "test": "vitest run",
     "preview": "vite preview",
     "start": "node server.mjs",
-    "check": "npm run typecheck && npm test && npm run build"
+    "check": "npm run typecheck && npm test && npm run build",
+    "gen:layouts": "vite-node scripts/gen-layouts.ts"
   },
   "dependencies": {
-    "elkjs": "^0.9.3",
     "jstat": "^1.9.6",
     "lucide-react": "^0.468.0",
     "react": "^19.2.0",
@@ -26,6 +26,7 @@
     "@types/react": "^19.2.7",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^5.1.1",
+    "elkjs": "^0.9.3",
     "eslint": "^9.39.1",
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.4.24",
@@ -35,7 +36,7 @@
     "vite": "^7.3.1",
     "vitest": "^3.2.4"
   },
-  "description": "ModSim Essentials — introductory modelling and simulation app (formerly ModSim101)",
+  "description": "ModSim Essentials \u2014 introductory modelling and simulation app (formerly ModSim101)",
   "engines": {
     "node": ">=20.19"
   }

@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { Cpu, Globe, PencilRuler } from 'lucide-react';
 import { VV, type CheckId } from '../../content/diagrams/specs';
-import { GraphView, useGraphLayout, type Dir, type GraphDef } from './ElkGraph';
+import { GraphView, useGraphLayout } from './ElkGraph';
+import { vvGraph } from './graphDefs';
 import { useSeen, useWidth } from './walkthrough';
 
 /** Which nodes each check compares. */
@@ -9,34 +10,12 @@ const ENDS: Record<CheckId, [string, string]> = { verification: ['computer', 'co
 const CHECK_IDS = VV.checks.map((c) => c.id) as string[];
 
 /** The build chain runs through the middle; each check is a loop on its own side, so no two links cross. */
-function build(dir: Dir, width: number): GraphDef {
-  const wide = dir === 'RIGHT';
-  const [flowIn, flowOut, sideA, sideB] = wide ? (['WEST', 'EAST', 'NORTH', 'SOUTH'] as const) : (['NORTH', 'SOUTH', 'WEST', 'EAST'] as const);
-  const labels = wide || width >= 540;
-  const w = wide ? 168 : labels ? 210 : Math.min(210, width - 104);
-  const h = wide ? 112 : 78;
-  return {
-    spacing: { layer: wide ? 22 : 34 },
-    nodes: [
-      { id: 'real', w, h, ports: { out: flowOut, validation: sideA, calibration: sideB } },
-      { id: 'concept', w, h, ports: { in: flowIn, out: flowOut, verification: sideB } },
-      { id: 'computer', w, h, ports: { in: flowIn, verification: sideB, calibration: sideB, validation: sideA } },
-    ],
-    edges: [
-      { id: 'abstract', from: 'real.out', to: 'concept.in', label: VV.abstract },
-      { id: 'implement', from: 'concept.out', to: 'computer.in', label: VV.implement },
-      { id: 'verification', from: 'computer.verification', to: 'concept.verification', label: labels ? 'Verification' : undefined },
-      { id: 'validation', from: 'computer.validation', to: 'real.validation', label: labels ? 'Validation' : undefined },
-      { id: 'calibration', from: 'real.calibration', to: 'computer.calibration', label: labels ? 'Calibration' : undefined },
-    ],
-  };
-}
 
 const ICON = { real: Globe, concept: PencilRuler, computer: Cpu } as const;
 
 export default function VvCycle() {
   const [ref, width] = useWidth<HTMLDivElement>();
-  const layout = useGraphLayout(build, width);
+  const layout = useGraphLayout(vvGraph, width);
   const seen = useSeen(ref);
   const [sel, setSel] = useState<CheckId | null>(null);
   const check = VV.checks.find((c) => c.id === sel);

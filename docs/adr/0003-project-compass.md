@@ -16,7 +16,7 @@ The owner judged that the durable value lies in two things: the **project passpo
 4. **A worked example** — a complete passport — replaces lesson content as the reference for what good looks like.
 5. **Passport schema v2** adds `selfChecks` and per-checkpoint `rubric`. Version-1 files import with defaults. Sandbox data and all other fields are unchanged.
 6. **Checkpoints are assessment-ready.** Each has a readiness list, a rubric and a status. Reviewer feedback remains a manual label.
-7. **Five purposeful diagrams** replace 38 slide redraws. They use automatic layout (elkjs) and build-up animation.
+7. **Five purposeful diagrams** replace 38 slide redraws. They use automatic layout (elkjs) and build-up animation. The layouts are computed at build time (`npm run gen:layouts`) and stored, so the layout engine is not shipped to the browser; a test fails when the stored layouts are out of date.
 8. **The audience widens** from students to anyone defining a modelling project. Wording says "reviewer" where it previously said "teacher".
 
 ## Consequences

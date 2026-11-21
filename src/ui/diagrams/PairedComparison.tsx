@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { PAIRED, type PairMode } from '../../content/diagrams/specs';
-import { GraphView, useGraphLayout, type Dir, type GraphDef, type Token } from './ElkGraph';
+import { GraphView, useGraphLayout, type Token } from './ElkGraph';
+import { PAIRED_GRAPH } from './graphDefs';
 import { WalkControls, useWalkthrough, useWidth } from './walkthrough';
 
 /* A small, real experiment (seeded, so everyone sees the same picture): a daily backlog with random arrivals.
@@ -28,23 +29,6 @@ const RUNS = Array.from({ length: N }, (_, r) => {
 const LO = -16, HI = 10;
 const fmt = (v: number) => v.toFixed(1).replace('-', '−');
 
-function make(mode: PairMode, dir: Dir, width: number): GraphDef {
-  const wide = dir === 'RIGHT';
-  const room = width - 12;
-  const half = Math.min(210, Math.floor((room - 22) / 2));
-  const policy = { w: wide ? 162 : half, h: !wide && half < 152 ? 96 : 74 }; // a narrow policy box puts the value on its own line
-  const source = { w: wide ? 150 : mode === 'paired' ? Math.min(240, room) : half, h: 108 };
-  const flow = [
-    { id: 'baseline', ...policy }, { id: 'alternative', ...policy },
-    { id: 'difference', w: wide ? 132 : Math.min(240, room), h: 80 },
-    { id: 'distribution', w: wide ? 236 : Math.min(420, room), h: 172 },
-  ];
-  const tail = [{ id: 'out-baseline', from: 'baseline', to: 'difference' }, { id: 'out-alternative', from: 'alternative', to: 'difference' }, { id: 'collect', from: 'difference', to: 'distribution' }];
-  return mode === 'paired'
-    ? { spacing: { layer: 34 }, nodes: [{ id: 'source', ...source }, ...flow], edges: [{ id: 'feed-baseline', from: 'source', to: 'baseline' }, { id: 'feed-alternative', from: 'source', to: 'alternative' }, ...tail] }
-    : { spacing: { layer: 34 }, nodes: [{ id: 'source', ...source }, { id: 'source2', ...source }, ...flow], edges: [{ id: 'feed-baseline', from: 'source', to: 'baseline' }, { id: 'feed-alternative', from: 'source2', to: 'alternative' }, ...tail] };
-}
-const BUILD: Record<PairMode, (dir: Dir, width: number) => GraphDef> = { paired: (d, w) => make('paired', d, w), unpaired: (d, w) => make('unpaired', d, w) };
 
 const NODE_STEP: Record<string, number> = { source: 1, source2: 1, baseline: 2, alternative: 2, difference: 3, distribution: 4 };
 const EDGE_STEP: Record<string, number> = { 'feed-baseline': 2, 'feed-alternative': 2, 'out-baseline': 3, 'out-alternative': 3, collect: 4 };
@@ -78,7 +62,7 @@ function Dots({ values, width }: { values: number[]; width: number }) {
 export default function PairedComparison() {
   const [ref, width] = useWidth<HTMLDivElement>();
   const [mode, setMode] = useState<PairMode>('paired');
-  const layout = useGraphLayout(BUILD[mode], width);
+  const layout = useGraphLayout(PAIRED_GRAPH[mode], width);
   const walk = useWalkthrough(4, { intro: 1000, hold: (s) => HOLD[s] });
   const { reduced } = walk;
 

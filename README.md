@@ -59,6 +59,7 @@ npm install
 npm run dev          # http://localhost:5173
 npm run check        # typecheck + tests + production build
 npm run lint
+npm run gen:layouts  # recompute the stored diagram layouts after changing a diagram graph
 npm start            # serve dist/ with the production server (after npm run build)
 ```
 

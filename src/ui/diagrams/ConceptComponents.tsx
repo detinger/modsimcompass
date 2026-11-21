@@ -1,6 +1,7 @@
 import { BarChart3, Boxes, CircleHelp, Cpu, Globe, PencilRuler, Scissors, SlidersHorizontal, Target, type LucideIcon } from 'lucide-react';
 import { CONCEPT } from '../../content/diagrams/specs';
-import { GraphView, useGraphLayout, type Dir, type GraphDef } from './ElkGraph';
+import { GraphView, useGraphLayout } from './ElkGraph';
+import { conceptGraph } from './graphDefs';
 import { WalkControls, useWalkthrough, useWidth } from './walkthrough';
 
 /**
@@ -8,27 +9,6 @@ import { WalkControls, useWalkthrough, useWidth } from './walkthrough';
  * (inputs → content → outputs) is laid out by elkjs, while objectives (header) and assumptions and
  * simplifications (footer) belong to the container itself and live in its padding.
  */
-function build(dir: Dir, width: number): GraphDef {
-  const wide = dir === 'RIGHT';
-  const row = wide || width >= 500;
-  const partW = row ? 122 : Math.min(250, width - 56);
-  const partH = row ? 72 : 60;
-  const end = wide ? { w: 150, h: 112 } : { w: row ? 230 : partW + 28, h: 76 };
-  return {
-    spacing: { layer: wide ? 36 : 32 },
-    nodes: [
-      { id: 'real', ...end },
-      {
-        id: 'model', w: 0, h: 0, dir: row ? 'RIGHT' : 'DOWN',
-        pad: row ? { top: 106, right: 14, bottom: 86, left: 14 } : { top: 124, right: 14, bottom: 150, left: 14 },
-        children: [{ id: 'inputs', w: partW, h: partH }, { id: 'content', w: partW, h: partH }, { id: 'outputs', w: partW, h: partH }],
-        edges: [{ id: 'feed', from: 'inputs', to: 'content' }, { id: 'produce', from: 'content', to: 'outputs' }],
-      },
-      { id: 'computer', ...end },
-    ],
-    edges: [{ id: 'abstract', from: 'real', to: 'model' }, { id: 'implement', from: 'model', to: 'computer' }],
-  };
-}
 
 /** Walkthrough step at which each element appears. */
 const NODE_STEP: Record<string, number> = { real: 1, model: 2, inputs: 3, outputs: 3, content: 4, computer: 6 };
@@ -38,7 +18,7 @@ const ICON: Record<string, LucideIcon> = { real: Globe, computer: Cpu, inputs: S
 
 export default function ConceptComponents() {
   const [ref, width] = useWidth<HTMLDivElement>();
-  const layout = useGraphLayout(build, width);
+  const layout = useGraphLayout(conceptGraph, width);
   const walk = useWalkthrough(CONCEPT.steps.length, { intro: 900 });
   const off = (n: number) => (walk.has(n) ? '' : ' is-off');
   const now = (n: number) => (walk.walking && walk.shown === n ? ' is-new' : '');

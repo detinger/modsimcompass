@@ -69,7 +69,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const toast = useCallback((text: string, tone: Toast['tone'] = 'info', action?: Toast['action']) => {
     const id = newId('t');
-    setToasts((t) => [...t.slice(-3), { id, text, tone, action }]);
+    setToasts((t) => [...t.slice(-2), { id, text, tone, action }]);
     window.setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), action ? 12000 : 6000);
   }, []);
   const dismissToast = useCallback((id: string) => setToasts((t) => t.filter((x) => x.id !== id)), []);
