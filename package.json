@@ -15,6 +15,7 @@
     "gen:layouts": "vite-node scripts/gen-layouts.ts"
   },
   "dependencies": {
+    "@xyflow/react": "^13.0.2",
     "jstat": "^1.9.6",
     "lucide-react": "^0.468.0",
     "react": "^19.2.0",
@@ -36,7 +37,7 @@
     "vite": "^7.3.1",
     "vitest": "^3.2.4"
   },
-  "description": "ModSim Essentials \u2014 introductory modelling and simulation app (formerly ModSim101)",
+  "description": "ModSim Essentials — introductory modelling and simulation app (formerly ModSim101)",
   "engines": {
     "node": ">=20.19"
   }
