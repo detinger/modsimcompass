@@ -47,7 +47,7 @@ const server = createServer((req, res) => {
   let pathname;
   try { pathname = decodeURIComponent(url.pathname); } catch { res.writeHead(400); res.end('Bad request'); return; }
   const target = normalize(join(ROOT, pathname));
-  if (!target.startsWith(ROOT)) { res.writeHead(403); res.end('Forbidden'); return; }
+  if (target !== ROOT && !target.startsWith(ROOT + sep)) { res.writeHead(403); res.end('Forbidden'); return; }
   if (existsSync(target) && statSync(target).isFile()) { send(res, 200, target); return; }
   const looksLikeAsset = extname(pathname) !== '' || pathname.startsWith('/assets/');
   if (looksLikeAsset) { res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8', ...SECURITY }); res.end('Not found'); return; }

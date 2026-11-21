@@ -75,7 +75,7 @@ export function ProjectCard({ doc, active, onOpen, onDuplicate, onDownload, onRe
         <span className="pc-icons">
           <button type="button" className="icon-btn" data-tip="Duplicate" aria-label={`Duplicate ${title}`} onClick={onDuplicate}><Copy size={16} aria-hidden="true" /></button>
           <button type="button" className="icon-btn" data-tip="Download project file" aria-label={`Download project file for ${title}`} onClick={onDownload}><Download size={16} aria-hidden="true" /></button>
-          <button type="button" className="icon-btn" data-tip="Recovery file (previous revision)" aria-label={`Download recovery file (previous revision) for ${title}`} onClick={onRecovery}><History size={16} aria-hidden="true" /></button>
+          <button type="button" className="icon-btn" data-tip="Recovery file (earlier version)" aria-label={`Download recovery file (earlier version) for ${title}`} onClick={onRecovery}><History size={16} aria-hidden="true" /></button>
           <button type="button" className="icon-btn danger" data-tip="Delete" aria-label={`Delete ${title}`} onClick={onDelete}><Trash2 size={16} aria-hidden="true" /></button>
         </span>
       </footer>

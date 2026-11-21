@@ -7,13 +7,13 @@ import { fmt } from '../../../ui/controls';
  * stock level, never as literal people. Playback only moves the highlighted day; it never
  * changes or re-runs computation. Reduced motion: no autoplay, step-only.
  */
-export function StockFlowScene({ trace, label }: { trace: DailyTrace | null; label: string }) {
+export function StockFlowScene({ trace, label, runId }: { trace: DailyTrace | null; label: string; /** Playback restarts when this changes, not on unrelated project edits. */ runId: string | null }) {
   const [day, setDay] = useState(0);
   const [playing, setPlaying] = useState(false);
   const [speed, setSpeed] = useState(700);
   const reduce = typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
   const n = trace?.rows.length ?? 0;
-  useEffect(() => { setDay(0); setPlaying(false); }, [trace]);
+  useEffect(() => { setDay(0); setPlaying(false); }, [runId, n]);
   useEffect(() => {
     if (!playing || !trace) return;
     if (day >= n - 1) { setPlaying(false); return; }

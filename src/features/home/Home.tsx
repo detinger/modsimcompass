@@ -61,7 +61,7 @@ export default function Home() {
     const b = await getBackup(p.id);
     if (!b) { toast('No earlier revision stored for this project yet.', 'info'); return; }
     downloadFile(`${slugify(titleOf(p))}-last-known-good.modsim.json`, projectJson(b.project), 'application/json');
-    toast('Previous revision downloaded as a recovery file.', 'success');
+    toast('Earlier version downloaded as a recovery file.', 'success');
   };
 
   const figure = <Quiet><div className="home-figure"><FigureCard id="compass-journey" /></div></Quiet>;
@@ -183,7 +183,7 @@ export default function Home() {
         <Dialog title="Import project file" onClose={() => setPending(null)}
           actions={<>
             <button className="btn" onClick={() => setPending(null)}>Cancel</button>
-            {replaceTarget && <button className="btn danger" onClick={async () => { await replaceProject(replaceTarget, pending.project); setPending(null); toast('Project replaced by the imported file.', 'success'); }}>Replace selected project</button>}
+            {replaceTarget && <button className="btn danger" onClick={async () => { const ok = await replaceProject(replaceTarget, pending.project); setPending(null); if (ok) toast('Project replaced by the imported file. The earlier version is in Recently deleted.', 'success'); }}>Replace selected project</button>}
             <button className="btn primary" onClick={async () => {
               const now = new Date().toISOString();
               const doc: ProjectDoc = { ...pending.project, id: newId('prj'), createdAt: pending.project.createdAt || now, updatedAt: now, projectRevision: 1, origin: { kind: 'import', ref: pending.project.id } };
@@ -205,7 +205,7 @@ export default function Home() {
                 <option value="">Do not replace anything</option>
                 {projects.map((p) => <option key={p.id} value={p.id}>{titleOf(p)}</option>)}
               </select>
-              <span className="hint">The replaced project’s previous revision is kept as a recovery file.</span>
+              <span className="hint">The version you replace is moved to Recently deleted, so you can restore it.</span>
             </div>
           )}
         </Dialog>

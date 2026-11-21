@@ -10,6 +10,9 @@ export function escapeHtml(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
+/** Whole numbers written into markup. Anything else (a tampered file) becomes a dash, never markup. */
+const int = (n: unknown): string => (typeof n === 'number' && Number.isFinite(n) ? String(Math.trunc(n)) : '—');
+
 function inline(s: string): string {
   // s is already HTML-escaped.
   return s
@@ -86,7 +89,7 @@ function resultsHtml(doc: ProjectDoc): string {
   const stale = runIsStale(doc);
   const parts: string[] = ['<h2>Appendix — sandbox results in detail</h2>', '<p>Detail for the sandbox run reported in step 6.</p>'];
   parts.push(`<p class="status">${escapeHtml(describeRunStatus(run))}${stale ? ' <strong>From earlier settings: the model inputs have changed since this run.</strong>' : ''}</p>`);
-  parts.push(`<p>Daily aggregate backlog model (engine ${escapeHtml(run.engineVersion)}, RNG ${escapeHtml(run.rngVersion)}, seed <code>${escapeHtml(run.seed)}</code>, model revision ${run.modelRevision}). Units: request-equivalents. This model does not estimate individual waiting times.</p>`);
+  parts.push(`<p>Daily aggregate backlog model (engine ${escapeHtml(run.engineVersion)}, RNG ${escapeHtml(run.rngVersion)}, seed <code>${escapeHtml(run.seed)}</code>, model revision ${int(run.modelRevision)}). Units: request-equivalents. This model does not estimate individual waiting times.</p>`);
   if (run.comparisonKind === 'paired-policy') parts.push('<p>Same arrival traces in each policy pair.</p>');
   if (run.comparisonKind === 'scenario') parts.push('<p><strong>Scenario comparison: inputs differ.</strong> Differences are not an isolated policy effect.</p>');
   const policies = [run.baseline, ...(run.alternative ? [run.alternative] : [])];
@@ -107,16 +110,18 @@ function resultsHtml(doc: ProjectDoc): string {
   metric('Utilisation (served ÷ effective capacity)', (s) => s.utilisation);
   if (run.baselineSnapshot.cost.enabled) metric(`Total cost (${run.baselineSnapshot.cost.currency})`, (s) => s.totalCost);
   parts.push('<div class="table-wrap"><table><caption>Replication-level summary. Mean; 5th–95th percentile of outcomes (not a confidence interval); approximate 95% t interval for the mean.</caption><thead><tr><th scope="col">Outcome</th><th scope="col">Policy</th><th scope="col">Mean</th><th scope="col">Outcome 5th–95th pct.</th><th scope="col">95% CI of mean</th><th scope="col">n</th></tr></thead><tbody>' + rows.join('') + '</tbody></table></div>');
-  if (run.alternative) {
+  if (run.alternative && run.alternative.summaries.length && run.baseline.summaries.length) {
     const d = pairedDifferences(run.baseline.summaries.map((s) => s.terminalBacklog), run.alternative.summaries.map((s) => s.terminalBacklog));
     const s = summarise(d);
-    parts.push(`<p>Paired difference in terminal backlog (alternative − baseline): mean ${fmt(s.mean)} req-eq; ${s.ci.unavailableReason ? escapeHtml(s.ci.unavailableReason) : `approximate 95% t interval ${fmt(s.ci.lower)} to ${fmt(s.ci.upper)}`} (n = ${d.length}).</p>`);
+    // Only identical arrival traces make the difference a paired one.
+    const kind = run.comparisonKind === 'paired-policy' ? 'Paired difference' : 'Difference';
+    parts.push(`<p>${kind} in terminal backlog (alternative − baseline): mean ${fmt(s.mean)} req-eq; ${s.ci.unavailableReason ? escapeHtml(s.ci.unavailableReason) : `approximate 95% t interval ${fmt(s.ci.lower)} to ${fmt(s.ci.upper)}`} (n = ${d.length}).</p>`);
   }
   const t = run.baseline.retainedTrace;
   if (t) {
-    parts.push('<div class="table-wrap"><table><caption>Baseline daily table, replication ' + (t.replication + 1) + ' (retained trajectory). Request-equivalents.</caption><thead><tr>'
+    parts.push('<div class="table-wrap"><table><caption>Baseline daily table, replication ' + int(t.replication + 1) + ' (retained trajectory). Request-equivalents.</caption><thead><tr>'
       + ['Day', 'Start', 'Arrivals', 'Effective capacity', 'Served', 'Abandoned', 'End'].map((h) => `<th scope="col">${h}</th>`).join('') + '</tr></thead><tbody>'
-      + t.rows.map((r) => `<tr><td class="num">${r.day}</td><td class="num">${fmt(r.startBacklog)}</td><td class="num">${fmt(r.arrivals)}</td><td class="num">${fmt(r.effectiveCapacity)}</td><td class="num">${fmt(r.served)}</td><td class="num">${fmt(r.abandoned)}</td><td class="num">${fmt(r.endBacklog)}</td></tr>`).join('')
+      + t.rows.map((r) => `<tr><td class="num">${int(r.day)}</td><td class="num">${fmt(r.startBacklog)}</td><td class="num">${fmt(r.arrivals)}</td><td class="num">${fmt(r.effectiveCapacity)}</td><td class="num">${fmt(r.served)}</td><td class="num">${fmt(r.abandoned)}</td><td class="num">${fmt(r.endBacklog)}</td></tr>`).join('')
       + '</tbody></table></div>');
   }
   return parts.join('\n');

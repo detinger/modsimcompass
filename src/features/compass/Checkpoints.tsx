@@ -7,6 +7,11 @@ import { usePassport } from '../project/passportContext';
 import { Area, Choice, Txt } from '../project/fields';
 import { CHECKPOINT_TONE, SEVERITY, STATUS_CLASS, warningText } from './stepMeta';
 
+/** Today as YYYY-MM-DD in the user's own time zone (a target date is a local calendar day). */
+export function localToday(now = new Date()): string {
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+}
+
 const STATUS_OPTIONS = (Object.keys(REVIEW_LABELS) as ReviewStatus[]).map((k) => ({ value: k, label: REVIEW_LABELS[k] }));
 const SOURCE_OPTIONS: { value: Checkpoint['feedbackSource']; label: string }[] = [{ value: 'self', label: 'Self-review' }, { value: 'teacher', label: 'Reviewer feedback' }];
 const stepRange = (steps: StepId[]) => {
@@ -33,7 +38,7 @@ function CheckpointCard({ def, index, open, onToggle }: { def: CheckpointDef; in
           <span className="cp-ck-name">{def.label}<small>{stepRange(def.steps)}</small></span>
           <span className="cp-ck-facts">
             {r.due && (() => {
-              const late = r.due < new Date().toISOString().slice(0, 10) && (r.status === 'draft' || r.status === 'needs-revision');
+              const late = r.due < localToday() && (r.status === 'draft' || r.status === 'needs-revision');
               return <span className={`cp-due${late ? ' late' : ''}`}>{late ? 'Was due' : 'Due'} {new Date(`${r.due}T00:00:00`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</span>;
             })()}
             <span className={`cp-pill ${ready.length > 0 ? 'has-open' : 'calm'}`}>{ready.length > 0 ? `${ready.length} open` : 'Nothing open'}</span>

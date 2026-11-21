@@ -26,7 +26,7 @@ interface Store {
   createAndActivate: (opts?: Parameters<typeof createProject>[0]) => ProjectDoc;
   activate: (id: string) => Promise<void>;
   addProject: (doc: ProjectDoc, activate: boolean) => Promise<void>;
-  replaceProject: (targetId: string, doc: ProjectDoc) => Promise<void>;
+  replaceProject: (targetId: string, doc: ProjectDoc) => Promise<boolean>;
   duplicate: (id: string) => Promise<void>;
   trash: (id: string) => Promise<void>;
   listTrash: () => Promise<TrashEntry[]>;
@@ -47,6 +47,8 @@ function bumpModelRevision(before: ProjectDoc, after: ProjectDoc) {
   if (h(before) !== h(after)) after.modelRevision = before.modelRevision + 1;
 }
 
+const UNSAVED = 'Your latest changes could not be saved, so this project stays open. Download a project file first, then try again.';
+
 export function StoreProvider({ children }: { children: ReactNode }) {
   const [ready, setReady] = useState(false);
   const [repo, setRepo] = useState<Repo | null>(null);
@@ -63,13 +65,17 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const dirtyRef = useRef(false);
   const timerRef = useRef<number | null>(null);
   const savingRef = useRef(false);
+  const inFlightRef = useRef<Promise<void> | null>(null);
   const channelRef = useRef<BroadcastChannel | null>(null);
 
   useEffect(() => { applyTheme(prefs.theme); }, [prefs.theme]);
 
   const toast = useCallback((text: string, tone: Toast['tone'] = 'info', action?: Toast['action']) => {
     const id = newId('t');
-    setToasts((t) => [...t.slice(-2), { id, text, tone, action }]);
+    // An Undo belongs to the project that was open when it was offered; it must never edit another one.
+    const owner = activeRef.current?.id ?? null;
+    const guarded = action && { label: action.label, run: () => { if ((activeRef.current?.id ?? null) === owner) action.run(); } };
+    setToasts((t) => [...t.slice(-2), { id, text, tone, action: guarded }]);
     window.setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), action ? 12000 : 6000);
   }, []);
   const dismissToast = useCallback((id: string) => setToasts((t) => t.filter((x) => x.id !== id)), []);
@@ -105,10 +111,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     return () => { cancelled = true; };
   }, [refreshList]);
 
-  const persist = useCallback(async () => {
+  const persist = useCallback((): Promise<void> => {
+    // One save at a time. A caller that arrives during a save waits for that save; edits made meanwhile
+    // stay marked as unsaved and are written by the follow-up below or by the caller's next attempt.
+    if (inFlightRef.current) return inFlightRef.current;
+    const run = async () => {
     const r = repo;
     const doc = activeRef.current;
-    if (!r || !doc || !dirtyRef.current || savingRef.current) return;
+    if (!r || !doc || !dirtyRef.current) return;
     if (r.kind === 'memory') {
       await r.saveProject(doc, null);
       dirtyRef.current = false;
@@ -146,6 +156,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       setSaveStatus('failed');
       setSaveError('Your latest changes could not be saved on this device. Download a project file to keep them.');
     }
+    };
+    const p = run().finally(() => { if (inFlightRef.current === p) inFlightRef.current = null; });
+    inFlightRef.current = p;
+    return p;
   }, [repo]);
 
   const firstDirtyRef = useRef<number | null>(null);
@@ -205,12 +219,16 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     schedule();
   }, [schedule]);
 
-  const flushBeforeSwitch = useCallback(async () => {
+  /** Stores pending edits of the active project. Resolves to false when they could not be stored. */
+  const flushBeforeSwitch = useCallback(async (): Promise<boolean> => {
     if (timerRef.current) window.clearTimeout(timerRef.current);
-    if (dirtyRef.current) await persist();
+    for (let i = 0; i < 2 && (dirtyRef.current || inFlightRef.current); i++) await persist();
+    return !dirtyRef.current;
   }, [persist]);
 
   const setActiveDoc = useCallback((doc: ProjectDoc | null, savedRev: number | null) => {
+    // Undo offers belong to the project they were made in.
+    if ((doc?.id ?? null) !== (activeRef.current?.id ?? null)) setToasts((t) => t.filter((x) => !x.action));
     activeRef.current = doc;
     savedRevRef.current = savedRev;
     dirtyRef.current = false;
@@ -220,9 +238,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const addProject = useCallback(async (doc: ProjectDoc, activate: boolean) => {
     if (!repo) return;
-    await flushBeforeSwitch();
+    const clean = await flushBeforeSwitch();
     const res = await repo.saveProject(doc, null);
     await refreshList(repo);
+    if (activate && !clean && activeRef.current) {
+      // Opening the new project now would drop the open project's unsaved edits.
+      toast(res.ok ? `${UNSAVED} The new project is in your project list.` : UNSAVED, 'error');
+      return;
+    }
     if (!res.ok) {
       setSaveStatus('failed');
       setSaveError('The new project could not be saved on this device. Download a project file to keep it.');
@@ -231,30 +254,43 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       setActiveDoc(doc, res.ok ? doc.projectRevision : null);
       if (!res.ok) dirtyRef.current = true;
     }
-  }, [repo, refreshList, flushBeforeSwitch, setActiveDoc]);
+  }, [repo, refreshList, flushBeforeSwitch, setActiveDoc, toast]);
 
+  const lastCreateRef = useRef<{ at: number; doc: ProjectDoc } | null>(null);
   const createAndActivate = useCallback((opts?: Parameters<typeof createProject>[0]) => {
+    // A double click must not create two projects.
+    const last = lastCreateRef.current;
+    if (last && Date.now() - last.at < 800) return last.doc;
     const doc = createProject(opts);
+    lastCreateRef.current = { at: Date.now(), doc };
     void addProject(doc, true);
     return doc;
   }, [addProject]);
 
   const activate = useCallback(async (id: string) => {
     if (!repo) return;
-    await flushBeforeSwitch();
+    if (!(await flushBeforeSwitch()) && activeRef.current && activeRef.current.id !== id) { toast(UNSAVED, 'error'); return; }
     const doc = await repo.getProject(id);
     if (doc) setActiveDoc(doc, doc.projectRevision);
-  }, [repo, flushBeforeSwitch, setActiveDoc]);
+  }, [repo, flushBeforeSwitch, setActiveDoc, toast]);
 
-  const replaceProject = useCallback(async (targetId: string, doc: ProjectDoc) => {
-    if (!repo) return;
+  /** Replaces a stored project. The version that is replaced goes to Recently deleted as a separate copy. */
+  const replaceProject = useCallback(async (targetId: string, doc: ProjectDoc): Promise<boolean> => {
+    if (!repo) return false;
     await flushBeforeSwitch();
     const existing = await repo.getProject(targetId);
     const replacement: ProjectDoc = { ...doc, id: targetId, projectRevision: (existing?.projectRevision ?? 0) + 1, updatedAt: now() };
     const res = await repo.saveProject(replacement, existing?.projectRevision ?? null);
+    if (res.ok && existing) {
+      const kept: ProjectDoc = { ...structuredClone(existing), id: newId('prj'), projectRevision: 1, origin: { kind: 'copy', ref: existing.id } };
+      kept.passport.identity.title = `${existing.passport.identity.title || 'Untitled project'} (before replace)`;
+      if ((await repo.saveProject(kept, null)).ok) await repo.trashProject(kept.id, now());
+    }
     await refreshList(repo);
     if (res.ok && activeRef.current?.id === targetId) setActiveDoc(replacement, replacement.projectRevision);
-    if (!res.ok) toast('The project could not be replaced. Nothing was overwritten.', 'error');
+    if (res.ok) channelRef.current?.postMessage({ type: 'saved', id: targetId, revision: replacement.projectRevision });
+    else toast('The project could not be replaced. Nothing was overwritten.', 'error');
+    return res.ok;
   }, [repo, refreshList, flushBeforeSwitch, setActiveDoc, toast]);
 
   const duplicate = useCallback(async (id: string) => {
@@ -291,8 +327,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       setSaveStatus('saved'); setSaveError(null);
     } else if (choice === 'keep-both') {
       const t = now();
-      const copy: ProjectDoc = { ...structuredClone(mine), id: newId('prj'), createdAt: t, updatedAt: t, projectRevision: 1, origin: { kind: 'copy', ref: mine.id } };
-      copy.passport.identity.title = `${mine.passport.identity.title} (this tab’s version)`;
+      // Use what is on screen now: it includes anything typed after the failed save.
+      const latest = activeRef.current?.id === mine.id ? activeRef.current : mine;
+      const copy: ProjectDoc = { ...structuredClone(latest), id: newId('prj'), createdAt: t, updatedAt: t, projectRevision: 1, origin: { kind: 'copy', ref: mine.id } };
+      copy.passport.identity.title = `${latest.passport.identity.title} (this tab’s version)`;
       await repo.saveProject(copy, null);
       setActiveDoc(copy, 1);
       await refreshList(repo);
@@ -301,7 +339,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     } else {
       // Explicit, user-chosen overwrite of the other tab's revision.
       savedRevRef.current = theirs.projectRevision;
-      activeRef.current = mine;
+      if (activeRef.current?.id !== mine.id) activeRef.current = mine;
       dirtyRef.current = true;
       await persist();
     }

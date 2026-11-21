@@ -41,7 +41,7 @@ export function match(pattern: string, path: string): Record<string, string> | n
   if (pp.length !== sp.length) return null;
   const params: Record<string, string> = {};
   for (let i = 0; i < pp.length; i++) {
-    if (pp[i].startsWith(':')) params[pp[i].slice(1)] = decodeURIComponent(sp[i]);
+    if (pp[i].startsWith(':')) { try { params[pp[i].slice(1)] = decodeURIComponent(sp[i]); } catch { return null; } } // a malformed % sequence matches nothing
     else if (pp[i] !== sp[i]) return null;
   }
   return params;

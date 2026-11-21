@@ -111,7 +111,7 @@ export function ConceptMap() {
             <label className="field"><span className="field-label">To</span><select value={to} onChange={(e) => setTo(e.target.value)}><option value="">Choose…</option>{nodes.map((n) => <option key={n.id} value={n.id}>{n.label || '(unnamed)'}</option>)}</select></label>
           </div>
           <label className="check"><input type="checkbox" checked={directed} onChange={(e) => setDirected(e.target.checked)} /> Directed (arrow)</label>
-          <button type="button" className="btn small" disabled={!from || !to || from === to} onClick={() => { update((d) => { d.passport.representation.relations.push({ id: newId('r'), from, to, label, directed }); }); setLabel(''); }}>Connect</button>
+          <button type="button" className="btn small" disabled={!nodes.some((n) => n.id === from) || !nodes.some((n) => n.id === to) || from === to} onClick={() => { update((d) => { d.passport.representation.relations.push({ id: newId('r'), from, to, label, directed }); }); setLabel(''); }}>Connect</button>
         </fieldset>
       )}
       </>)}

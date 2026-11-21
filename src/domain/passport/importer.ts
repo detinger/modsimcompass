@@ -1,5 +1,5 @@
-import { defaultConfig } from '../sandbox/engine';
-import type { RunRecord, SandboxConfig } from '../sandbox/types';
+import { defaultConfig, MAX_HORIZON, MAX_REPLICATIONS } from '../sandbox/engine';
+import type { DailyRow, DailyTrace, PolicyResult, ReplicationSummary, RunRecord, SandboxConfig, TraceMetrics } from '../sandbox/types';
 import { METHOD_BY_ID } from '../methods/registry';
 import { emptyAnswers } from '../methods/rules';
 import { createProject, newId, PASSPORT_SCHEMA, PASSPORT_SCHEMA_VERSION, type ProjectDoc } from './schema';
@@ -93,22 +93,84 @@ function sanitizeConfig(input: unknown, prefix: string, warn: (m: string) => voi
   return c;
 }
 
+const isNum = (x: unknown): x is number => typeof x === 'number' && Number.isFinite(x);
+const isInt = (x: unknown): x is number => isNum(x) && Number.isInteger(x) && x >= 0;
+const isNumOrNull = (x: unknown): x is number | null => x === null || isNum(x);
+const isStr = (x: unknown, max = 200): x is string => typeof x === 'string' && x.length <= max;
+const isObj = (x: unknown): x is Record<string, unknown> => !!x && typeof x === 'object' && !Array.isArray(x);
+
+const METRIC_NUM = ['totalArrivals', 'totalServed', 'totalAbandoned', 'terminalBacklog', 'averageEndBacklog', 'totalEffectiveCapacity', 'maxAbsResidual'] as const;
+const METRIC_NULLABLE = ['utilisation', 'totalStaffCost', 'totalHoldingCost', 'totalCost'] as const;
+const ROW_NUM = ['startBacklog', 'arrivals', 'nominalCapacity', 'effectiveCapacity', 'available', 'served', 'remaining', 'abandoned', 'endBacklog', 'residual'] as const;
+
+/** Each reader returns a clean copy with only the known, well-typed fields, or null. */
+function readMetrics(x: unknown): TraceMetrics | null {
+  if (!isObj(x)) return null;
+  const out: Record<string, number | null> = {};
+  for (const k of METRIC_NUM) { if (!isNum(x[k])) return null; out[k] = x[k] as number; }
+  for (const k of METRIC_NULLABLE) { if (!isNumOrNull(x[k])) return null; out[k] = x[k] as number | null; }
+  return out as unknown as TraceMetrics;
+}
+function readSummary(x: unknown): ReplicationSummary | null {
+  const m = readMetrics(x);
+  return m && isObj(x) && isInt(x.replication) ? { ...m, replication: x.replication } : null;
+}
+function readRow(x: unknown): DailyRow | null {
+  if (!isObj(x) || !isInt(x.day) || typeof x.open !== 'boolean' || typeof x.paid !== 'boolean' || !isNumOrNull(x.staffCost) || !isNumOrNull(x.holdingCost)) return null;
+  const out: Record<string, unknown> = { day: x.day, open: x.open, paid: x.paid, staffCost: x.staffCost, holdingCost: x.holdingCost };
+  for (const k of ROW_NUM) { if (!isNum(x[k])) return null; out[k] = x[k]; }
+  return out as unknown as DailyRow;
+}
+function readTrace(x: unknown): DailyTrace | null {
+  if (!isObj(x) || !isInt(x.replication) || !Array.isArray(x.rows) || x.rows.length > MAX_HORIZON) return null;
+  const rows = x.rows.map(readRow), metrics = readMetrics(x.metrics);
+  return metrics && rows.every((r): r is DailyRow => r !== null) ? { replication: x.replication, rows, metrics } : null;
+}
+function readPolicy(x: unknown): PolicyResult | null {
+  if (!isObj(x) || !isStr(x.label) || !isStr(x.configHash) || !Array.isArray(x.summaries) || x.summaries.length > MAX_REPLICATIONS) return null;
+  const summaries = x.summaries.map(readSummary);
+  if (!summaries.every((r): r is ReplicationSummary => r !== null)) return null;
+  const retainedTrace = x.retainedTrace == null ? null : readTrace(x.retainedTrace);
+  if (x.retainedTrace != null && !retainedTrace) return null;
+  return { label: x.label, configHash: x.configHash, summaries, retainedTrace };
+}
+
+/**
+ * Saved sandbox results are rebuilt field by field. Anything that is not exactly the expected shape and type
+ * is dropped as a whole, because the results screens and the exports rely on every field.
+ */
 function sanitizeRun(input: unknown, warn: (m: string) => void): RunRecord | null {
   if (input === null || input === undefined) return null;
-  const r = input as Partial<RunRecord>;
-  const okSummaries = (s: unknown) => Array.isArray(s) && s.length <= 10000 && s.every((x) => x && typeof x === 'object' && typeof (x as { terminalBacklog: unknown }).terminalBacklog === 'number');
-  if (typeof r.id !== 'string' || !r.baseline || !okSummaries(r.baseline.summaries) || (r.alternative && !okSummaries(r.alternative.summaries))
-    || !['running', 'partial', 'complete', 'failed'].includes(String(r.status))) {
-    warn('Saved sandbox results were not in a recognised format and were not imported. Re-run the model to regenerate them.');
-    return null;
-  }
-  // Shape is trusted only for numeric display; re-sanitise snapshots.
+  const reject = () => { warn('Saved sandbox results were not in a recognised format and were not imported. Re-run the model to regenerate them.'); return null; };
+  const r = input;
+  if (!isObj(r)) return reject();
+  const status = ['running', 'partial', 'complete', 'failed'].find((v) => v === r.status) as RunRecord['status'] | undefined;
+  const comparisonKind = ['none', 'paired-policy', 'scenario'].find((v) => v === r.comparisonKind) as RunRecord['comparisonKind'] | undefined;
+  const baseline = readPolicy(r.baseline);
+  const alternative = r.alternative == null ? null : readPolicy(r.alternative);
+  const preview = r.arrivalPreview;
+  if (!status || !comparisonKind || !baseline || (r.alternative != null && !alternative)
+    || !isStr(r.id) || !isStr(r.projectId) || !isStr(r.modelHash) || !isStr(r.engineVersion) || !isStr(r.rngVersion) || !isStr(r.seed) || !isStr(r.createdAt)
+    || !isInt(r.modelRevision) || !isInt(r.requestedReplications) || !isInt(r.completedReplications)
+    || !Array.isArray(preview) || preview.length > 50 || !preview.every((a) => Array.isArray(a) && a.length <= MAX_HORIZON && a.every(isNum))
+    || (r.error !== undefined && !isStr(r.error, 2000))) return reject();
   return {
-    ...(r as RunRecord),
-    status: r.status === 'running' ? 'partial' : r.status!,
+    id: r.id, projectId: r.projectId, modelRevision: r.modelRevision, modelHash: r.modelHash, engineVersion: r.engineVersion, rngVersion: r.rngVersion,
+    seed: r.seed, requestedReplications: r.requestedReplications, completedReplications: r.completedReplications,
+    status: status === 'running' ? 'partial' : status, createdAt: r.createdAt,
     baselineSnapshot: sanitizeConfig(r.baselineSnapshot, 'sandbox.lastRun.baselineSnapshot', warn),
     alternativeSnapshot: r.alternativeSnapshot ? sanitizeConfig(r.alternativeSnapshot, 'sandbox.lastRun.alternativeSnapshot', warn) : null,
+    comparisonKind, baseline, alternative,
+    arrivalPreview: (preview as number[][]).map((a) => [...a]),
+    ...(typeof r.error === 'string' ? { error: r.error } : {}),
   };
+}
+
+/** A calendar date that exists, written YYYY-MM-DD. */
+export function isIsoDate(s: unknown): s is string {
+  if (typeof s !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(s)) return false;
+  const d = new Date(`${s}T00:00:00Z`);
+  return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === s;
 }
 
 export function parseProjectJson(text: string, opts: { now?: string } = {}): ImportResult {
@@ -151,14 +213,21 @@ export function importProjectObject(raw: unknown, opts: { now?: string } = {}): 
   doc.origin = typeof rawOrigin.ref === 'string' && rawOrigin.ref ? { kind, ref: rawOrigin.ref.slice(0, 200) } : { kind };
   // Enumerations
   const p = doc.passport;
-  p.inputs.forEach((r) => { if (!EVIDENCE.has(r.sourceType)) r.sourceType = 'unspecified'; if (!r.id) r.id = newId('in'); });
-  p.assumptions.forEach((a) => { if (!EVIDENCE.has(a.evidenceKind)) a.evidenceKind = 'unspecified'; if (!a.id) a.id = newId('as'); });
-  p.outcomes.forEach((r) => { if (!r.id) r.id = newId('out'); if (!['', 'lower', 'higher', 'target'].includes(r.direction)) r.direction = ''; });
+  // Row ids must be present and unique: the editor finds rows by id.
+  const uniqueIds = (rows: { id: string }[], prefix: string) => {
+    const seen = new Set<string>();
+    for (const r of rows) { if (!r.id || seen.has(r.id)) r.id = newId(prefix); while (seen.has(r.id)) r.id = `${newId(prefix)}-${seen.size}`; seen.add(r.id); }
+  };
+  uniqueIds(p.inputs, 'in'); uniqueIds(p.assumptions, 'as'); uniqueIds(p.outcomes, 'out'); uniqueIds(p.representation.nodes, 'n'); uniqueIds(p.representation.relations, 'r'); uniqueIds(doc.lensNotes, 'note');
+  p.inputs.forEach((r) => { if (!EVIDENCE.has(r.sourceType)) r.sourceType = 'unspecified'; });
+  p.assumptions.forEach((a) => { if (!EVIDENCE.has(a.evidenceKind)) a.evidenceKind = 'unspecified'; });
+  p.outcomes.forEach((r) => { if (!['', 'lower', 'higher', 'target'].includes(r.direction)) r.direction = ''; });
+  p.representation.nodes.forEach((n) => { if (!['entity', 'variable', 'stakeholder'].includes(n.type)) n.type = 'entity'; });
   if (!CLAIMS.has(p.decision.claimType)) p.decision.claimType = '';
   for (const k of Object.keys(p.review) as (keyof typeof p.review)[]) {
     if (!REVIEW.has(p.review[k].status)) p.review[k].status = 'draft';
     if (!['', 'self', 'teacher'].includes(p.review[k].feedbackSource)) p.review[k].feedbackSource = '';
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(p.review[k].due)) p.review[k].due = '';
+    if (!isIsoDate(p.review[k].due)) p.review[k].due = '';
   }
   // Dynamic-key maps (schema v2): copy only safe keys and bounded values.
   const rawP = (o.passport && typeof o.passport === 'object') ? o.passport as Record<string, unknown> : {};
@@ -177,22 +246,26 @@ export function importProjectObject(raw: unknown, opts: { now?: string } = {}): 
     }
   }
   if (v === 1) warn('Project file from schema version 1 upgraded to version 2 (self-checks and rubrics start empty).');
-  const validMethod = (m: string) => m === '' || m in METHOD_BY_ID;
+  const validMethod = (m: string) => m === '' || Object.hasOwn(METHOD_BY_ID, m);
   if (!validMethod(p.representation.primaryMethod)) { warn('Unknown primary method removed.'); p.representation.primaryMethod = ''; }
   if (!validMethod(p.representation.alternativeMethod)) { warn('Unknown alternative method removed.'); p.representation.alternativeMethod = ''; }
-  doc.methods.shortlist = doc.methods.shortlist.filter((m) => m in METHOD_BY_ID);
+  doc.methods.shortlist = doc.methods.shortlist.filter((m) => Object.hasOwn(METHOD_BY_ID, m));
+  // Nullable text fields: text or nothing.
+  for (const k of ['ruleVersion', 'answersKey', 'decidedAt'] as const) { const val: unknown = doc.methods[k]; doc.methods[k] = typeof val === 'string' ? val.slice(0, 500) : null; }
   if (doc.methods.answers !== null && typeof doc.methods.answers === 'object' && !Array.isArray(doc.methods.answers)) {
     doc.methods.answers = sanitize(doc.methods.answers, emptyAnswers(), {}, 'methods.answers', warn) as ProjectDoc['methods']['answers'];
   } else doc.methods.answers = null;
   const nodeIds = new Set(p.representation.nodes.map((n) => n.id));
   p.representation.relations = p.representation.relations.filter((r) => nodeIds.has(r.from) && nodeIds.has(r.to));
   // Preserve unknown top-level fields
-  const known = new Set(Object.keys(base));
+  const known = new Set([...Object.keys(base), 'preservedUnknown', 'exportedBy']);
   const unknown: Record<string, unknown> = {};
-  for (const k of Object.keys(o)) if (!known.has(k) && !FORBIDDEN.has(k) && k !== 'exportedBy') unknown[k] = o[k];
+  // Fields preserved by an earlier import are carried over as they are, not wrapped once more.
+  const earlier = isObj(o.preservedUnknown) ? o.preservedUnknown : {};
+  for (const src of [earlier, o]) for (const k of Object.keys(src)) if (!known.has(k) && !FORBIDDEN.has(k)) unknown[k] = src[k];
   if (Object.keys(unknown).length) {
     doc.preservedUnknown = JSON.parse(JSON.stringify(unknown));
-    warn(`Unrecognised fields preserved without use: ${Object.keys(unknown).join(', ')}.`);
+    warn(`Unrecognised fields preserved without use: ${Object.keys(unknown).map((k) => k.slice(0, 40)).slice(0, 20).join(', ')}.`);
   }
   const summary = [
     `Title: ${p.identity.title || 'Untitled project'}`,

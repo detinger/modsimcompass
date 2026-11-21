@@ -10,7 +10,7 @@ import { Callout, Dialog, downloadFile } from '../../ui/controls';
 export function ExportDialog({ doc, onClose, onDownloaded }: { doc: ProjectDoc; onClose: () => void; onDownloaded: () => void }) {
   const { prefs, setPrefs, toast } = useStore();
   const [selected, setSelected] = useState<ExportPart[]>(['passport-md', 'project-json', 'report-html', ...(doc.sandbox.lastRun ? ['results-csv' as const] : [])]);
-  const [previewPart, setPreviewPart] = useState<ExportPart>('passport-md');
+  const [previewPart, setPreviewPart] = useState<ExportPart>('report-html');
   const opts = { includeAuthor: prefs.includeAuthor, generatedAt: new Date().toISOString() };
   const slug = slugify(doc.passport.identity.title);
   const preview = useMemo(() => renderPart(doc, previewPart, opts), [doc, previewPart, prefs.includeAuthor]); // eslint-disable-line react-hooks/exhaustive-deps

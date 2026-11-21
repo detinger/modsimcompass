@@ -1,4 +1,4 @@
-import type { ProjectDoc } from '../domain/passport/schema';
+import { newId, type ProjectDoc } from '../domain/passport/schema';
 
 /**
  * Local-first persistence (PLAN §12).
@@ -20,14 +20,23 @@ export type SaveResult =
   | { ok: false; error: string };
 
 export interface TrashEntry { id: string; deletedAt: string; project: ProjectDoc }
-export interface BackupEntry { id: string; savedAt: string; project: ProjectDoc }
+export interface BackupEntry { id: string; savedAt: string; project: ProjectDoc; /** When this backup was written (ms since epoch). */ keptAt?: number }
+
+/**
+ * The backup is a recovery point, not the previous keystroke: once written it is kept for this long,
+ * so an autosave every half second cannot roll it forward to a state that is only moments old.
+ */
+export const BACKUP_INTERVAL_MS = 10 * 60 * 1000;
+const backupIsDue = (b: BackupEntry | undefined, nowMs: number) => !b || typeof b.keptAt !== 'number' || nowMs - b.keptAt >= BACKUP_INTERVAL_MS || nowMs < b.keptAt;
+/** A restored project never overwrites a live one with the same id; it comes back as a separate project. */
+const restoredCopy = (p: ProjectDoc): ProjectDoc => ({ ...p, id: newId('prj'), projectRevision: 1, passport: { ...p.passport, identity: { ...p.passport.identity, title: `${p.passport.identity.title || 'Untitled project'} (restored)` } } });
 
 export interface Repo {
   readonly kind: 'indexeddb' | 'memory';
   listProjects(): Promise<ProjectDoc[]>;
   getProject(id: string): Promise<ProjectDoc | null>;
-  /** Writes `doc` only if the stored revision equals `baseRevision` (or nothing is stored). */
-  saveProject(doc: ProjectDoc, baseRevision: number | null): Promise<SaveResult>;
+  /** Writes `doc` only if the stored revision equals `baseRevision` (or nothing is stored). `nowMs` is for tests. */
+  saveProject(doc: ProjectDoc, baseRevision: number | null, nowMs?: number): Promise<SaveResult>;
   trashProject(id: string, now: string): Promise<void>;
   listTrash(): Promise<TrashEntry[]>;
   restoreProject(id: string): Promise<ProjectDoc | null>;
@@ -80,7 +89,7 @@ export class IdbRepo implements Repo {
     const { s } = this.store('projects');
     return ((await req(s.get(id))) as ProjectDoc | undefined) ?? null;
   }
-  async saveProject(doc: ProjectDoc, baseRevision: number | null): Promise<SaveResult> {
+  async saveProject(doc: ProjectDoc, baseRevision: number | null, nowMs = Date.now()): Promise<SaveResult> {
     try {
       const tx = this.db.transaction(['projects', 'backups'], 'readwrite');
       const projects = tx.objectStore('projects');
@@ -90,7 +99,10 @@ export class IdbRepo implements Repo {
         tx.abort();
         return { ok: false, conflict: existing };
       }
-      if (existing) backups.put({ id: doc.id, savedAt: existing.updatedAt, project: existing } satisfies BackupEntry);
+      if (existing) {
+        const backup = (await req(backups.get(doc.id))) as BackupEntry | undefined;
+        if (backupIsDue(backup, nowMs)) backups.put({ id: doc.id, savedAt: existing.updatedAt, project: existing, keptAt: nowMs } satisfies BackupEntry);
+      }
       projects.put(doc);
       await done(tx);
       return { ok: true };
@@ -115,10 +127,12 @@ export class IdbRepo implements Repo {
     const tx = this.db.transaction(['projects', 'trash'], 'readwrite');
     const t = (await req(tx.objectStore('trash').get(id))) as TrashEntry | undefined;
     if (!t) { tx.abort(); return null; }
-    tx.objectStore('projects').put(t.project);
+    const live = (await req(tx.objectStore('projects').get(id))) as ProjectDoc | undefined;
+    const project = live ? restoredCopy(t.project) : t.project;
+    tx.objectStore('projects').put(project);
     tx.objectStore('trash').delete(id);
     await done(tx);
-    return t.project;
+    return project;
   }
   async purgeTrash(id: string) {
     const { tx, s } = this.store('trash', 'readwrite');
@@ -139,10 +153,10 @@ export class MemoryRepo implements Repo {
   private backups = new Map<string, BackupEntry>();
   async listProjects() { return [...this.projects.values()].map((p) => structuredClone(p)); }
   async getProject(id: string) { const p = this.projects.get(id); return p ? structuredClone(p) : null; }
-  async saveProject(doc: ProjectDoc, baseRevision: number | null): Promise<SaveResult> {
+  async saveProject(doc: ProjectDoc, baseRevision: number | null, nowMs = Date.now()): Promise<SaveResult> {
     const existing = this.projects.get(doc.id);
     if (existing && baseRevision !== null && existing.projectRevision !== baseRevision) return { ok: false, conflict: structuredClone(existing) };
-    if (existing) this.backups.set(doc.id, { id: doc.id, savedAt: existing.updatedAt, project: existing });
+    if (existing && backupIsDue(this.backups.get(doc.id), nowMs)) this.backups.set(doc.id, { id: doc.id, savedAt: existing.updatedAt, project: existing, keptAt: nowMs });
     this.projects.set(doc.id, structuredClone(doc));
     return { ok: true };
   }
@@ -154,8 +168,9 @@ export class MemoryRepo implements Repo {
   async restoreProject(id: string) {
     const t = this.trash.get(id);
     if (!t) return null;
-    this.projects.set(id, t.project); this.trash.delete(id);
-    return structuredClone(t.project);
+    const project = this.projects.has(id) ? restoredCopy(t.project) : t.project;
+    this.projects.set(project.id, project); this.trash.delete(id);
+    return structuredClone(project);
   }
   async purgeTrash(id: string) { this.trash.delete(id); }
   async getBackup(id: string) { return this.backups.get(id) ?? null; }

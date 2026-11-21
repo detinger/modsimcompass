@@ -1,7 +1,8 @@
-import { lazy, Suspense, useEffect } from 'react';
+import { lazy, Suspense, useEffect, type ReactNode } from 'react';
 import { RouterProvider, match, useRouter } from './router';
 import { StoreProvider, useStore } from './store';
 import { Shell } from './Shell';
+import { ErrorBoundary } from './ErrorBoundary';
 import Home from '../features/home/Home';
 import Compass from '../features/compass/Compass';
 import Settings from '../features/settings/Settings';
@@ -47,11 +48,18 @@ function Routes() {
   return <NotFound />;
 }
 
+/** A failing screen shows a recovery card instead of a blank page; moving to another address clears it. */
+function Guarded({ children }: { children: ReactNode }) {
+  const { path } = useRouter();
+  const { active } = useStore();
+  return <ErrorBoundary resetKey={path} project={active}>{children}</ErrorBoundary>;
+}
+
 export default function App() {
   return (
     <RouterProvider>
       <StoreProvider>
-        <Shell><Routes /></Shell>
+        <Shell><Guarded><Routes /></Guarded></Shell>
       </StoreProvider>
     </RouterProvider>
   );

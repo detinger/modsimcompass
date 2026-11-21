@@ -89,9 +89,13 @@ function SandboxWorkspace({ doc }: { doc: ProjectDoc }) {
   const setCfg = (fn: (c: SandboxConfig) => void) => update((d) => {
     const target = tab === 'alternative' && d.sandbox.alternative ? d.sandbox.alternative : d.sandbox.baseline;
     fn(target);
-    // Shared experiment settings live on the baseline; mirror them for clarity.
-    if (d.sandbox.alternative && target === d.sandbox.baseline) { d.sandbox.alternative.seed = target.seed; d.sandbox.alternative.replications = target.replications; }
+    // Seed and replications are shared: the run uses the baseline's, so an edit on either tab is written to both.
+    if (d.sandbox.alternative) {
+      d.sandbox.baseline.seed = target.seed; d.sandbox.baseline.replications = target.replications;
+      d.sandbox.alternative.seed = target.seed; d.sandbox.alternative.replications = target.replications;
+    }
   });
+  const stochastic = sandbox.baseline.demand.mode === 'random' || sandbox.alternative?.demand.mode === 'random';
   const errors = useMemo(() => validateConfig(cfg), [cfg]);
   const allErrors = useMemo(() => [...validateConfig(sandbox.baseline), ...(sandbox.alternative ? validateConfig(sandbox.alternative) : [])], [sandbox.baseline, sandbox.alternative]);
   const currentHash = runHash(sandbox.baseline, sandbox.alternative);
@@ -155,7 +159,7 @@ function SandboxWorkspace({ doc }: { doc: ProjectDoc }) {
             )}
           </div>
           {tab === 'alternative' && <p className="hint">Editing the alternative. Seed and replications are shared with the baseline so that replication pairs use the same random stream.</p>}
-          <SandboxControls key={`${tab}-${settingsKey}`} config={cfg} onChange={setCfg} errors={errors} showAdvanced={advanced} />
+          <SandboxControls key={`${tab}-${settingsKey}`} config={cfg} onChange={setCfg} errors={errors} showAdvanced={advanced} stochastic={stochastic} />
           <button className="btn small wrap" aria-expanded={advanced} onClick={() => setAdvanced((a) => !a)}>{advanced ? 'Hide' : 'Reveal'} advanced controls (schedule, abandonment, feedback, cost)</button>
           <hr />
           <div className="btn-row">
@@ -167,7 +171,7 @@ function SandboxWorkspace({ doc }: { doc: ProjectDoc }) {
         <section aria-label="Scene and results" className="stack" style={{ minWidth: 0 }}>
           <div className="lab-panel">
             <h2 className="panel-title">Flows</h2>
-            <StockFlowScene trace={shownRun?.baseline.retainedTrace ?? null} label={shownRun && total > 1 ? 'Baseline, replication 1' : 'Baseline'} />
+            <StockFlowScene runId={shownRun?.id ?? null} trace={shownRun?.baseline.retainedTrace ?? null} label={shownRun && total > 1 ? 'Baseline, replication 1' : 'Baseline'} />
           </div>
 
           <div className="lab-panel run-panel">
@@ -233,7 +237,11 @@ function SandboxWorkspace({ doc }: { doc: ProjectDoc }) {
                   const text = runSettingsText(sandbox.lastRun!);
                   const before = doc.passport.experiment.runSettings;
                   update((d) => { d.passport.experiment.runSettings = before.trim() ? `${before.trimEnd()}\n${text}` : text; });
-                  toast('Run settings added to step 6 of your passport.', 'success', { label: 'Undo', run: () => update((d) => { d.passport.experiment.runSettings = before; }) });
+                  toast('Run settings added to step 6 of your passport.', 'success', { label: 'Undo', run: () => update((d) => {
+                    // Remove only the line that was added, so anything typed since stays.
+                    const cur = d.passport.experiment.runSettings, at = cur.lastIndexOf(text);
+                    if (at >= 0) d.passport.experiment.runSettings = (cur.slice(0, at).replace(/\n$/, '') + cur.slice(at + text.length)).replace(/^\n/, '');
+                  }) });
                 }}>{recorded ? 'Already in your passport' : 'Add to run settings'}</button>
               </li>
             </ul>

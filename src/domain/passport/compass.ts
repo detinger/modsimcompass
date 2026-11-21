@@ -97,7 +97,7 @@ export const STEPS: StepDef[] = [
   },
 ];
 export const STEP_BY_ID: Record<StepId, StepDef> = Object.fromEntries(STEPS.map((s) => [s.id, s])) as Record<StepId, StepDef>;
-export const isStepId = (s: string): s is StepId => s in STEP_BY_ID;
+export const isStepId = (s: string): s is StepId => Object.hasOwn(STEP_BY_ID, s);
 
 const filled = (s: unknown) => typeof s === 'string' && s.trim().length > 0;
 

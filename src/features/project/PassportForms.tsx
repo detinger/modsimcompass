@@ -25,13 +25,14 @@ const evidenceLabel = (k: EvidenceKind) => EVIDENCE_KINDS.find((e) => e.value ==
 
 // ── Step 1 · Frame ────────────────────────────────────────────────────────
 export function FrameFields() {
-  const { doc, update } = usePassport();
+  const { doc, update, readOnly } = usePassport();
   const p = doc.passport;
   return (
     <>
       <FieldCard icon={User} title="Who is it for?">
         <Txt label="Project title" value={p.identity.title} onChange={(v) => update((d) => { d.passport.identity.title = v; })} />
         <Txt label="Stakeholder" value={p.decision.stakeholder} onChange={(v) => update((d) => { d.passport.decision.stakeholder = v; })} hint="Who will use the result?" />
+        {(!readOnly || p.identity.author.trim()) && <Txt label="Author (optional)" value={p.identity.author} onChange={(v) => update((d) => { d.passport.identity.author = v; })} hint="Appears in exports only when you tick “Include author name”." />}
       </FieldCard>
       <FieldCard icon={Eye} title="What is going on?">
         <Area label="Observed problem" value={p.decision.problem} onChange={(v) => update((d) => { d.passport.decision.problem = v; })} hint="What is observed — not yet a solution." />

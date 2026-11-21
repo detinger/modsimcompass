@@ -92,10 +92,11 @@ export function SelectField<T extends string>(props: { label: string; value: T; 
 }
 
 export function Segmented<T extends string>(props: { label: string; value: T; onChange: (v: T) => void; options: { value: T; label: string }[] }) {
+  const labelId = useId();
   return (
     <div className="field">
-      <span className="field-label" id={`${props.label}-seg`}>{props.label}</span>
-      <div className="seg" role="group" aria-labelledby={`${props.label}-seg`}>
+      <span className="field-label" id={labelId}>{props.label}</span>
+      <div className="seg" role="group" aria-labelledby={labelId}>
         {props.options.map((o) => (
           <button type="button" key={o.value} aria-pressed={props.value === o.value} onClick={() => props.onChange(o.value)}>{o.label}</button>
         ))}
@@ -140,7 +141,7 @@ export function fmt(n: number | null | undefined, dp = 2): string {
 }
 
 /* ── Dialog with focus trap, Escape and focus restoration ───── */
-export function Dialog({ title, onClose, children, actions, narrow }: { title: string; onClose: () => void; children: ReactNode; actions?: ReactNode; narrow?: boolean }) {
+export function Dialog({ title, onClose, children, actions, narrow, mustChoose }: { title: string; onClose: () => void; children: ReactNode; actions?: ReactNode; narrow?: boolean; /** No close button, Escape or backdrop dismissal: one of the actions has to be taken. */ mustChoose?: boolean }) {
   const ref = useRef<HTMLDivElement>(null);
   const titleId = useId();
   useEffect(() => {
@@ -149,7 +150,7 @@ export function Dialog({ title, onClose, children, actions, narrow }: { title: s
     const focusables = () => Array.from(el?.querySelectorAll<HTMLElement>('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])') ?? []).filter((x) => !x.hasAttribute('disabled'));
     (focusables()[0] ?? el)?.focus();
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') { e.stopPropagation(); onClose(); }
+      if (e.key === 'Escape' && !mustChoose) { e.stopPropagation(); onClose(); }
       if (e.key === 'Tab') {
         const f = focusables();
         if (!f.length) return;
@@ -163,11 +164,11 @@ export function Dialog({ title, onClose, children, actions, narrow }: { title: s
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   return (
-    <div className="dialog-backdrop" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+    <div className="dialog-backdrop" onMouseDown={(e) => { if (e.target === e.currentTarget && !mustChoose) onClose(); }}>
       <div className={`dialog${narrow ? ' narrow' : ''}`} role="dialog" aria-modal="true" aria-labelledby={titleId} ref={ref} tabIndex={-1}>
         <div className="card-head">
           <h2 id={titleId}>{title}</h2>
-          <button type="button" className="btn ghost small" onClick={onClose} aria-label="Close dialog"><X size={16} /></button>
+          {!mustChoose && <button type="button" className="btn ghost small" onClick={onClose} aria-label="Close dialog"><X size={16} /></button>}
         </div>
         {children}
         {actions && <div className="dialog-actions">{actions}</div>}

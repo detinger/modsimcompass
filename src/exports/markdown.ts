@@ -38,7 +38,7 @@ function v(s: string | undefined | null, indent = '  '): string {
   return s.split(/\r?\n/).map((l) => l.trim()).filter(Boolean).join(`\n${indent}`);
 }
 const evLabel = (k: string) => EVIDENCE_KINDS.find((e) => e.value === k)?.label ?? k;
-const methodName = (id: string) => (id && id in METHOD_BY_ID ? METHOD_BY_ID[id as keyof typeof METHOD_BY_ID].name : '');
+const methodName = (id: string) => (id && Object.hasOwn(METHOD_BY_ID, id) ? METHOD_BY_ID[id as keyof typeof METHOD_BY_ID].name : '');
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 /** ISO timestamp → “21 Nov 2026, 10:00 UTC”. Anything else is passed through on one line. */
 export function humanDate(iso: string): string {

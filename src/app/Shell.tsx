@@ -142,7 +142,7 @@ export function Shell({ children }: { children: ReactNode }) {
         <main id="main" className="content" tabIndex={-1}>{children}</main>
       </div>
       {conflict && (
-        <Dialog title="Another tab saved a newer revision" onClose={() => { /* must choose */ }} narrow
+        <Dialog title="Another tab saved a newer revision" onClose={() => { /* must choose */ }} narrow mustChoose
           actions={<>
             <button className="btn" onClick={() => resolveConflict('use-theirs')}>Discard this tab’s edits and load the newer revision</button>
             <button className="btn" onClick={() => resolveConflict('keep-mine')}>Overwrite with this tab’s version</button>

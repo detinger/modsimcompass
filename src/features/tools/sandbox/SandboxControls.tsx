@@ -33,9 +33,11 @@ function ListField({ label, values, onChange, horizon, unit, error }: { label: s
   );
 }
 
-export function SandboxControls({ config, onChange, errors, showAdvanced }: { config: SandboxConfig; onChange: (fn: (c: SandboxConfig) => void) => void; errors: FieldError[]; showAdvanced: boolean }) {
+export function SandboxControls({ config, onChange, errors, showAdvanced, stochastic }: { config: SandboxConfig; onChange: (fn: (c: SandboxConfig) => void) => void; errors: FieldError[]; showAdvanced: boolean; /** True when either policy draws random arrivals. */ stochastic: boolean }) {
   const c = config;
   const [normPreview, setNormPreview] = useState<number[] | null>(null);
+  // The probability fields keep what is being typed; they are rebuilt only when normalisation rewrites them.
+  const [normTick, setNormTick] = useState(0);
   const discErr = c.demand.mode === 'random' ? validateDiscrete(c.demand.values, c.demand.probs) : [];
   return (
     <div>
@@ -61,7 +63,7 @@ export function SandboxControls({ config, onChange, errors, showAdvanced }: { co
                     <tr key={`${i}-${c.demand.values.length}`}>
                       <td><input type="text" inputMode="decimal" aria-label={`Value ${i + 1}`} defaultValue={v}
                         onChange={(e) => { const n = Number(e.target.value); if (e.target.value.trim() !== '' && Number.isFinite(n)) onChange((d) => { d.demand.values[i] = n; }); }} /></td>
-                      <td><input type="text" inputMode="decimal" aria-label={`Probability ${i + 1}`} defaultValue={c.demand.probs[i]} key={`p${i}-${c.demand.probs[i]}`}
+                      <td><input type="text" inputMode="decimal" aria-label={`Probability ${i + 1}`} defaultValue={c.demand.probs[i]} key={`p${i}-${normTick}`}
                         onChange={(e) => { const n = Number(e.target.value); if (e.target.value.trim() !== '' && Number.isFinite(n)) onChange((d) => { d.demand.probs[i] = n; }); }} /></td>
                       <td><button type="button" className="btn ghost small" disabled={c.demand.values.length <= 1} onClick={() => onChange((d) => { d.demand.values.splice(i, 1); d.demand.probs.splice(i, 1); })} aria-label={`Remove value ${i + 1}`}>Remove</button></td>
                     </tr>
@@ -77,7 +79,7 @@ export function SandboxControls({ config, onChange, errors, showAdvanced }: { co
               <Callout tone="info" title="Preview of normalised probabilities">
                 <p>{normPreview.map((p) => fmt(p, 4)).join(', ')} (sum 1). Nothing changes until you apply.</p>
                 <div className="btn-row">
-                  <button type="button" className="btn small primary" onClick={() => { onChange((d) => { d.demand.probs = normPreview; }); setNormPreview(null); }}>Apply normalisation</button>
+                  <button type="button" className="btn small primary" onClick={() => { onChange((d) => { d.demand.probs = normPreview; }); setNormPreview(null); setNormTick((t) => t + 1); }}>Apply normalisation</button>
                   <button type="button" className="btn small" onClick={() => setNormPreview(null)}>Cancel</button>
                 </div>
               </Callout>
@@ -116,12 +118,12 @@ export function SandboxControls({ config, onChange, errors, showAdvanced }: { co
         <NumberField label="Horizon" unit="days" value={c.horizon} min={1} max={MAX_HORIZON} integer slider onChange={(v) => onChange((d) => { d.horizon = v; })} error={errFor(errors, 'horizon')} />
       </fieldset>
 
-      {(showAdvanced || c.demand.mode === 'random') && (
+      {(showAdvanced || stochastic) && (
         <fieldset>
           <legend>Replications</legend>
-          {c.demand.mode !== 'random' && <p className="hint">Inactive: demand is deterministic, so one replication reproduces the result exactly. Your settings are kept.</p>}
+          {!stochastic && <p className="hint">Inactive: demand is deterministic, so one replication reproduces the result exactly. Your settings are kept.</p>}
           <NumberField label="Replications" unit="trajectories" value={c.replications} min={1} max={MAX_REPLICATIONS} integer onChange={(v) => onChange((d) => { d.replications = v; })} error={errFor(errors, 'replications')}
-            hint="Decide this before running; do not keep adding runs until a result looks significant." disabled={c.demand.mode !== 'random'} />
+            hint="Decide this before running; do not keep adding runs until a result looks significant. Shared by both policies." disabled={!stochastic} />
           <TextField label="Seed" value={c.seed} onChange={(v) => onChange((d) => { d.seed = v; })} hint="Same seed + settings reproduce the same arrivals (RNG sfc32-cyrb128-v1)." maxLength={64} />
           {errFor(errors, 'seed') && <p className="field-error">{errFor(errors, 'seed')}</p>}
         </fieldset>

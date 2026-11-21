@@ -24,7 +24,8 @@ export function csvText(s: string): string {
   if (/[",\n\r]/.test(t)) t = `"${t.replace(/"/g, '""')}"`;
   return t;
 }
-const num = (n: number | null | undefined) => (n === null || n === undefined || !Number.isFinite(n) ? '' : String(n));
+/** Numbers only: anything that is not a finite number becomes an empty cell, so no text can reach a numeric column. */
+const num = (n: number | null | undefined) => (typeof n !== 'number' || !Number.isFinite(n) ? '' : String(n));
 
 export function runToCsv(doc: ProjectDoc, run: RunRecord): string {
   const stale = runIsStale(doc) ? 'true' : 'false';
@@ -32,13 +33,13 @@ export function runToCsv(doc: ProjectDoc, run: RunRecord): string {
   const currency = run.baselineSnapshot.cost.enabled ? run.baselineSnapshot.cost.currency : '';
   const base = (rowType: string, policy: string) => [csvText(run.id), csvText(run.status), stale, rowType, csvText(policy)];
   const daily = (policy: string, rep: number, r: DailyRow) => [
-    ...base('daily', policy), String(rep), String(r.day),
+    ...base('daily', policy), num(rep + 1), num(r.day),
     num(r.startBacklog), num(r.arrivals), num(r.nominalCapacity), num(r.effectiveCapacity), num(r.served), num(r.abandoned), num(r.endBacklog),
     r.open ? '1' : '0', r.paid ? '1' : '0', num(r.staffCost), num(r.holdingCost), num(r.residual),
     '', '', '', '', '', '', '', '', csvText(currency),
   ];
   const repl = (policy: string, s: ReplicationSummary) => [
-    ...base('replication', policy), String(s.replication), '',
+    ...base('replication', policy), num(s.replication + 1), '',
     '', '', '', '', '', '', '', '', '', '', '', '',
     num(s.totalArrivals), num(s.totalServed), num(s.totalAbandoned), num(s.terminalBacklog), num(s.averageEndBacklog),
     num(s.totalEffectiveCapacity), num(s.utilisation), num(s.totalCost), csvText(currency),
