@@ -4,8 +4,6 @@
 
 Everything runs in the browser. There are no accounts, no backend and no analytics.
 
-Earlier names: ModSim101, ModSim Essentials.
-
 ## Three sections
 
 | Section | What it does |
