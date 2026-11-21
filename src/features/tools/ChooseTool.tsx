@@ -17,10 +17,11 @@ export default function ChooseTool() {
   const q = QUESTIONS[at], leaf = LEAVES[at];
   const W = X0 * 2 + 12 * COL, H = LEAF_Y + 96;
   const wrap = useRef<HTMLDivElement>(null);
+  const [treeOpen, setTreeOpen] = useState(() => typeof window !== 'undefined' && window.matchMedia('(min-width: 1000px)').matches);
   useEffect(() => {
     const el = wrap.current, p = pos(at);
     if (el) el.scrollTo({ left: Math.max(0, p.x - el.clientWidth / 2), behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
-  }, [at]);
+  }, [at, treeOpen]);
 
   return (
     <ToolFrame id="choose">
@@ -61,6 +62,9 @@ export default function ChooseTool() {
         )}
       </div>
 
+      {/* The questions above are the tool; the map of all paths is an extra, folded away where it cannot fit. */}
+      <details className="tree-fold" open={treeOpen} onToggle={(e) => setTreeOpen(e.currentTarget.open)}>
+      <summary>See the whole decision tree</summary>
       <div ref={wrap} className="tree-wrap" tabIndex={0} role="region" aria-label="Decision tree; each box is a button">
         <div className="tree" style={{ width: W, height: H }}>
           <svg className="edges" width={W} height={H} aria-hidden="true">
@@ -82,6 +86,7 @@ export default function ChooseTool() {
         </div>
       </div>
       <p className="subtle-text">Tree adapted from the Monte Carlo Simulation Lab. Scroll sideways to see all of it.</p>
+      </details>
     </ToolFrame>
   );
 }

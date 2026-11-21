@@ -47,7 +47,7 @@ A rule has an id, a step, a severity and a message (plus an optional fix link):
 - **check:** something is likely inconsistent or scientifically risky;
 - **tip:** a wording or quality suggestion.
 
-Rules are deterministic, versioned (`compass-rules-v1`) and explain themselves. They never label written reasoning correct or incorrect. Wording tips are labelled as suggestions.
+Rules are deterministic, versioned (`compass-rules-v2`) and explain themselves. They never label written reasoning correct or incorrect. Wording tips are labelled as suggestions.
 
 Examples of check rules:
 

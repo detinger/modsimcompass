@@ -14,7 +14,7 @@ export const EVIDENCE_KINDS: { value: EvidenceKind; label: string }[] = [
   { value: 'literature', label: 'Literature' },
   { value: 'expert', label: 'Expert judgement' },
   { value: 'assumed', label: 'Declared assumption' },
-  { value: 'synthetic', label: 'Synthetic / teaching fixture' },
+  { value: 'synthetic', label: 'Synthetic / illustrative' },
 ];
 
 export type ClaimType = '' | 'descriptive' | 'explanatory' | 'predictive' | 'exploratory' | 'decision-support';
@@ -26,7 +26,17 @@ export interface Assumption {
   consequenceIfWrong: string; plannedCheck: string;
   evidenceKind: EvidenceKind; sourceNote: string;
 }
-export interface InputRow { id: string; name: string; value: string; unit: string; sourceType: EvidenceKind; provenance: string; uncertainty: string }
+/** Whether the data behind an input exists yet. Optional: projects saved before this field simply have none. */
+export type Availability = '' | 'have' | 'obtainable' | 'assume';
+export const AVAILABILITY: { value: Availability; label: string }[] = [
+  { value: '', label: 'Not decided' }, { value: 'have', label: 'Have it' }, { value: 'obtainable', label: 'Can get it' }, { value: 'assume', label: 'Must assume' },
+];
+export interface InputRow {
+  id: string; name: string; value: string; unit: string; sourceType: EvidenceKind; provenance: string; uncertainty: string;
+  availability?: Availability;
+  /** For data still to be obtained: who gets it, from where, by when. */
+  plan?: string;
+}
 export interface OutcomeRow { id: string; metric: string; definition: string; unit: string; direction: '' | 'lower' | 'higher' | 'target'; aggregation: string; criterion: string }
 export interface MapNode { id: string; type: 'entity' | 'variable' | 'stakeholder'; label: string; x: number; y: number }
 export interface MapRelation { id: string; from: string; to: string; label: string; directed: boolean }
@@ -34,7 +44,7 @@ export interface Checkpoint { status: ReviewStatus; notes: string; reviewer: str
 export interface LensNote { id: string; lensId: string; text: string; createdAt: string }
 
 export interface Passport {
-  identity: { title: string; author: string };
+  identity: { title: string; author: string; /** ‘planning’: results are not expected yet, so step 7 is not counted as missing. */ stage?: '' | 'planning' };
   decision: { stakeholder: string; problem: string; levers: string; question: string; claimType: ClaimType; outcome: string };
   scope: { boundary: string; exclusions: string; horizon: string; timeUnit: string; detail: string; constraints: string };
   representation: {
@@ -119,7 +129,7 @@ export const REVIEW_LABELS: Record<ReviewStatus, string> = {
 export function emptyPassport(): Passport {
   const cp = (): Checkpoint => ({ status: 'draft', notes: '', reviewer: '', feedbackSource: '', rubric: {}, due: '' });
   return {
-    identity: { title: '', author: '' },
+    identity: { title: '', author: '', stage: '' },
     decision: { stakeholder: '', problem: '', levers: '', question: '', claimType: '', outcome: '' },
     scope: { boundary: '', exclusions: '', horizon: '', timeUnit: '', detail: '', constraints: '' },
     representation: { primaryMethod: '', alternativeMethod: '', justification: '', alternativeJustification: '', nodes: [], relations: [], notes: '' },

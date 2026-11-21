@@ -3,7 +3,7 @@ import { workedExample } from '../src/content/workedExample';
 import type { MethodId } from '../src/domain/methods/registry';
 import { RULE_VERSION, answersKey, evaluateRules } from '../src/domain/methods/rules';
 import {
-  CHECKPOINT_DEFS, COMPASS_RULES_VERSION, STEPS, checkpointReadiness, compassWarnings, stepStarted, stepsStarted, warningsFor,
+  CHECKPOINT_DEFS, COMPASS_RULES_VERSION, STEPS, checkpointReadiness, compassWarnings, dataReadiness, stepStarted, stepsStarted, warningsFor,
   type StepId,
 } from '../src/domain/passport/compass';
 import { importProjectObject, parseProjectJson } from '../src/domain/passport/importer';
@@ -17,6 +17,7 @@ const has = (doc: ProjectDoc, id: string) => ids(doc).includes(id);
 const severityOf = (doc: ProjectDoc, id: string) => compassWarnings(doc).find((w) => w.id === id)?.severity;
 /** The worked example with one change: the cleanest way to see a single rule fire. */
 const mutated = (change: (d: ProjectDoc) => void) => { const d = workedExample(); change(d); return d; };
+const doc0 = workedExample();
 
 describe('worked example', () => {
   const doc = workedExample();
@@ -36,7 +37,7 @@ describe('worked example', () => {
     expect(Object.keys(p.selfChecks).sort()).toEqual([...questionIds].sort());
     for (const id of questionIds) expect(p.selfChecks[id].trim().length, id).toBeGreaterThan(40);
   });
-  it('is a fixed, read-only-friendly document: stable id, timestamps and origin; not pre-graded', () => {
+  it('is a fixed, read-only-friendly document: stable id, timestamps and origin; self-reviewed', () => {
     expect(doc.id).toBe('worked-example');
     expect(doc.origin).toEqual({ kind: 'example', ref: 'worked-example' });
     expect(doc.createdAt).toBe(doc.updatedAt);
@@ -44,7 +45,18 @@ describe('worked example', () => {
     expect(workedExample()).toEqual(doc);
     expect(workedExample().sandbox.lastRun).not.toBe(doc.sandbox.lastRun); // callers get their own copy
     expect(p.identity.author).toBe('');
-    for (const cp of Object.values(p.review)) expect(cp).toEqual({ status: 'draft', notes: '', reviewer: '', feedbackSource: '', rubric: {}, due: '' });
+    // Reviewed by its own author only: no reviewer is named, every criterion is rated, and not everything is Strong.
+    for (const def of CHECKPOINT_DEFS) {
+      const cp = p.review[def.id];
+      expect(cp).toMatchObject({ status: 'self-reviewed', feedbackSource: 'self', reviewer: '', due: '' });
+      expect(Object.keys(cp.rubric).sort()).toEqual(def.rubric.map((c) => c.id).sort());
+      expect(cp.notes.length).toBeGreaterThan(80);
+    }
+    const levels = CHECKPOINT_DEFS.flatMap((def) => Object.values(p.review[def.id].rubric));
+    expect(levels.every((l) => l === 2 || l === 3)).toBe(true);
+    expect(levels.filter((l) => l === 2)).toHaveLength(4);
+    // Each Developing rating is argued in the notes.
+    for (const def of CHECKPOINT_DEFS) if (Object.values(p.review[def.id].rubric).includes(2)) expect(p.review[def.id].notes).toMatch(/rated Developing/);
   });
   it('frames a decision question with several levers and a method that fits it', () => {
     expect(p.decision.claimType).toBe('decision-support');
@@ -166,14 +178,14 @@ describe('empty project', () => {
   it('orders warnings by step, then gaps before checks before tips', () => {
     const d = mutated((x) => { x.passport.decision.stakeholder = ''; x.passport.decision.outcome = ''; x.passport.decision.question = 'How large is the backlog'; x.passport.conclusion.results = ''; });
     const w = compassWarnings(d);
-    expect(w.map((x) => `${x.step}/${x.severity}/${x.id}`)).toEqual(['frame/gap/stakeholder', 'frame/check/question-outcome', 'frame/tip/question-mark', 'conclude/gap/results']);
+    expect(w.map((x) => `${x.step}/${x.severity}/${x.id}`)).toEqual(['frame/gap/stakeholder', 'frame/check/question-outcome', 'frame/tip/question-mark', 'frame/tip/question-vague', 'conclude/gap/results']);
     const stepOrder = STEPS.map((s) => s.id);
     const all = compassWarnings(doc).map((x) => stepOrder.indexOf(x.step));
     expect(all).toEqual([...all].sort((a, b) => a - b));
   });
   it('every warning has a non-empty message and a known step', () => {
     for (const w of compassWarnings(doc)) { expect(w.message.trim()).not.toBe(''); expect(STEPS.some((s) => s.id === w.step)).toBe(true); }
-    expect(COMPASS_RULES_VERSION).toBe('compass-rules-v1');
+    expect(COMPASS_RULES_VERSION).toBe('compass-rules-v2');
   });
   it('a step counts as started as soon as one of its fields has content', () => {
     const d = createProject();
@@ -515,5 +527,65 @@ describe('importer hardening and checkpoint target dates', () => {
     const md = toMd(d);
     expect(md).toContain('- **Target date:** 2026-12-01');
     expect(md).toContain('- **Target date:** Not set');
+  });
+});
+
+describe('rules added in compass-rules-v2: planning stage, data status and thin entries', () => {
+  it('a project marked as still planning is not told its results are missing', () => {
+    const d = mutated((x) => { x.passport.conclusion = { results: '', recommendation: '', limitations: '', changeConditions: '' }; });
+    expect(ids(d)).toEqual(expect.arrayContaining(['results', 'recommendation', 'limitations']));
+    expect(checkpointReadiness(d, 'final').length).toBe(3);
+    d.passport.identity.stage = 'planning';
+    expect(ids(d).filter((i) => ['results', 'recommendation', 'limitations'].includes(i))).toEqual([]);
+    expect(severityOf(d, 'planning')).toBe('tip');
+    expect(checkpointReadiness(d, 'final')).toEqual([]);
+    // once something is written in step 7 the usual rules apply again
+    d.passport.conclusion.results = 'About 24 fewer open requests.';
+    expect(has(d, 'planning')).toBe(false);
+    expect(has(d, 'recommendation')).toBe(true);
+  });
+  it('data still to be obtained needs a plan; assumed data cannot be called observed', () => {
+    const d = mutated((x) => { x.passport.inputs[0].plan = ''; });
+    expect(severityOf(d, 'in-plan-in-arrivals')).toBe('check');
+    const e = mutated((x) => { x.passport.inputs[2].sourceType = 'observed'; });
+    expect(severityOf(e, 'in-assume-in-capacity-alt')).toBe('check');
+    const f = mutated((x) => { x.passport.inputs[1].sourceType = 'observed'; x.passport.inputs[1].provenance = 'my guess from one visit'; });
+    expect(severityOf(f, 'in-guess-in-capacity')).toBe('check');
+    const g = mutated((x) => { delete x.passport.inputs[0].availability; delete x.passport.inputs[4].availability; });
+    expect(severityOf(g, 'in-status')).toBe('tip');
+    expect(compassWarnings(g).find((w) => w.id === 'in-status')!.message).toMatch(/^Suggestion: 2 inputs have no data status/);
+  });
+  it('counts data readiness', () => {
+    expect(dataReadiness(workedExample().passport)).toEqual({ have: 1, obtainable: 3, assume: 1, undecided: 0, total: 5 });
+    expect(dataReadiness(createProject().passport)).toEqual({ have: 0, obtainable: 0, assume: 0, undecided: 0, total: 0 });
+  });
+  it('prompts, as suggestions only, for a question without amount or period, a problem that opens like a solution, a one-word outcome and unlabelled arrows', () => {
+    const d = mutated((x) => {
+      x.passport.decision.question = 'Can we simulate the canteen to make queues shorter?';
+      x.passport.decision.problem = 'We should open a third cash register.';
+      x.passport.decision.outcome = 'waiting';
+      x.passport.representation.relations[0].label = '';
+      x.passport.representation.relations[1].label = ' ';
+    });
+    for (const id of ['question-vague', 'problem-solution', 'outcome-thin', 'relation-label']) expect(severityOf(d, id), id).toBe('tip');
+    expect(compassWarnings(d).find((w) => w.id === 'relation-label')!.message).toMatch(/2 arrows in the sketch have no label/);
+    // none of these stops a checkpoint from being ready
+    expect(checkpointReadiness(d, 'proposal').map((w) => w.id).filter((i) => ['question-vague', 'problem-solution', 'outcome-thin', 'relation-label'].includes(i))).toEqual([]);
+    // sound entries are left alone
+    for (const id of ['question-vague', 'problem-solution', 'outcome-thin', 'relation-label', 'in-status']) expect(has(doc0, id), id).toBe(false);
+    const fine = mutated((x) => { x.passport.decision.problem = 'The office should be able to answer within two days, but requests stay open for a week.'; });
+    expect(has(fine, 'problem-solution')).toBe(true); // “The office should …” still opens like a solution: the prompt is a suggestion, not a verdict
+  });
+  it('the stage survives an import, and unknown stages are dropped', () => {
+    const raw = JSON.parse(projectJson(workedExample()));
+    raw.passport.identity.stage = 'planning';
+    const a = importProjectObject(raw);
+    expect(a.ok && a.project.passport.identity.stage).toBe('planning');
+    raw.passport.identity.stage = 'finished';
+    const b = importProjectObject(raw);
+    expect(b.ok && b.project.passport.identity.stage).toBe('');
+    raw.passport.inputs[0].availability = 'somewhere';
+    const c = importProjectObject(raw);
+    expect(c.ok && c.project.passport.inputs[0].availability).toBeUndefined();
   });
 });

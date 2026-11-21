@@ -67,6 +67,9 @@ export const QUESTIONS: Question[] = [
     options: [{ value: 'survey', label: 'Survey responses' }, { value: 'event-log', label: 'Event logs with timestamps' }, { value: 'time-series', label: 'Aggregate time series' }, { value: 'expert', label: 'Expert judgement' }, { value: 'little', label: 'Very little yet' }, { value: 'unsure', label: 'Not sure yet' }] },
 ];
 
+/** Step 1 claim type → the matching answer to the first chooser question, so it is not asked twice. */
+export const CLAIM_TO_CHOOSER: Record<string, string> = { descriptive: 'describe', explanatory: 'explain', predictive: 'predict', exploratory: 'explore', 'decision-support': 'compare' };
+
 export type RuleKind = 'reason' | 'caveat' | 'missing';
 export interface Rule {
   id: string;

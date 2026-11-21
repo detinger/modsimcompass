@@ -65,6 +65,17 @@ describe('maximum-likelihood fits match scipy.stats on the preserved datasets', 
     const r = fitFamily('lognormal', [-1, 2, 3]);
     expect(isFit(r)).toBe(false);
     expect(parseData('1, 2; x 3').rejected).toEqual(['x']);
+    // A comma between digits is a decimal comma only when commas are not also used as separators.
+    expect(parseData('1,5 2,25\n3').values).toEqual([1.5, 2.25, 3]);
+    expect(parseData('1,5 2,25\n3').commaIsDecimal).toBe(true);
+    expect(parseData('1,2,3').values).toEqual([1, 2, 3]);
+    expect(parseData('1,2,3').decimalCommas).toEqual([]);
+    const mixed = parseData('23, 31; 18 45 1,5');
+    expect(mixed.values).toEqual([23, 31, 18, 45, 1, 5]);
+    expect(mixed.commaIsDecimal).toBe(false);
+    expect(mixed.decimalCommas).toEqual(['1,5']);
+    expect(parseData('4.2, 5.1, 3.8').decimalCommas).toEqual([]);
+    expect(parseData('1,2,3 4,5,6').values).toEqual([1, 2, 3, 4, 5, 6]);
   });
   it('recovers known parameters from a large seeded sample', () => {
     const xs = drawFrom(lawFor('gamma', [3, 2]), 'recover', 'g', 5000);

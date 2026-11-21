@@ -1,11 +1,13 @@
-import { useState, type ReactNode } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import {
   Anchor, CircleHelp, ClipboardList, Eye, FlaskConical, Gauge, Hourglass, Megaphone, MessageCircleQuestion, Microscope, Plus, Scale, Scan, ShieldCheck,
   SlidersHorizontal, Sparkles, Trash2, TriangleAlert, User, Waypoints,
 } from 'lucide-react';
 import { useStore } from '../../app/store';
-import { EVIDENCE_KINDS, newId, type Assumption, type ClaimType, type EvidenceKind, type InputRow, type OutcomeRow } from '../../domain/passport/schema';
+import { AVAILABILITY, EVIDENCE_KINDS, newId, type Assumption, type ClaimType, type EvidenceKind, type InputRow, type OutcomeRow } from '../../domain/passport/schema';
 import { METHODS, type MethodId } from '../../domain/methods/registry';
+import { evaluateRules } from '../../domain/methods/rules';
+import { dataReadiness } from '../../domain/passport/compass';
 import { Badge } from '../../ui/controls';
 import { usePassport } from './passportContext';
 import { Area, Choice, FieldCard, Pick, Txt } from './fields';
@@ -17,11 +19,34 @@ const CLAIMS: { value: ClaimType; label: string }[] = [
   { value: 'descriptive', label: 'Descriptive' }, { value: 'explanatory', label: 'Explanatory' }, { value: 'predictive', label: 'Predictive' },
   { value: 'exploratory', label: 'Exploratory' }, { value: 'decision-support', label: 'Decision support' },
 ];
+/** One line per claim type: what it asserts and what that asks of the evidence. */
+const CLAIM_HELP: Record<string, string> = {
+  descriptive: 'Says what happens, and how much. Needs measurements of the thing described.',
+  explanatory: 'Says why: which factors drive the outcome. Needs a reason to read the link as causal.',
+  predictive: 'Says what will happen. Needs a check against data that was not used to build the model.',
+  exploratory: 'Shows what could plausibly happen under different assumptions. Not a forecast.',
+  'decision-support': 'Compares options for a decision, under stated assumptions.',
+};
 const METHOD_OPTIONS: { value: MethodId | ''; label: string }[] = [{ value: '', label: 'Not yet selected' }, ...METHODS.map((m) => ({ value: m.id, label: m.name }))];
 const DIRECTIONS: { value: OutcomeRow['direction']; label: string }[] = [
   { value: 'lower', label: 'Lower is better' }, { value: 'higher', label: 'Higher is better' }, { value: 'target', label: 'Close to a target' },
 ];
 const evidenceLabel = (k: EvidenceKind) => EVIDENCE_KINDS.find((e) => e.value === k)?.label ?? '';
+const availabilityLabel = (k: string) => AVAILABILITY.find((e) => e.value === k)?.label ?? '';
+
+/** How much of the data is in hand: the planning question behind “choose your data”. */
+export function DataReadiness() {
+  const { doc } = usePassport();
+  const r = dataReadiness(doc.passport);
+  if (r.total === 0) return null;
+  const parts: [number, string, string][] = [[r.have, 'have', 'in hand'], [r.obtainable, 'obtainable', 'to get'], [r.assume, 'assume', 'assumed'], [r.undecided, 'undecided', 'not decided']];
+  return (
+    <div className="cp-ready-data" role="group" aria-label={`Data readiness: ${parts.map(([n, , t]) => `${n} ${t}`).join(', ')}`}>
+      <span className="cp-ready-data-bar" aria-hidden="true">{parts.map(([n, k]) => n > 0 && <i key={k} className={`k-${k}`} style={{ flexGrow: n }} />)}</span>
+      <span className="cp-ready-data-text">{parts.filter(([n]) => n > 0).map(([n, k, t]) => <span key={k} className={`k-${k}`}><strong>{n}</strong> {t}</span>)}</span>
+    </div>
+  );
+}
 
 // ── Step 1 · Frame ────────────────────────────────────────────────────────
 export function FrameFields() {
@@ -41,7 +66,7 @@ export function FrameFields() {
       <FieldCard icon={MessageCircleQuestion} title="What will you answer?">
         <Area label="Outcome of interest" value={p.decision.outcome} onChange={(v) => update((d) => { d.passport.decision.outcome = v; })} hint="What you will measure, with its unit." rows={2} />
         <Area label="Precise question" value={p.decision.question} onChange={(v) => update((d) => { d.passport.decision.question = v; })} hint="Lever, outcome, horizon, constraint." />
-        <Choice label="Claim type" value={p.decision.claimType} clearTo="" onChange={(v) => update((d) => { d.passport.decision.claimType = v; })} options={CLAIMS} hint="Each type needs different evidence." />
+        <Choice label="Claim type" value={p.decision.claimType} clearTo="" onChange={(v) => update((d) => { d.passport.decision.claimType = v; })} options={CLAIMS} hint={CLAIM_HELP[p.decision.claimType] ?? 'Each type needs different evidence. Pick one to see what it asks for.'} />
       </FieldCard>
     </>
   );
@@ -97,14 +122,22 @@ export function ConceptSketch() {
 
 // ── Step 3 · Method choice ────────────────────────────────────────────────
 export function MethodChoiceFields({ aside }: { aside?: ReactNode }) {
-  const { doc, update } = usePassport();
+  const { doc, update, readOnly } = usePassport();
   const r = doc.passport.representation;
+  // The chooser's reasons for the chosen method, offered as a starting draft for the author's own argument.
+  const reasons = useMemo(() => {
+    if (!r.primaryMethod || !doc.methods.answers) return [];
+    return evaluateRules(doc.methods.answers).candidates.find((c) => c.method === r.primaryMethod)?.reasons ?? [];
+  }, [doc.methods.answers, r.primaryMethod]);
   return (
     <FieldCard icon={Scale} title="Your choice" sub="Your argument, in your words." id="method-choice">
       <div className="cp-duo">
         <div className="cp-duo-in">
           <Pick label="Primary method" value={r.primaryMethod} onChange={(v) => update((d) => { d.passport.representation.primaryMethod = v; })} options={METHOD_OPTIONS} />
           <Area label="Why the primary method fits" value={r.justification} onChange={(v) => update((d) => { d.passport.representation.justification = v; })} rows={4} />
+          {!readOnly && reasons.length > 0 && !r.justification.trim() && (
+            <button type="button" className="btn small" onClick={() => update((d) => { d.passport.representation.justification = reasons.join('\n'); })}><Sparkles size={14} aria-hidden="true" /> Start from the chooser’s reasons</button>
+          )}
         </div>
         <div className="cp-duo-out">
           <Pick label="Alternative method" value={r.alternativeMethod} onChange={(v) => update((d) => { d.passport.representation.alternativeMethod = v; })} options={METHOD_OPTIONS} />
@@ -144,12 +177,14 @@ export function InputsForm() {
   return (
     <FieldCard icon={SlidersHorizontal} title="Inputs" sub="Value, unit, source, uncertainty." aside={rows.length > 0 ? <span className="cp-count">{rows.length}</span> : undefined}>
       {rows.length === 0 && <p className="cp-empty-row">No inputs yet.</p>}
+      {rows.length > 0 && <DataReadiness />}
       {readOnly ? (
         <ul className="list-reset cp-facts">
           {rows.map((r, i) => (
             <li key={r.id}>
               <div className="cp-fact-top"><strong>{r.name || `Input ${i + 1}`}</strong><span className="cp-fact-value">{r.value || '—'}{r.unit && <small> {r.unit}</small>}</span></div>
-              <p><Badge>{evidenceLabel(r.sourceType)}</Badge> {r.provenance}</p>
+              <p><Badge>{evidenceLabel(r.sourceType)}</Badge>{r.availability && <> <Badge tone={r.availability === 'have' ? 'success' : undefined}>{availabilityLabel(r.availability)}</Badge></>} {r.provenance}</p>
+              {r.plan && <p><span className="cp-fact-key">Plan</span> {r.plan}</p>}
               {r.uncertainty && <p><span className="cp-fact-key">Uncertainty</span> {r.uncertainty}</p>}
             </li>
           ))}
@@ -161,16 +196,20 @@ export function InputsForm() {
             <span className="cp-row-sum">{r.name || 'New input'}{r.value.trim() && <span className="cp-row-val"> · {r.value} {r.unit}</span>}</span>
             {missing(r) && <Badge tone="warning"><TriangleAlert size={11} aria-hidden="true" /> {missing(r)}</Badge>}
           </summary>
-          <div className="cp-grid-3">
-            <Txt label="Name" value={r.name} onChange={(v) => edit(r.id, (x) => { x.name = v; })} />
+          <Txt label="Name" value={r.name} onChange={(v) => edit(r.id, (x) => { x.name = v; })} />
+          <div className="cp-grid-21">
             <Txt label="Value or range" value={r.value} onChange={(v) => edit(r.id, (x) => { x.value = v; })} />
             <Txt label="Unit" value={r.unit} onChange={(v) => edit(r.id, (x) => { x.unit = v; })} />
           </div>
           <div className="cp-grid-2">
             <Pick label="Source type" value={r.sourceType} onChange={(v) => edit(r.id, (x) => { x.sourceType = v; })} options={EVIDENCE_KINDS} />
-            <Txt label="Provenance" value={r.provenance} onChange={(v) => edit(r.id, (x) => { x.provenance = v; })} placeholder="Where exactly does it come from?" />
+            <Area label="Provenance" value={r.provenance} onChange={(v) => edit(r.id, (x) => { x.provenance = v; })} placeholder="Where exactly does it come from?" rows={1} />
           </div>
-          <Txt label="Uncertainty" value={r.uncertainty} onChange={(v) => edit(r.id, (x) => { x.uncertainty = v; })} placeholder="Range, distribution or unknown" />
+          <div className="cp-grid-2">
+            <Pick label="Data status" value={r.availability ?? ''} onChange={(v) => edit(r.id, (x) => { x.availability = v; })} options={AVAILABILITY} />
+            <Area label={r.availability === 'assume' ? 'How will you replace or test the assumption?' : 'Plan to get it'} value={r.plan ?? ''} onChange={(v) => edit(r.id, (x) => { x.plan = v; })} placeholder="Who gets it, from where, by when?" rows={1} />
+          </div>
+          <Area label="Uncertainty" value={r.uncertainty} onChange={(v) => edit(r.id, (x) => { x.uncertainty = v; })} placeholder="Range, distribution or unknown" rows={1} />
           <button type="button" className="btn small ghost" aria-label={`Remove input ${i + 1}`} onClick={() => {
             const removed = structuredClone(r);
             update((d) => { d.passport.inputs = d.passport.inputs.filter((x) => x.id !== r.id); });
@@ -316,6 +355,7 @@ export function ExperimentFields() {
   const appendSandbox = () => {
     const b = doc.sandbox.baseline;
     const text = `ModSim Essentials sandbox (engine backlog-daily-v1, RNG sfc32-cyrb128-v1): horizon ${b.horizon} days; initial backlog ${b.initialBacklog} req-eq; demand ${b.demand.mode}${b.demand.mode === 'random' ? ` (values ${b.demand.values.join('/')}, probabilities ${b.demand.probs.join('/')}); ${b.replications} replications; seed "${b.seed}"` : ''}; capacity ${b.capacity.mode}${doc.sandbox.alternative ? '; one alternative policy, paired on shared arrivals where demand is identical' : ''}.`;
+    if (x.runSettings.includes(text)) { toast('These sandbox settings are already in Run settings.', 'info'); return; }
     update((d) => { d.passport.experiment.runSettings = d.passport.experiment.runSettings ? `${d.passport.experiment.runSettings}\n${text}` : text; });
     toast('Current sandbox settings appended to Run settings.', 'success');
   };

@@ -130,19 +130,24 @@ export function workedExample(): ProjectDoc {
   p.inputs = [
     { id: 'in-arrivals', name: 'Daily arrivals', value: '8, 12 or 16 with probabilities 0.25, 0.5 and 0.25 (mean 12)', unit: `${UNIT}/day`, sourceType: 'synthetic',
       provenance: 'Synthetic teaching data (ticket-system style): shaped like the daily request counts of the first 30 working days of a term, library-forwarded requests included. Not real records.',
-      uncertainty: 'Daily range 8–16. The mean is the fragile part: one more request-equivalent per day adds about 30 to the baseline backlog by day 30.' },
+      uncertainty: 'Daily range 8–16. The mean is the fragile part: one more request-equivalent per day adds about 30 to the baseline backlog by day 30.',
+      availability: 'obtainable', plan: 'Ticket-system export of daily request counts for the first 30 working days; the office administrator, before the Design checkpoint.' },
     { id: 'in-capacity', name: 'Daily handling capacity (baseline)', value: '10', unit: `${UNIT}/day`, sourceType: 'synthetic',
       provenance: 'Synthetic teaching data (ticket-system style): typical number of requests closed per working day by the current team. Not real records.',
-      uncertainty: 'About ±1 per day (absences, unusually long cases). Held constant in the model.' },
+      uncertainty: 'About ±1 per day (absences, unusually long cases). Held constant in the model.',
+      availability: 'obtainable', plan: 'Requests closed per working day from the same ticket-system export.' },
     { id: 'in-capacity-alt', name: 'Daily handling capacity with one more part-time advisor', value: '12', unit: `${UNIT}/day`, sourceType: 'assumed',
       provenance: 'Declared assumption in this synthetic teaching case: a trained part-time advisor closes about 2 request-equivalents per day.',
-      uncertainty: 'Plausible range 11–13; lower during the first weeks of training. At 11 the backlog still grows by about 1 per day.' },
+      uncertainty: 'Plausible range 11–13; lower during the first weeks of training. At 11 the backlog still grows by about 1 per day.',
+      availability: 'assume', plan: 'No such post exists yet. Ask the team lead for the output of the last part-time advisor in the first and third month.' },
     { id: 'in-initial', name: 'Initial backlog', value: '0', unit: UNIT, sourceType: 'synthetic',
       provenance: 'Synthetic teaching data (ticket-system style): open requests on the first morning of the period, set to zero as after a cleared backlog. Not real records.',
-      uncertainty: 'Plausible range 0–20. A higher start raises the backlog under both policies; it does not shrink the difference between them.' },
+      uncertainty: 'Plausible range 0–20. A higher start raises the backlog under both policies; it does not shrink the difference between them.',
+      availability: 'obtainable', plan: 'Open requests on the first morning of the period, from the ticket system.' },
     { id: 'in-horizon', name: 'Horizon', value: '30', unit: 'working days', sourceType: 'assumed',
       provenance: 'Modelling choice for this synthetic teaching case: the period over which the stakeholder reviews the office.',
-      uncertainty: 'A choice, not a measurement. With capacity below mean arrivals the backlog keeps growing, so a longer horizon gives a larger average.' },
+      uncertainty: 'A choice, not a measurement. With capacity below mean arrivals the backlog keeps growing, so a longer horizon gives a larger average.',
+      availability: 'have' },
   ];
   p.assumptions = [
     { id: 'as-lost', statement: 'Unused capacity is lost: handling time that is not needed on a quiet day cannot be saved for a later day.',
@@ -219,6 +224,19 @@ export function workedExample(): ProjectDoc {
   // ── Sandbox: baseline 10 vs alternative 12, same arrival sequences ───────
   doc.sandbox = { baseline: baselineConfig(), alternative: alternativeConfig(), lastRun: exampleRun() };
 
-  // Review checkpoints stay ‘draft’ with empty rubrics: the example is not pre-graded.
+  // ── Checkpoints: an honest self-review. No reviewer is named; the ratings show how to argue a level, not a mark.
+  const self = (rubric: Record<string, number>, notes: string) => ({ status: 'self-reviewed' as const, feedbackSource: 'self' as const, reviewer: '', due: '', rubric, notes });
+  p.review = {
+    proposal: self({ question: 3, problem: 3, boundary: 2 },
+      'Question: names the lever (capacity 10 → 12), the outcome with its unit, the 30-day horizon and the budget limit.\nProblem versus proposal: “hire more staff” is listed as one of four levers, not as the problem.\nBoundary is rated Developing: the enrolment office is excluded with a reason, but how many cases it passes on has not been counted yet.'),
+    design: self({ method: 3, inputs: 2, assumptions: 3 },
+      'Method: the fit to an aggregate, accumulating quantity is argued, and what is left out (individual waits) is stated together with the alternative that would show it.\nInputs are rated Developing: every value has a unit and a stated uncertainty, but all of them are synthetic. No source has been checked against real records.\nAssumptions: each one has a consequence and a check that ticket-system counts can answer.'),
+    baseline: self({ verification: 3, validation: 2, separation: 3 },
+      'Verification: six concrete checks, including three cases with known answers.\nValidation is rated Developing: the held-out period and the 20% tolerance are fixed in advance, but this is a plan. No comparison has been made, so it cannot be Strong.\nCalibration: the two estimated inputs and the data used for them are named, and the held-out period is kept apart.'),
+    evaluation: self({ outcomes: 3, fairness: 3, reproducible: 3 },
+      'Outcomes: both metrics have a computable definition, unit, direction and aggregation, and the funding criterion is fixed before the run.\nFair comparison: only capacity changes, and both policies face the same 100 arrival sequences.\nReproducibility: horizon, replications, seed, engine and generator versions are recorded.'),
+    final: self({ results: 3, conditional: 3, limits: 2 },
+      'Results: effect size with an interval, and a statement of what the interval does not cover.\nRecommendation: tied to two conditions and to five events that would change it.\nLimitations are rated Developing: the gap between backlog and individual waiting time is named, but how much it weakens the case for the post is not argued.'),
+  };
   return doc;
 }

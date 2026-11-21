@@ -3,16 +3,21 @@ import { ArrowLeft, Plus, Send } from 'lucide-react';
 import { Link } from '../../app/router';
 import { useStore } from '../../app/store';
 import { TOOLS, toolById, type ToolId } from './registry';
+import { cameFrom } from '../../app/cameFrom';
 import '../../styles/tools.css';
 
 /** The one frame every tool shares: back link, icon, title, tagline, then the tool, then the other tools. */
 export function ToolFrame({ id, wide = true, aside, children }: { id: ToolId; wide?: boolean; aside?: ReactNode; children: ReactNode }) {
   const tool = toolById(id)!;
   const Icon = tool.icon;
+  const back = cameFrom();
   return (
     <div className={`page tool-page${wide ? ' wide' : ''}`}>
       <header className={`tool-head ${tool.tone}`}>
-        <Link to="/tools" className="tool-back"><ArrowLeft size={14} aria-hidden="true" /> All tools</Link>
+        <p className="tool-backs">
+          {back && <Link to={back.path} className="tool-back to-step"><ArrowLeft size={14} aria-hidden="true" /> Back to {back.label}</Link>}
+          <Link to="/tools" className="tool-back">{!back && <ArrowLeft size={14} aria-hidden="true" />} All tools</Link>
+        </p>
         <div className="tool-title">
           <span className="tool-icon" aria-hidden="true"><Icon size={26} /></span>
           <div className="tool-name">

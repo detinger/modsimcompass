@@ -98,7 +98,7 @@ describe('Markdown passport: organised around the seven compass steps', () => {
     expect(md).toMatch(/Assumptions: _Not yet specified_/);
     expect(md).toMatch(/Outcome metrics: _Not yet specified_/);
     expect(md).toMatch(/Conceptual sketch: _Not yet specified_/);
-    expect(md).toMatch(/Sandbox run: none included\./);
+    expect(md).not.toMatch(/Sandbox run/);
   });
   it('lists the seven steps in order with their titles, then open items, then checkpoints', () => {
     for (const doc of [createProject(), sampleDoc(), workedExample()]) {
@@ -131,7 +131,7 @@ describe('Markdown passport: organised around the seven compass steps', () => {
     expect(section(md, 'Step 3 — Choose a method')).toMatch(/rule table method-rules-v1; shortlist: System dynamics, Discrete-event simulation/);
     expect(section(md, 'Step 3 — Choose a method')).toContain('| At what level must the outcome be reported? | Aggregate totals or averages |');
     expect(section(md, 'Step 3 — Choose a method')).not.toMatch(/granularity: aggregate/);
-    expect(section(md, 'Step 4 — Inputs and assumptions')).toMatch(/\| Daily arrivals \| 8, 12 or 16 .* \| request-equivalents\/day \| Synthetic \/ teaching fixture \| Synthetic teaching data/);
+    expect(section(md, 'Step 4 — Inputs and assumptions')).toMatch(/\| Daily arrivals \| 8, 12 or 16 .* \| request-equivalents\/day \| Synthetic \/ illustrative \| Synthetic teaching data/);
     expect(section(md, 'Step 4 — Inputs and assumptions')).toMatch(/1\. \*\*Unused capacity is lost.*\*\* \(Declared assumption\)\n {3}- Rationale: /);
     expect(section(md, 'Step 5 — Verification and validation')).toMatch(/- \*\*Calibration \(kept separate from validation\):\*\* Kept separate/);
     expect(section(md, 'Step 6 — Outcomes and experiment')).toMatch(/\| Average end-of-day backlog \| Mean of the 30 end-of-day backlog values/);
@@ -178,7 +178,7 @@ describe('Markdown passport: organised around the seven compass steps', () => {
     const warnings = compassWarnings(d);
     const n = (sev: string) => warnings.filter((w) => w.severity === sev).length;
     expect(open).toContain(`rule table \`${COMPASS_RULES_VERSION}\``);
-    expect(open).toContain('compass-rules-v1');
+    expect(open).toContain('compass-rules-v2');
     expect(open).toContain(`Missing ${n('gap')} · Check ${n('check')} · Suggestion ${n('tip')}.`);
     expect(open.split('\n').filter((l) => l.startsWith('### '))).toEqual([`### Missing (${n('gap')})`, `### Check (${n('check')})`, `### Suggestion (${n('tip')})`]);
     expect(open.split('\n').filter((l) => l.startsWith('- '))).toHaveLength(warnings.length);
@@ -201,6 +201,7 @@ describe('Markdown passport: organised around the seven compass steps', () => {
     d.passport.review.proposal = { status: 'teacher-reviewed', notes: 'Clear question.\nSay more about the boundary.', reviewer: 'Reviewer A', feedbackSource: 'teacher', due: '2026-12-01', rubric: { question: 3, problem: 1, unknown: 2 } };
     d.passport.review.design = { status: 'self-reviewed', notes: '', reviewer: '', feedbackSource: 'self', due: '', rubric: { method: 0, inputs: 9, assumptions: 1.5 } };
     d.passport.review.final.status = 'needs-revision';
+    d.passport.review.baseline = { status: 'draft', notes: '', reviewer: '', feedbackSource: '', due: '', rubric: {} };
     const md = passportMarkdown(d);
     const cps = section(md, 'Checkpoints');
     expect(cps.split('\n').filter((l) => l.startsWith('### '))).toEqual(['### Proposal checkpoint (steps 1 and 2)', '### Design checkpoint (steps 3 and 4)', '### Baseline checkpoint (step 5)', '### Evaluation checkpoint (step 6)', '### Final checkpoint (step 7)']);
@@ -224,7 +225,8 @@ describe('Markdown passport: organised around the seven compass steps', () => {
     expect(cp('Final')).toContain('- **Status:** Needs revision');
     // Every criterion of every checkpoint has a row; levels use the RUBRIC_LEVELS labels.
     for (const def of CHECKPOINT_DEFS) for (const c of def.rubric) expect(cp(def.label), c.id).toMatch(new RegExp(`\\| ${c.criterion} \\| (Not rated|(${RUBRIC_LEVELS.join('|')}) \\(level \\d of 3\\)) \\|`));
-    expect(cps.match(/\| Not rated \|/g)).toHaveLength(15 - 3);
+    // Proposal: boundary. Design: two invalid levels. Baseline: all three. Evaluation and Final keep the example’s own ratings.
+    expect(cps.match(/\| Not rated \|/g)).toHaveLength(1 + 2 + 3);
     expect(cps).toContain(`Rubric levels, lowest to highest: ${RUBRIC_LEVELS.join(', ')}.`);
     expect(cps).toMatch(/Reviewer feedback is a manual label: .* not authenticated by this app/);
     // Readiness per checkpoint is reported next to its record.
@@ -337,16 +339,17 @@ describe('HTML report', () => {
   it('follows the compass structure: step headings, self-checks, open items, checkpoints, appendix', () => {
     const d = workedExample();
     d.passport.review.proposal.rubric = { question: 3 };
+    delete d.passport.review.final.rubric.limits;
     d.passport.selfChecks['conclude-repro'] = '';
     const html = passportHtml(d, OPTS);
     const h2 = [...html.matchAll(/<h2>(.*?)<\/h2>/g)].map((m) => m[1]);
     expect(h2).toEqual([...STEPS.map((s) => `Step ${s.number} — ${s.title}`), 'Open items at export time', 'Checkpoints', 'Appendix — sandbox results in detail']);
     expect(html).toMatch(/<p class="note">7 of 7 steps started\. .*not a measure of model validity or of review status\.<\/p>/);
-    expect(html).toContain('<title>Student support backlog (worked example) — model passport</title>');
+    expect(html).toContain('<title>Student support backlog (worked example) — project report</title>');
     expect(html.match(/<th scope="col">Self-check question<\/th>/g)).toHaveLength(7);
     expect(html).toContain(`<td>${STEPS[0].selfChecks[0].question}</td><td>Observed concern:`);
     expect(html).toContain('<td><em>Not yet answered</em></td>');
-    expect(html).toContain('<code>compass-rules-v1</code>');
+    expect(html).toContain('<code>compass-rules-v2</code>');
     expect(html).toContain('<h3>Missing (0)</h3>');
     expect(html).toContain('<h3>Check (0)</h3>');
     expect(html).toContain('<h3>Suggestion (0)</h3>');
@@ -370,7 +373,8 @@ describe('HTML report', () => {
     }
     for (const id of ['open-items', 'checkpoints', 'appendix']) { expect(html).toContain(`href="#${id}"`); expect(html).toContain(`<section id="${id}" class="sec">`); }
     expect(html.match(/<section /g)!.length).toBe(html.match(/<\/section>/g)!.length);
-    expect(html).toContain('Created 21 Nov 2026, 00:00 UTC');
+    expect(html).toContain('created 21 Nov 2026, 00:00 UTC');
+    expect(html).toMatch(/<em>For reference: project ID <code>worked-example<\/code> · schema v2 · project revision 1 · model revision 1\.<\/em>/);
     // an unframed project has no question block, and the hostile-text test above covers escaping of the question
     expect(passportHtml(createProject())).not.toContain('class="lead"');
   });
@@ -386,7 +390,7 @@ describe('HTML report', () => {
     expect(html.match(/<em>Not yet answered<\/em>/g)).toHaveLength(14);
     expect(html).toContain('<h3>Missing (22)</h3>');
     expect(html).toContain('<li>Step 1 — Frame: No stakeholder yet: who will use the result?</li>');
-    expect(html).toContain('No sandbox run included.');
+    expect(html).not.toMatch(/Appendix|Sandbox results/);
   });
   it('the Markdown renderer keeps tables, nested lists and continuation lines apart', () => {
     const html = markdownToHtml(['- **A:** one', '  two', '- **B:** three', '', '1. **S** (x)', '   - Rationale: r1', '     r2', '   - Check: c', '2. **T**', '', '| h1 | h2 |', '| --- | --- |', '| a \\| b | c |', '', '> note', 'plain <b>'].join('\n'));
@@ -438,7 +442,7 @@ describe('CSV and ZIP exports', () => {
     expect(manifest.sandboxRun.stale).toBe(false);
     expect(manifest.app).toBe('ModSim Essentials');
     expect(manifest.appVersion).toBe('3.0.0');
-    expect(manifest.compassRulesVersion).toBe('compass-rules-v1');
+    expect(manifest.compassRulesVersion).toBe('compass-rules-v2');
     expect(manifest.compassRulesVersion).toBe(COMPASS_RULES_VERSION);
     expect(manifest.methodRuleVersion).toBe('method-rules-v1');
     expect(manifest.schemaVersion).toBe(2);
@@ -446,9 +450,9 @@ describe('CSV and ZIP exports', () => {
     expect(manifest.generatedAt).toBe(OPTS.generatedAt);
     // The files in the archive are the same text the single-file exports produce.
     const slug = slugify(sampleDoc().passport.identity.title);
-    expect(manifest.files.map((x: { path: string }) => x.path)).toEqual([`${slug}-passport.md`, `${slug}.modsim.json`, `${slug}-report.html`, `${slug}-sandbox-results.csv`]);
-    const md = execFileSync('unzip', ['-p', f, `${slug}-passport.md`]).toString();
-    expect(md).toMatch(/^# Support <script>alert\(1\)<\/script> \| test — model passport/);
+    expect(manifest.files.map((x: { path: string }) => x.path)).toEqual([`${slug}-report.md`, `${slug}.modsim.json`, `${slug}-report.html`, `${slug}-sandbox-results.csv`]);
+    const md = execFileSync('unzip', ['-p', f, `${slug}-report.md`]).toString();
+    expect(md).toMatch(/^# Support <script>alert\(1\)<\/script> \| test — project report/);
     expect(md).toMatch(/## Step 7 — Conclude and share/);
     expect(md).toMatch(/## Open items at export time/);
     expect(md).toMatch(/## Checkpoints/);
@@ -468,7 +472,7 @@ describe('CSV and ZIP exports', () => {
     expect(renderPart(d, 'results-csv', OPTS)).toMatch(/^run_id,/);
     expect(renderPart(createProject(), 'results-csv', OPTS)).toBeNull();
     const manifest = buildManifest(d, [], OPTS.generatedAt);
-    expect(manifest).toMatchObject({ compassRulesVersion: 'compass-rules-v1', stepsStarted: { started: 7, total: 7 }, openItems: { missing: 0, check: 0, suggestion: 0 }, projectId: 'worked-example' });
+    expect(manifest).toMatchObject({ compassRulesVersion: 'compass-rules-v2', stepsStarted: { started: 7, total: 7 }, openItems: { missing: 0, check: 0, suggestion: 0 }, projectId: 'worked-example' });
     expect(manifest.sandboxRun).toMatchObject({ id: 'run-example', status: 'complete', stale: false, seed: 'compass-example', completedReplications: 100 });
     expect(buildManifest(createProject(), [], OPTS.generatedAt)).toMatchObject({ openItems: { missing: 22, check: 0, suggestion: 1 }, sandboxRun: null });
     const zip = buildExportZip(d, EXPORT_PARTS.map((p) => p.id), OPTS);

@@ -8,10 +8,12 @@ import { newId } from '../../domain/passport/schema';
 import { Callout, Dialog, fmt } from '../../ui/controls';
 import { SendArea } from './ToolFrame';
 
-/** “Add to passport inputs” and “Use as sandbox demand”: each previewed, never duplicated, each with undo. */
+/** “Add to project inputs” and “Use as sandbox demand”: each previewed, never duplicated, each with undo. */
 export function SendDistribution({ kind, fields, provenance, label }: { kind: Kind; fields: (number | string)[]; provenance: string; label?: string }) {
   const { active, update, toast } = useStore();
   const [dialog, setDialog] = useState<'passport' | 'sandbox' | null>(null);
+  const [name, setName] = useState('');
+  const [unit, setUnit] = useState('');
   let law;
   try { law = lawFor(kind, fields); } catch { return null; }
   const desc = describeLaw(kind, fields);
@@ -19,20 +21,24 @@ export function SendDistribution({ kind, fields, provenance, label }: { kind: Ki
   return (
     <SendArea what={<strong>{desc}</strong>}>
       <div className="btn-row">
-        <button type="button" className="btn" onClick={() => setDialog('passport')}><ClipboardPlus size={16} aria-hidden="true" /> Add to passport inputs</button>
+        <button type="button" className="btn" onClick={() => setDialog('passport')}><ClipboardPlus size={16} aria-hidden="true" /> Add to project inputs</button>
         {law.discrete && <button type="button" className="btn" onClick={() => setDialog('sandbox')}><Waves size={16} aria-hidden="true" /> Use as sandbox demand</button>}
       </div>
       {active && dialog === 'passport' && (
-        <Dialog title="Add to passport inputs" narrow onClose={() => setDialog(null)}
+        <Dialog title="Add to project inputs" narrow onClose={() => setDialog(null)}
           actions={<><button className="btn" onClick={() => setDialog(null)}>Cancel</button><button className="btn primary" onClick={() => {
             if (active.passport.inputs.some((r) => r.value === desc && r.provenance === provenance)) { toast('Already in your inputs; nothing duplicated.'); setDialog(null); return; }
             const id = newId('in');
-            update((d) => { d.passport.inputs.push({ id, name: label ?? 'Uncertain input', value: desc, unit: '', sourceType: 'unspecified', provenance, uncertainty: `Modelled as ${desc}; parameter uncertainty not quantified.` }); });
-            setDialog(null);
-            toast('Added to Inputs. Give it a name, unit and source there.', 'success', { label: 'Undo', run: () => update((d) => { d.passport.inputs = d.passport.inputs.filter((r) => r.id !== id); }) });
+            update((d) => { d.passport.inputs.push({ id, name: name.trim() || label || 'Uncertain input', value: desc, unit: unit.trim(), sourceType: 'unspecified', provenance, uncertainty: `Modelled as ${desc}; parameter uncertainty not quantified.` }); });
+            setDialog(null); setName(''); setUnit('');
+            toast(name.trim() && unit.trim() ? 'Added to Inputs. Add its source there.' : 'Added to Inputs. Give it a name, unit and source there.', 'success', { label: 'Undo', run: () => update((d) => { d.passport.inputs = d.passport.inputs.filter((r) => r.id !== id); }) });
           }}>Add</button></>}>
-          <div className="card subtle"><p className="field-label">Project → step 4, Inputs → new row</p><p style={{ margin: 0 }}><strong>{desc}</strong></p><p className="subtle-text" style={{ margin: 0 }}>Provenance: {provenance}</p></div>
-          <p className="subtle-text">You still need to add the input’s name, unit and evidence. A distribution is an assumption until data support it.</p>
+          <div className="card subtle"><p className="field-label">Project → step 4, Inputs → new row</p><p style={{ margin: 0 }}><strong>{desc}</strong></p>{Number.isFinite(law.mean) && !law.undefinedMean && <p className="subtle-text" style={{ margin: 0 }}>Mean {fmt(law.mean, 3)}</p>}<p className="subtle-text" style={{ margin: 0 }}>Provenance: {provenance}</p></div>
+          <div className="send-fields">
+            <label className="field"><span className="field-label">What is this input?</span><input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Service time per customer" maxLength={120} /></label>
+            <label className="field"><span className="field-label">Unit</span><input type="text" value={unit} onChange={(e) => setUnit(e.target.value)} placeholder="e.g. minutes" maxLength={40} /></label>
+          </div>
+          <p className="subtle-text">A distribution is an assumption until data support it. Add the evidence in step 4.</p>
         </Dialog>
       )}
       {active && dialog === 'sandbox' && (

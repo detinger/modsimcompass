@@ -17,7 +17,7 @@ export const QUESTIONS: Record<string, QuestionNode> = {
   cShape: { col: 10, row: 1, text: 'Symmetric or asymmetric?', help: 'Symmetric data spread evenly around the middle; asymmetric data have a longer tail on one side.' },
   cCentre: { col: 8, row: 2, text: 'Clustered around a central value?', help: 'Clustered data have a peak; unclustered data are spread evenly or have several peaks.' },
   cOutliers: { col: 9, row: 3, text: 'How likely are outliers?', help: 'Hard limits: nothing outside a known range. Otherwise: how often do extreme values occur?' },
-  cTail: { col: 12, row: 2, text: 'Where do the outliers lie?', help: 'Only positive: never negative. Mostly positive: long right tail. Mostly negative: long left tail.' },
+  cTail: { col: 12, row: 2, text: 'What does the lopsided shape look like?', help: 'Peak at zero: the smallest values are the most common, as in times between random events. Peak above zero: values cluster at a typical size with occasional much larger ones, as in durations and sizes. Long left tail: occasional much smaller values.' },
 };
 
 export const FAMILY_NOTES: Partial<Record<Kind, { use: string; example: string; thumb: (number | string)[] }>> = {
@@ -67,7 +67,7 @@ export const EDGES: [string, string, string][] = [
   ['cShape', 'cCentre', 'Symmetric'], ['cShape', 'cTail', 'Asymmetric'],
   ['cCentre', 'uniform', 'No'], ['cCentre', 'cOutliers', 'Yes'],
   ['cOutliers', 'triangular', 'Hard limits'], ['cOutliers', 'normal', 'Very low'], ['cOutliers', 'logistic', 'Low'],
-  ['cTail', 'exponential', 'Only positive'], ['cTail', 'skewed', 'Mostly positive'], ['cTail', 'minextreme', 'Mostly negative'],
+  ['cTail', 'exponential', 'Peak at zero'], ['cTail', 'skewed', 'Peak above zero, long right tail'], ['cTail', 'minextreme', 'Long left tail'],
 ];
 
 export function pathTo(id: string): { from: string; to: string; answer: string }[] {

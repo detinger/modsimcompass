@@ -29,10 +29,14 @@ export default function FittingTool() {
   const [selected, setSelected] = useState<Kind | null>(null);
 
   const mystery = MYSTERY[(mysteryRound * 5) % MYSTERY.length];
-  const { values, rejected, label } = useMemo(() => {
-    if (source === 'example') { const d = DATASETS.find((x) => x.id === datasetId)!; return { values: d.values, rejected: [] as string[], label: d.label }; }
-    if (source === 'paste') { const p = parseData(text); return { ...p, label: 'Your data' }; }
-    return { values: drawFrom(lawFor(mystery.kind, mystery.fields), `mystery-${mysteryRound}`, 'fit', mysteryN), rejected: [] as string[], label: `Mystery sample #${mysteryRound}` };
+  const { values, rejected, label, parsedNote } = useMemo(() => {
+    if (source === 'example') { const d = DATASETS.find((x) => x.id === datasetId)!; return { values: d.values, rejected: [] as string[], label: d.label, parsedNote: '' }; }
+    if (source === 'paste') {
+      const p = parseData(text);
+      const parsedNote = p.commaIsDecimal ? 'Commas were read as decimal commas (1,5 = 1.5).' : p.decimalCommas.length ? `Read as separate values: ${p.decimalCommas.join(' · ')}. Use a dot for decimals, or separate values with spaces only.` : '';
+      return { values: p.values, rejected: p.rejected, label: 'Your data', parsedNote };
+    }
+    return { values: drawFrom(lawFor(mystery.kind, mystery.fields), `mystery-${mysteryRound}`, 'fit', mysteryN), rejected: [] as string[], label: `Mystery sample #${mysteryRound}`, parsedNote: '' };
   }, [source, datasetId, text, mystery, mysteryRound, mysteryN]);
 
   const result = useMemo(() => (values.length >= 3 ? fitAll(values) : null), [values]);
@@ -74,6 +78,7 @@ export default function FittingTool() {
               <textarea id="fit-data" rows={8} value={text} onChange={(e) => { setText(e.target.value); setSelected(null); }} placeholder="e.g. 4.2, 5.1, 3.8 …  (commas, spaces or new lines)" />
               <span className="hint">Up to 5,000 values. Nothing leaves your browser.</span>
               {rejected.length > 0 && <span className="field-error">Ignored: {rejected.slice(0, 5).join(', ')}{rejected.length > 5 ? ' …' : ''}</span>}
+              {source === 'paste' && parsedNote && <span className="hint" role="status">{parsedNote}</span>}
             </div>
           )}
           {source === 'mystery' && (
@@ -128,8 +133,8 @@ export default function FittingTool() {
                   <div className="card-head">
                     <h2 style={{ margin: 0, display: 'flex', gap: 10, alignItems: 'center' }}><Thumb kind={chosen.kind} fields={chosen.params} className="thumb" />{describeLaw(chosen.kind, chosen.params.map((p) => Number(p.toPrecision(4))))}</h2>
                   </div>
-                  <div className="stat-row">
-                    {chosen.paramLabels.map((l, i) => <div key={l} className="stat"><small>{l}</small><strong>{fmt(chosen.params[i], 4)}</strong></div>)}
+                  <div className="stat-row fit-stats">
+                    {chosen.paramLabels.map((l, i) => <div key={l} className="stat"><small>{l}</small><strong>{fmt(Number(chosen.params[i].toPrecision(4)), 4)}</strong></div>)}
                     <div className="stat"><small>Log-likelihood</small><strong>{fmt(chosen.logLik, 2)}</strong></div>
                     <div className="stat"><small>AIC</small><strong>{fmt(chosen.aic, 1)}</strong></div>
                     <div className="stat"><small>BIC</small><strong>{fmt(chosen.bic, 1)}</strong></div>
@@ -145,7 +150,7 @@ export default function FittingTool() {
                     </div>
                   </div>
                   <p className="subtle-text">Method: {chosen.method}.</p>
-                  <SendDistribution kind={chosen.kind} fields={chosen.params.map((p) => Number(p.toPrecision(6)))} label={source === 'paste' ? 'Fitted input' : label}
+                  <SendDistribution kind={chosen.kind} fields={chosen.params.map((p) => Number(p.toPrecision(4)))} label={source === 'paste' ? 'Fitted input' : label}
                     provenance={`Maximum-likelihood fit to ${n} values (${label}) in Tools: Fit a distribution; AIC ${fmt(chosen.aic, 1)}, rank ${result.fits.indexOf(chosen) + 1} of ${result.fits.length}`} />
                   <div className="btn-row" style={{ marginTop: 8 }}>
                     <Link className="btn small ghost" to={`/tools/distributions/${chosen.kind}?p=${encodeURIComponent(chosen.params.map((p) => Number(p.toPrecision(4))).join('|'))}`}>Open in explorer</Link>

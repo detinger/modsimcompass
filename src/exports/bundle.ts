@@ -8,28 +8,23 @@ import { passportHtml } from './html';
 import { APP_NAME, briefMarkdown, passportMarkdown } from './markdown';
 import { runIsStale } from './runInfo';
 import { buildZip, type ZipEntry } from './zip';
+import { APP_VERSION, projectJson, slugify } from './projectFile';
 
-export const APP_VERSION = '3.0.0';
+export { APP_VERSION, projectJson, slugify } from './projectFile';
 
 export type ExportPart = 'brief-md' | 'passport-md' | 'project-json' | 'report-html' | 'results-csv';
 export const EXPORT_PARTS: { id: ExportPart; label: string; file: (slug: string) => string; mime: string }[] = [
   { id: 'brief-md', label: 'Problem brief (Markdown)', file: (s) => `${s}-brief.md`, mime: 'text/markdown' },
-  { id: 'passport-md', label: 'Full passport (Markdown)', file: (s) => `${s}-passport.md`, mime: 'text/markdown' },
+  { id: 'passport-md', label: 'Full report (Markdown)', file: (s) => `${s}-report.md`, mime: 'text/markdown' },
   { id: 'project-json', label: 'Project file (JSON, re-importable)', file: (s) => `${s}.modsim.json`, mime: 'application/json' },
-  { id: 'report-html', label: 'Standalone report (HTML)', file: (s) => `${s}-report.html`, mime: 'text/html' },
+  { id: 'report-html', label: 'Full report (HTML, printable)', file: (s) => `${s}-report.html`, mime: 'text/html' },
   { id: 'results-csv', label: 'Sandbox results (CSV)', file: (s) => `${s}-sandbox-results.csv`, mime: 'text/csv' },
 ];
 
-export function slugify(title: string): string {
-  const s = title.toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 48);
-  return s || 'project';
-}
+export interface ExportOptions { includeAuthor: boolean; generatedAt: string; /** false leaves the sandbox run out of the reports (the project file always keeps it). Default: included. */ includeSandbox?: boolean }
 
-export function projectJson(doc: ProjectDoc): string {
-  return JSON.stringify({ ...doc, exportedBy: { app: APP_NAME, version: APP_VERSION } }, null, 2);
-}
-
-export function renderPart(doc: ProjectDoc, part: ExportPart, opts: { includeAuthor: boolean; generatedAt: string }): string | null {
+export function renderPart(full: ProjectDoc, part: ExportPart, opts: ExportOptions): string | null {
+  const doc = opts.includeSandbox === false && part !== 'project-json' ? { ...full, sandbox: { ...full.sandbox, lastRun: null } } : full;
   switch (part) {
     case 'brief-md': return briefMarkdown(doc);
     case 'passport-md': return passportMarkdown(doc, opts);
@@ -67,7 +62,7 @@ export function buildManifest(doc: ProjectDoc, files: { path: string; part: Expo
   };
 }
 
-export function buildExportZip(doc: ProjectDoc, parts: ExportPart[], opts: { includeAuthor: boolean; generatedAt: string }): Uint8Array {
+export function buildExportZip(doc: ProjectDoc, parts: ExportPart[], opts: ExportOptions): Uint8Array {
   const slug = slugify(doc.passport.identity.title);
   const entries: ZipEntry[] = [];
   const files: { path: string; part: ExportPart }[] = [];

@@ -1,5 +1,5 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react';
-import { projectJson, slugify } from '../exports/bundle';
+import { projectJson, slugify } from '../exports/projectFile';
 import type { ProjectDoc } from '../domain/passport/schema';
 import { downloadFile } from '../ui/controls';
 

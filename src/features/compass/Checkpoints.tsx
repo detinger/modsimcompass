@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
 import { ArrowRight, ChevronDown, Leaf, Milestone } from 'lucide-react';
 import { Link, useRouter } from '../../app/router';
-import { CHECKPOINT_DEFS, RUBRIC_LEVELS, STEP_BY_ID, checkpointReadiness, type CheckpointDef, type StepId } from '../../domain/passport/compass';
+import { CHECKPOINT_DEFS, RUBRIC_LEVELS, RUBRIC_LEVEL_MEANING, STEP_BY_ID, checkpointReadiness, type CheckpointDef, type StepId } from '../../domain/passport/compass';
 import { REVIEW_LABELS, type Checkpoint, type CheckpointId, type ReviewStatus } from '../../domain/passport/schema';
 import { usePassport } from '../project/passportContext';
 import { Area, Choice, Txt } from '../project/fields';
+import { DataReadiness } from '../project/PassportForms';
 import { CHECKPOINT_TONE, SEVERITY, STATUS_CLASS, warningText } from './stepMeta';
 
 /** Today as YYYY-MM-DD in the user's own time zone (a target date is a local calendar day). */
@@ -51,6 +52,7 @@ function CheckpointCard({ def, index, open, onToggle }: { def: CheckpointDef; in
       {open && (
         <div className="cp-ck-body" id={`ck-${def.id}`}>
           <p className="cp-ck-expected"><span>Expected evidence</span>{def.expected}</p>
+          {def.id === 'design' && <DataReadiness />}
           <div className="cp-ck-grid">
             <section aria-label={`${def.label}: readiness`}>
               <h4>Readiness</h4>
@@ -84,6 +86,7 @@ function CheckpointCard({ def, index, open, onToggle }: { def: CheckpointDef; in
                     <li key={c.id}>
                       <p className="cp-rubric-name">{c.criterion}</p>
                       <p className="cp-rubric-strong"><span>Strong</span>{c.strong}</p>
+                      {value !== undefined && value < 3 && <p className="cp-rubric-now"><span>{RUBRIC_LEVELS[value]}</span>{RUBRIC_LEVEL_MEANING[value]}</p>}
                       <div className="cp-levels" role="group" aria-label={`${c.criterion}: level`}>
                         {RUBRIC_LEVELS.map((label, lv) => (
                           <button key={label} type="button" aria-pressed={value === lv} className={value !== undefined && lv <= value ? 'on' : undefined}
@@ -138,7 +141,7 @@ export function Checkpoints() {
       <div className="cp-stephead tone-primary">
         <span className="cp-stepicon" aria-hidden="true"><Milestone size={26} /></span>
         <div>
-          <p className="cp-stepno">Assessment</p>
+          <p className="cp-stepno">Review</p>
           <h2 tabIndex={-1} id="cp-step-h">Checkpoints</h2>
           <p className="cp-short">Five reviews along the way. Review status stays separate from steps started.</p>
         </div>

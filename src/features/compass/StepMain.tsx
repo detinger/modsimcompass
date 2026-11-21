@@ -31,7 +31,7 @@ function ToolLink({ to, icon: Icon, title, text, tone }: { to: string; icon: Luc
 
 /** The main column of a step: its passport fields plus the helpers named in the spec (§3). */
 export function StepMain({ step, onExport }: { step: StepId; onExport: () => void }) {
-  const { doc, readOnly, base } = usePassport();
+  const { doc, update, readOnly, base } = usePassport();
   const primary = doc.passport.representation.primaryMethod;
   switch (step) {
     case 'frame': return <FrameFields />;
@@ -45,7 +45,7 @@ export function StepMain({ step, onExport }: { step: StepId; onExport: () => voi
     case 'method': return (
       <>
         <MethodChooser />
-        <MethodChoiceFields aside={primary ? <p className="cp-handoff"><AppLink method={primary} /><span>Hand-off is manual: export the passport first.</span></p> : undefined} />
+        <MethodChoiceFields aside={primary ? <p className="cp-handoff"><AppLink method={primary} /><span>Hand-off is manual: export your project first.</span></p> : undefined} />
         <Figure id="method-families" />
         <MethodCatalogue />
       </>
@@ -84,6 +84,12 @@ export function StepMain({ step, onExport }: { step: StepId; onExport: () => voi
     );
     case 'conclude': return (
       <>
+        {!readOnly && (
+          <div className="cp-stage">
+            <input id="stage-planning" type="checkbox" aria-describedby="stage-planning-help" checked={doc.passport.identity.stage === 'planning'} onChange={(e) => update((d) => { d.passport.identity.stage = e.target.checked ? 'planning' : ''; })} />
+            <span><label htmlFor="stage-planning"><strong>Still planning</strong></label><span id="stage-planning-help"> — the model has not been run yet. This step is then due later instead of missing.</span></span>
+          </div>
+        )}
         <ConclusionFields />
         <section className="cp-finish">
           <div>
@@ -91,7 +97,7 @@ export function StepMain({ step, onExport }: { step: StepId; onExport: () => voi
             <p>{readOnly ? 'See how the example was reviewed.' : 'One file carries everything a reviewer needs.'}</p>
           </div>
           <div className="btn-row">
-            {!readOnly && <button type="button" className="btn primary cp-big" onClick={onExport}><Download size={18} aria-hidden="true" /> Export passport</button>}
+            {!readOnly && <button type="button" className="btn primary cp-big" onClick={onExport}><Download size={18} aria-hidden="true" /> Export project</button>}
             <Link to={`${base}/checkpoints`} className="btn cp-big"><Milestone size={18} aria-hidden="true" /> Checkpoints</Link>
           </div>
         </section>

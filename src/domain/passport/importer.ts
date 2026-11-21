@@ -69,7 +69,7 @@ function sanitize(input: unknown, template: Tmpl, itemTemplates: Record<string, 
 }
 
 const ITEM_TEMPLATES: Record<string, Tmpl> = {
-  'passport.inputs': { id: '', name: '', value: '', unit: '', sourceType: 'unspecified', provenance: '', uncertainty: '' },
+  'passport.inputs': { id: '', name: '', value: '', unit: '', sourceType: 'unspecified', provenance: '', uncertainty: '', availability: '', plan: '' },
   'passport.assumptions': { id: '', statement: '', rationale: '', consequenceIfWrong: '', plannedCheck: '', evidenceKind: 'unspecified', sourceNote: '' },
   'passport.outcomes': { id: '', metric: '', definition: '', unit: '', direction: '', aggregation: '', criterion: '' },
   'passport.representation.nodes': { id: '', type: 'entity', label: '', x: 0, y: 0 },
@@ -219,7 +219,8 @@ export function importProjectObject(raw: unknown, opts: { now?: string } = {}): 
     for (const r of rows) { if (!r.id || seen.has(r.id)) r.id = newId(prefix); while (seen.has(r.id)) r.id = `${newId(prefix)}-${seen.size}`; seen.add(r.id); }
   };
   uniqueIds(p.inputs, 'in'); uniqueIds(p.assumptions, 'as'); uniqueIds(p.outcomes, 'out'); uniqueIds(p.representation.nodes, 'n'); uniqueIds(p.representation.relations, 'r'); uniqueIds(doc.lensNotes, 'note');
-  p.inputs.forEach((r) => { if (!EVIDENCE.has(r.sourceType)) r.sourceType = 'unspecified'; });
+  p.inputs.forEach((r) => { if (!EVIDENCE.has(r.sourceType)) r.sourceType = 'unspecified'; if (!['have', 'obtainable', 'assume'].includes(r.availability ?? '')) delete r.availability; if (!r.plan) delete r.plan; }); // optional fields: absent when empty
+  if (p.identity.stage !== 'planning') p.identity.stage = '';
   p.assumptions.forEach((a) => { if (!EVIDENCE.has(a.evidenceKind)) a.evidenceKind = 'unspecified'; });
   p.outcomes.forEach((r) => { if (!['', 'lower', 'higher', 'target'].includes(r.direction)) r.direction = ''; });
   p.representation.nodes.forEach((n) => { if (!['entity', 'variable', 'stakeholder'].includes(n.type)) n.type = 'entity'; });
@@ -267,9 +268,10 @@ export function importProjectObject(raw: unknown, opts: { now?: string } = {}): 
     doc.preservedUnknown = JSON.parse(JSON.stringify(unknown));
     warn(`Unrecognised fields preserved without use: ${Object.keys(unknown).map((k) => k.slice(0, 40)).slice(0, 20).join(', ')}.`);
   }
+  const n = (k: number, word: string) => `${k} ${word}${k === 1 ? '' : 's'}`;
   const summary = [
     `Title: ${p.identity.title || 'Untitled project'}`,
-    `${p.inputs.length} inputs, ${p.assumptions.length} assumptions, ${p.outcomes.length} outcomes`,
+    `${n(p.inputs.length, 'input')}, ${n(p.assumptions.length, 'assumption')}, ${n(p.outcomes.length, 'outcome')}`,
     doc.sandbox.lastRun ? `Sandbox results: ${doc.sandbox.lastRun.completedReplications} replication(s), status ${doc.sandbox.lastRun.status}` : 'No sandbox results',
   ];
   return { ok: true, project: doc, warnings, summary };

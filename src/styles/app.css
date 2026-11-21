@@ -331,3 +331,24 @@ details[open] > summary { margin-bottom: 6px; }
   main.content { padding: 0; }
   thead { display: table-header-group; }
 }
+
+/* Icons never shrink when a label is long. */
+.btn svg, .more-tool svg, .tool-back svg { flex-shrink: 0; }
+/* Dialog actions stay reachable when the content is taller than the screen. */
+.dialog-actions { position: sticky; bottom: -20px; margin: 16px -22px -20px; padding: 12px 22px; background: var(--bg-elevated); border-top: 1px solid var(--border); border-radius: 0 0 var(--radius-lg) var(--radius-lg); }
+/* Export rows: label on the left, the same two buttons on the right in every row. */
+.export-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 8px; padding: 4px 0; }
+.export-row .btn-row { flex-wrap: nowrap; }
+@media (max-width: 480px) { .export-row { grid-template-columns: minmax(0, 1fr); } .export-row .btn-row { padding-left: 26px; } }
+/* Finger-sized targets on touch screens. */
+@media (pointer: coarse) {
+  details > summary { padding-block: 10px; }
+  .tool-back, .send-links a, .hint a, .cp-ready-step { min-height: 40px; display: inline-flex; align-items: center; }
+  .mc-dots button { height: 40px; }
+  .btn.small { min-height: 38px; }
+}
+/* On a phone the save state is an icon, so the top bar keeps one height while typing. The text stays for screen readers. */
+@media (max-width: 640px) {
+  .save-state:not(.failed) .save-text { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .save-state:not(.failed) { min-width: 18px; }
+}

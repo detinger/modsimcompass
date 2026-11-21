@@ -51,6 +51,21 @@ export function OpenItems({ warnings }: { warnings: Warning[] }) {
   );
 }
 
+/**
+ * The same guidance as the side column, as one fold-out placed above the form. On narrow screens the side column
+ * comes after every field, so without this the “why” and the examples would be out of reach while typing.
+ */
+export function QuickGuide({ step }: { step: StepDef }) {
+  return (
+    <details className="cp-quick">
+      <summary><Lightbulb size={15} aria-hidden="true" /> Why this step matters, with a good and a weak example</summary>
+      <p>{step.why}</p>
+      <div className="cp-ex good"><p className="cp-ex-tag"><ThumbsUp size={13} aria-hidden="true" /> Good example</p><p>{step.good}</p></div>
+      <div className="cp-ex weak"><p className="cp-ex-tag"><ThumbsDown size={13} aria-hidden="true" /> Weak example</p><p>{step.weak}</p></div>
+    </details>
+  );
+}
+
 /** The side column: why the step matters, examples, open items, self-check and a peek at the worked example. */
 export function CompassPanel({ step, warnings, example }: { step: StepDef; warnings: Warning[]; example: ProjectDoc | null }) {
   const { doc, update, readOnly } = usePassport();
@@ -75,7 +90,7 @@ export function CompassPanel({ step, warnings, example }: { step: StepDef; warni
 
       <section className="cp-sec cp-self" aria-labelledby="self-h">
         <div className="cp-sec-head"><h3 id="self-h"><PenLine size={15} aria-hidden="true" /> Self-check</h3></div>
-        <p className="cp-self-note">In your own words · not graded</p>
+        <p className="cp-self-note">In your own words · never scored</p>
         {step.selfChecks.map((q) => (
           <Area key={q.id} label={q.question} rows={3} value={answers[q.id] ?? ''}
             onChange={(v) => update((d) => { (d.passport.selfChecks ??= {})[q.id] = v; })} />

@@ -10,7 +10,7 @@ const AREAS = [
 
 const NOT = [
   { icon: Hourglass, title: 'No waiting times from backlog', text: 'The sandbox counts unfinished work per day. It cannot say how long anyone waited.' },
-  { icon: PenLine, title: 'No auto-grading', text: 'Your written answers are never marked right or wrong.' },
+  { icon: PenLine, title: 'Your words are never scored', text: 'Written answers are yours. The app never marks them right or wrong.' },
   { icon: ListChecks, title: 'Complete is not valid', text: '“Steps started” counts progress. It says nothing about model quality.' },
   { icon: BadgeCheck, title: 'Reviewer feedback is a label', text: 'It is set by hand. There are no accounts and no sign-in.' },
 ];
@@ -27,7 +27,7 @@ export default function Help() {
     <div className="page help">
       <div className="page-head">
         <h1>Help</h1>
-        <p className="lede">A checklist and compass for your course project.</p>
+        <p className="lede">A checklist and compass for a modelling project.</p>
       </div>
 
       <section aria-labelledby="help-areas">

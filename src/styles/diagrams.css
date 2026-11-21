@@ -41,7 +41,8 @@
 .dgm-scroll { overflow-x: auto; }
 
 /* Build-up: a part that is not revealed yet takes its place in the layout but is not shown. */
-.diagram-card .is-off { opacity: 0; visibility: hidden; }
+/* Parts not yet reached by the walkthrough stay faintly visible, so the card is never blank. */
+.diagram-card .is-off { opacity: 0.13; }
 .diagram-card .dgm-node.is-off, .diagram-card .dgm-j-stop.is-off { transform: scale(0.92); }
 .diagram-card .dgm-j-stop.is-right.is-off { transform: translateY(-50%) scale(0.92); }
 

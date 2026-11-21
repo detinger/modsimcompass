@@ -12,7 +12,7 @@ The owner judged that the durable value lies in two things: the **project passpo
 
 1. The product becomes a **project compass** with three areas: Home, Project (seven steps, checkpoints, export) and Tools.
 2. **Removed:** lectures, lessons, examples, challenges, Model Detective, modelling lenses, the glossary page, the start exercise and course-progress tracking. The knowledge from the flawed-claim cases lives on as **compass warnings**, shown at the step where the mistake would be made.
-3. **Guidance over grading.** Each step carries a why, a good and a weak example, deterministic warnings from a versioned rule table (`compass-rules-v1`), and self-check questions that are stored and exported but never auto-graded.
+3. **Guidance over grading.** Each step carries a why, a good and a weak example, deterministic warnings from a versioned rule table (`compass-rules-v2`), and self-check questions that are stored and exported but never auto-graded.
 4. **A worked example** — a complete passport — replaces lesson content as the reference for what good looks like.
 5. **Passport schema v2** adds `selfChecks` and per-checkpoint `rubric`. Version-1 files import with defaults. Sandbox data and all other fields are unchanged.
 6. **Checkpoints are assessment-ready.** Each has a readiness list, a rubric and a status. Reviewer feedback remains a manual label.

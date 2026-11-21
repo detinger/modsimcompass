@@ -2,14 +2,14 @@ import { useMemo, useRef, useState } from 'react';
 import { Ban, Check, ChevronLeft, ChevronRight, ExternalLink, Signpost, TriangleAlert } from 'lucide-react';
 import { Link } from '../../app/router';
 import { FAMILIES, FAMILY_TONE, METHODS, METHOD_BY_ID, appForMethod, type MethodId } from '../../domain/methods/registry';
-import { answersKey, emptyAnswers, evaluateRules, QUESTIONS, RULE_VERSION, type MethodAnswers } from '../../domain/methods/rules';
+import { answersKey, CLAIM_TO_CHOOSER, emptyAnswers, evaluateRules, QUESTIONS, RULE_VERSION, type MethodAnswers } from '../../domain/methods/rules';
 import { Badge, Callout } from '../../ui/controls';
 import { usePassport } from '../project/passportContext';
 
 /** Link to a specialist app. A missing URL is stated, never invented. */
 export function AppLink({ method }: { method: MethodId }) {
   const app = appForMethod(method);
-  if (!app.url) return <span className="subtle-text" title="The specialist app link has not been configured.">{app.name}: App link not configured</span>;
+  if (!app.url) return null; // no verified address: nothing to offer
   return <a className="btn small" href={app.url} target="_blank" rel="noopener noreferrer">Open {app.name} <ExternalLink size={13} aria-hidden="true" /><span className="sr-only"> (opens in a new tab)</span></a>;
 }
 
@@ -21,7 +21,13 @@ const optionLabel = (key: keyof MethodAnswers, value: string) => QUESTIONS.find(
  */
 export function MethodChooser() {
   const { doc, update, readOnly } = usePassport();
-  const answers = doc.methods.answers ?? emptyAnswers();
+  // The claim type chosen in step 1 answers the first question, so it is not asked twice.
+  const stored = doc.methods.answers;
+  const fromFrame = CLAIM_TO_CHOOSER[doc.passport.decision.claimType];
+  const answers = useMemo<MethodAnswers>(() => {
+    const base = stored ?? emptyAnswers();
+    return base.claim === 'unsure' && fromFrame ? ({ ...base, claim: fromFrame } as MethodAnswers) : base;
+  }, [stored, fromFrame]);
   const advice = useMemo(() => evaluateRules(answers), [answers]);
   const rep = doc.passport.representation;
   const [qi, setQi] = useState(() => { const first = QUESTIONS.findIndex((q) => answers[q.key] === 'unsure'); return first < 0 ? 0 : first; });
@@ -32,7 +38,7 @@ export function MethodChooser() {
 
   const go = (i: number) => { setQi(Math.max(0, Math.min(QUESTIONS.length - 1, i))); window.setTimeout(() => promptRef.current?.focus({ preventScroll: true }), 0); };
   const setAnswer = (key: keyof MethodAnswers, value: string) => {
-    update((d) => { d.methods.answers = { ...(d.methods.answers ?? emptyAnswers()), [key]: value } as MethodAnswers; });
+    update((d) => { d.methods.answers = { ...answers, ...(d.methods.answers ?? {}), [key]: value } as MethodAnswers; if (d.methods.answers.claim === 'unsure' && key !== 'claim') d.methods.answers.claim = answers.claim; });
     if (qi < QUESTIONS.length - 1) go(qi + 1);
   };
   const choose = (role: 'primary' | 'alternative', id: MethodId) => update((d) => {

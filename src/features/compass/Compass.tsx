@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, BookOpen, Check, ChevronLeft, ChevronRight, Compass as CompassIcon, Copy, Download, Lock, Milestone, Pencil, Plus } from 'lucide-react';
 import { useStore } from '../../app/store';
 import { Link, useRouter } from '../../app/router';
@@ -8,12 +8,16 @@ import {
 import { REVIEW_LABELS, newId, type ProjectDoc } from '../../domain/passport/schema';
 import { workedExample } from '../../content/workedExample';
 import { PassportContext, usePassport, type PassportValue } from '../project/passportContext';
-import { ExportDialog } from '../project/ExportDialog';
 import { Checkpoints } from './Checkpoints';
-import { CompassPanel } from './CompassPanel';
+import { CompassPanel, QuickGuide } from './CompassPanel';
 import { StepMain } from './StepMain';
 import { CHECKPOINTS_ID, SEVERITY, SEVERITY_ORDER, STATUS_CLASS, STEP_META, openCount } from './stepMeta';
 import '../../styles/compass.css';
+import NotFound from '../help/NotFound';
+import { rememberOrigin } from '../../app/cameFrom';
+
+// The export dialog brings the report writers with it; it is loaded when first opened.
+const ExportDialog = lazy(() => import('../project/ExportDialog').then((m) => ({ default: m.ExportDialog })));
 
 const LAST_STEP_KEY = 'modsim-essentials.compass.lastStep';
 function lastStep(id: string): StepId | null {
@@ -32,6 +36,8 @@ export default function Compass({ step, example }: { step?: string; example?: bo
   const { active } = useStore();
   const exampleDoc = getExample();
   const doc = example ? exampleDoc : active;
+  // Only the seven steps and the checkpoints page exist under a project address.
+  if (step && !isStepId(step) && step !== CHECKPOINTS_ID) return <NotFound />;
   if (!doc) return <EmptyCompass />;
   return <CompassView key={`${example ? 'example' : 'project'}-${doc.id}`} doc={doc} exampleDoc={exampleDoc} step={step} readOnly={!!example} />;
 }
@@ -120,6 +126,7 @@ function Header({ doc, started, onExport, onCheckpoints }: { doc: ProjectDoc; st
         <p className="cp-progress">
           <span className="cp-pips" aria-hidden="true">{STEPS.map((s) => <i key={s.id} className={`${STEP_META[s.id].tone}${started.includes(s.id) ? ' on' : ''}`} />)}</span>
           <span><strong>{started.length}</strong> of {STEPS.length} steps started</span>
+          {doc.passport.identity.stage === 'planning' && <span className="cp-stage-chip">Planning</span>}
         </p>
       </div>
       <div className="cp-head-actions">
@@ -262,6 +269,8 @@ function CompassView({ doc, exampleDoc, step, readOnly }: { doc: ProjectDoc; exa
   const started = stepsStarted(doc.passport);
 
   useEffect(() => { if (!readOnly && step && isStepId(step)) rememberStep(doc.id, step); }, [readOnly, step, doc.id]);
+  // Tools opened from a step offer the way back to it.
+  useEffect(() => { if (!onCheckpoints) rememberOrigin(`${base}/${stepId}`, `step ${def.number}`); }, [base, stepId, def.number, onCheckpoints]);
 
   // Move focus to the step heading after navigating between steps (not on first load).
   const screen = onCheckpoints ? CHECKPOINTS_ID : stepId;
@@ -282,6 +291,8 @@ function CompassView({ doc, exampleDoc, step, readOnly }: { doc: ProjectDoc; exa
     const t = new Date().toISOString();
     const copy: ProjectDoc = { ...structuredClone(doc), id: newId('prj'), createdAt: t, updatedAt: t, projectRevision: 1, origin: { kind: 'copy', ref: doc.id } };
     copy.passport.identity.title = `${doc.passport.identity.title.replace(/\s*\(worked example\)\s*$/i, '')} (practice)`;
+    // The review is the copier's own to do: checkpoints start again as drafts.
+    for (const k of Object.keys(copy.passport.review) as (keyof typeof copy.passport.review)[]) copy.passport.review[k] = { status: 'draft', notes: '', reviewer: '', feedbackSource: '', rubric: {}, due: '' };
     await addProject(copy, true);
     toast('Practice copy created. It is yours to edit.', 'success');
     navigate('/project');
@@ -293,7 +304,7 @@ function CompassView({ doc, exampleDoc, step, readOnly }: { doc: ProjectDoc; exa
         {readOnly && (
           <div className="cp-banner" role="note">
             <span className="cp-banner-icon" aria-hidden="true"><Lock size={18} /></span>
-            <p><strong>Worked example · read only</strong><span>A complete passport to learn from.</span></p>
+            <p><strong>Worked example · read only</strong><span>A complete project to learn from.</span></p>
             <div className="btn-row">
               <button type="button" className="btn primary" onClick={() => { void copyExample(); }}><Copy size={16} aria-hidden="true" /> Copy as my practice project</button>
               <Link to="/project" className="btn"><ArrowLeft size={16} aria-hidden="true" /> Back to my project</Link>
@@ -305,6 +316,7 @@ function CompassView({ doc, exampleDoc, step, readOnly }: { doc: ProjectDoc; exa
         {onCheckpoints ? <Checkpoints /> : (
           <div className={`cp-step ${STEP_META[stepId].tone}`} key={stepId}>
             <StepHead step={def} warnings={byStep[stepId]} />
+            <QuickGuide step={def} />
             <div className="cp-layout">
               <div className="cp-main"><StepMain step={stepId} onExport={() => setExportOpen(true)} /></div>
               <CompassPanel step={def} warnings={byStep[stepId]} example={exampleDoc} />
@@ -312,7 +324,7 @@ function CompassView({ doc, exampleDoc, step, readOnly }: { doc: ProjectDoc; exa
             <FootNav step={def} />
           </div>
         )}
-        {exportOpen && !readOnly && <ExportDialog doc={doc} onClose={closeExport} onDownloaded={() => update((d) => { d.start.firstSessionDone.saved = true; })} />}
+        {exportOpen && !readOnly && <Suspense fallback={null}><ExportDialog doc={doc} onClose={closeExport} onDownloaded={() => update((d) => { d.start.firstSessionDone.saved = true; })} /></Suspense>}
       </div>
     </PassportContext.Provider>
   );

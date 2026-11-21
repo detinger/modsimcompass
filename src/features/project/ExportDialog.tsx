@@ -4,16 +4,18 @@ import { useStore } from '../../app/store';
 import type { ProjectDoc } from '../../domain/passport/schema';
 import { compassWarnings, STEPS, stepsStarted } from '../../domain/passport/compass';
 import { buildExportZip, EXPORT_PARTS, renderPart, slugify, type ExportPart } from '../../exports/bundle';
-import { runIsStale, describeRunStatus } from '../../exports/runInfo';
+import { runIsStale, describeRunStatus, sandboxRecorded } from '../../exports/runInfo';
 import { Callout, Dialog, downloadFile } from '../../ui/controls';
 
 export function ExportDialog({ doc, onClose, onDownloaded }: { doc: ProjectDoc; onClose: () => void; onDownloaded: () => void }) {
   const { prefs, setPrefs, toast } = useStore();
-  const [selected, setSelected] = useState<ExportPart[]>(['passport-md', 'project-json', 'report-html', ...(doc.sandbox.lastRun ? ['results-csv' as const] : [])]);
+  // Sandbox results go into a report only when the project says it used the sandbox; a practice run stays out unless asked for.
+  const [includeSandbox, setIncludeSandbox] = useState(() => sandboxRecorded(doc));
+  const [selected, setSelected] = useState<ExportPart[]>(['passport-md', 'project-json', 'report-html', ...(sandboxRecorded(doc) ? ['results-csv' as const] : [])]);
   const [previewPart, setPreviewPart] = useState<ExportPart>('report-html');
-  const opts = { includeAuthor: prefs.includeAuthor, generatedAt: new Date().toISOString() };
+  const opts = { includeAuthor: prefs.includeAuthor, generatedAt: new Date().toISOString(), includeSandbox };
   const slug = slugify(doc.passport.identity.title);
-  const preview = useMemo(() => renderPart(doc, previewPart, opts), [doc, previewPart, prefs.includeAuthor]); // eslint-disable-line react-hooks/exhaustive-deps
+  const preview = useMemo(() => renderPart(doc, previewPart, opts), [doc, previewPart, prefs.includeAuthor, includeSandbox]); // eslint-disable-line react-hooks/exhaustive-deps
   const started = stepsStarted(doc.passport).length;
   const open = compassWarnings(doc).filter((w) => w.severity !== 'tip').length;
   const run = doc.sandbox.lastRun;
@@ -37,7 +39,7 @@ export function ExportDialog({ doc, onClose, onDownloaded }: { doc: ProjectDoc; 
             {EXPORT_PARTS.map((p) => {
               const unavailable = p.id === 'results-csv' && !run;
               return (
-                <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, padding: '3px 0' }}>
+                <div key={p.id} className="export-row">
                   <label className="check" style={{ opacity: unavailable ? 0.6 : 1 }}>
                     <input type="checkbox" checked={selected.includes(p.id) && !unavailable} disabled={unavailable} onChange={() => toggle(p.id)} />
                     <span>{p.label}<br /><span className="subtle-text mono">{p.file(slug)}</span>{unavailable && <span className="subtle-text"> — no sandbox run yet</span>}</span>
@@ -54,12 +56,13 @@ export function ExportDialog({ doc, onClose, onDownloaded }: { doc: ProjectDoc; 
             })}
           </fieldset>
           <label className="check"><input type="checkbox" checked={prefs.includeAuthor} onChange={(e) => setPrefs({ includeAuthor: e.target.checked })} /> Include author name ({doc.passport.identity.author.trim() || 'none entered'})</label>
+          {run && <label className="check"><input type="checkbox" checked={includeSandbox} onChange={(e) => { setIncludeSandbox(e.target.checked); setSelected((sel) => (e.target.checked ? [...new Set([...sel, 'results-csv' as const])] : sel.filter((x) => x !== 'results-csv'))); }} /> <span>Include sandbox results in the reports<br /><span className="subtle-text">Only if this project is about the sandbox’s backlog model.</span></span></label>}
           <Callout tone="info" title="What will be included">
             <ul style={{ margin: 0 }}>
               <li>{started} of {STEPS.length} steps started; unfilled fields appear as “Not yet specified”.</li>
               <li>{open === 0 ? 'No open items.' : `${open} open item${open === 1 ? '' : 's'} (missing or to check).`}</li>
-              <li>{run ? `Sandbox: ${describeRunStatus(run)}${stale ? ' Labelled “From earlier settings” because inputs changed.' : ''}` : 'No sandbox results.'}</li>
-              <li>CSV daily rows cover the inspected first trajectory; replication rows cover all completed replications.</li>
+              <li>{run && includeSandbox ? `Sandbox: ${describeRunStatus(run)}${stale ? ' Labelled “From earlier settings” because inputs changed.' : ''}` : run ? 'Sandbox results are left out of the reports.' : 'No sandbox results.'}</li>
+              {run && includeSandbox && <li>CSV daily rows cover the inspected first trajectory; replication rows cover all completed replications.</li>}
             </ul>
           </Callout>
         </div>

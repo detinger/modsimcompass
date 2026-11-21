@@ -4,7 +4,7 @@ import { useStore } from '../../app/store';
 import { Link, useRouter } from '../../app/router';
 import { newId, type ProjectDoc } from '../../domain/passport/schema';
 import { IMPORT_LIMITS, parseProjectJson } from '../../domain/passport/importer';
-import { projectJson, slugify } from '../../exports/bundle';
+import { projectJson, slugify } from '../../exports/projectFile';
 import type { TrashEntry } from '../../persistence/db';
 import { Callout, Dialog, downloadFile, readFileText } from '../../ui/controls';
 import { FigureCard } from '../../ui/playful';
@@ -18,7 +18,7 @@ interface PendingImport { project: ProjectDoc; warnings: string[]; summary: stri
 const DOORS = [
   { to: '/project', title: 'Project', text: 'Seven steps, five checkpoints.', icon: Compass, tone: 'tone-primary' },
   { to: '/tools', title: 'Tools', text: 'Sandbox, distributions, regression.', icon: Wrench, tone: 'tone-teal' },
-  { to: '/example', title: 'Worked example', text: 'A finished passport to learn from.', icon: BookOpenCheck, tone: 'tone-orange' },
+  { to: '/example', title: 'Worked example', text: 'A finished project to learn from.', icon: BookOpenCheck, tone: 'tone-orange' },
 ];
 
 export default function Home() {
@@ -26,7 +26,6 @@ export default function Home() {
   const { navigate } = useRouter();
   const [trashList, setTrashList] = useState<TrashEntry[]>([]);
   const [confirmDelete, setConfirmDelete] = useState<ProjectDoc | null>(null);
-  const [typed, setTyped] = useState('');
   const [purging, setPurging] = useState<string | null>(null);
   const [pending, setPending] = useState<PendingImport | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
@@ -127,7 +126,7 @@ export default function Home() {
             {projects.map((p) => (
               <li key={p.id}>
                 <ProjectCard doc={p} active={active?.id === p.id} onOpen={() => open(p.id)} onDuplicate={() => duplicate(p.id)} onDownload={() => download(p)}
-                  onRecovery={() => recovery(p)} onDelete={() => { setConfirmDelete(p); setTyped(''); }} />
+                  onRecovery={() => recovery(p)} onDelete={() => setConfirmDelete(p)} />
               </li>
             ))}
           </ul>
@@ -171,11 +170,9 @@ export default function Home() {
         <Dialog title="Delete project?" narrow onClose={() => setConfirmDelete(null)}
           actions={<>
             <button className="btn" onClick={() => setConfirmDelete(null)}>Cancel</button>
-            <button className="btn danger" disabled={typed.trim() !== titleOf(confirmDelete).trim()} onClick={async () => { await trash(confirmDelete.id); setConfirmDelete(null); toast('Project moved to Recently deleted.', 'info'); }}>Move to Recently deleted</button>
+            <button className="btn danger" onClick={async () => { await trash(confirmDelete.id); setConfirmDelete(null); toast('Project moved to Recently deleted.', 'info'); }}>Move to Recently deleted</button>
           </>}>
-          <p>Type the project name to confirm: <strong>{titleOf(confirmDelete)}</strong></p>
-          <input type="text" aria-label="Project name" value={typed} onChange={(e) => setTyped(e.target.value)} />
-          <p className="subtle-text" style={{ marginTop: 8 }}>You can restore it from Recently deleted.</p>
+          <p><strong>{titleOf(confirmDelete)}</strong> moves to Recently deleted. You can restore it from there.</p>
         </Dialog>
       )}
 
@@ -187,6 +184,8 @@ export default function Home() {
             <button className="btn primary" onClick={async () => {
               const now = new Date().toISOString();
               const doc: ProjectDoc = { ...pending.project, id: newId('prj'), createdAt: pending.project.createdAt || now, updatedAt: now, projectRevision: 1, origin: { kind: 'import', ref: pending.project.id } };
+              // A copy of a project that is already here gets a name that tells the two apart.
+              if (projects.some((x) => titleOf(x) === titleOf(doc))) doc.passport = { ...doc.passport, identity: { ...doc.passport.identity, title: `${titleOf(doc)} (imported)` } };
               await addProject(doc, true);
               setPending(null);
               toast('Imported as a new draft project.', 'success');

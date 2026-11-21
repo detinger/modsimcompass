@@ -1,7 +1,37 @@
-import { useState } from 'react';
+import { useLayoutEffect, useState } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
 import { newId, type MapNode } from '../../domain/passport/schema';
 import { usePassport } from './passportContext';
+
+/** Inner width of an element, tracked as it appears and resizes. */
+function useWidth(): [(el: HTMLDivElement | null) => void, number] {
+  const [el, setEl] = useState<HTMLDivElement | null>(null);
+  const [width, setWidth] = useState(0);
+  useLayoutEffect(() => {
+    if (!el) return;
+    const measure = () => setWidth(Math.floor(el.clientWidth - 22)); // minus the wrapper's padding
+    measure();
+    if (typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [el]);
+  return [setEl, width];
+}
+
+/** Up to two lines of at most `max` characters; a label that does not fit ends with an ellipsis. */
+export function wrapLabel(text: string, max: number): string[] {
+  const words = text.trim().split(/\s+/).filter(Boolean);
+  const out: string[] = [];
+  let i = 0;
+  while (i < words.length && out.length < 2) {
+    let line = words[i++];
+    while (i < words.length && `${line} ${words[i]}`.length <= max) line += ` ${words[i++]}`;
+    out.push(line);
+  }
+  const fit = (l: string, more: boolean) => (l.length > max || more ? `${l.slice(0, Math.min(l.length, max - 1))}…` : l);
+  return out.map((l, k) => fit(l, k === out.length - 1 && i < words.length));
+}
 
 /**
  * Lightweight conceptual sketch (PLAN §9). Not executable, not BPMN, not a Petri net,
@@ -17,42 +47,74 @@ export function ConceptMap() {
   const [directed, setDirected] = useState(true);
   const name = (id: string) => nodes.find((n) => n.id === id)?.label || '(unnamed)';
 
-  const W = 640, H = 340, cx = W / 2, cy = H / 2, R = Math.min(W, H) / 2 - 44;
+  // Drawn at the real size of its container, so labels keep their size on a phone instead of shrinking.
+  const [wrapRef, width] = useWidth();
+  const W = Math.max(280, width || 640);
+  const narrow = W < 520;
+  const nodeW = Math.min(150, Math.floor(W * (narrow ? 0.42 : 0.24))), nodeH = 44;
+  // Wide: elements sit on an ellipse. Narrow: two staggered columns, which cannot overlap however many there are.
+  const rows = Math.ceil(nodes.length / 2);
+  const H = narrow ? rows * 96 + 56 : Math.max(280, rows * 64 + 60);
+  const cx = W / 2, cy = H / 2, rx = W / 2 - nodeW / 2 - 6, ry = H / 2 - nodeH / 2 - 6;
   const pos = (i: number) => {
     if (nodes.length === 1) return { x: cx, y: cy };
+    if (narrow) {
+      const right = i % 2 === 1, alone = !right && i === nodes.length - 1;
+      return { x: alone ? cx : right ? W - nodeW / 2 - 6 : nodeW / 2 + 6, y: 30 + Math.floor(i / 2) * 96 + (right ? 44 : 0) };
+    }
     const a = (2 * Math.PI * i) / nodes.length - Math.PI / 2;
-    return { x: cx + R * 1.5 * Math.cos(a), y: cy + R * Math.sin(a) };
+    return { x: cx + rx * Math.cos(a), y: cy + ry * Math.sin(a) };
   };
+  const lines = (text: string) => wrapLabel(text || '(unnamed)', Math.max(8, Math.floor((nodeW - 14) / 6.6)));
+  const hw = nodeW / 2, hh = nodeH / 2;
+  /** A line between two nodes, trimmed at their borders; a pair of opposite arrows is drawn side by side. */
+  const edge = (r: { from: string; to: string }) => {
+    const i = nodes.findIndex((n) => n.id === r.from), j = nodes.findIndex((n) => n.id === r.to);
+    if (i < 0 || j < 0 || i === j) return null;
+    const a = pos(i), b = pos(j);
+    const dx = b.x - a.x, dy = b.y - a.y, len = Math.hypot(dx, dy) || 1;
+    const trim = Math.min(hw / (Math.abs(dx) / len || 1e-9), hh / (Math.abs(dy) / len || 1e-9)) + 3;
+    const twin = relations.some((o) => o.from === r.to && o.to === r.from);
+    const ox = twin ? (-dy / len) * 9 : 0, oy = twin ? (dx / len) * 9 : 0;
+    return { sx: a.x + (dx / len) * trim + ox, sy: a.y + (dy / len) * trim + oy, ex: b.x - (dx / len) * (trim + 3) + ox, ey: b.y - (dy / len) * (trim + 3) + oy };
+  };
+  // Each label sits on its line at the first spot that is clear of every element and of the labels placed before it.
+  const labels: { id: string; x: number; y: number; text: string }[] = [];
+  for (const r of relations) {
+    const g = edge(r);
+    if (!g || !r.label.trim()) continue;
+    const text = r.label.length > 26 ? `${r.label.slice(0, 25)}…` : r.label, half = text.length * 3.2 + 4;
+    const clash = (x: number, y: number) =>
+      (nodes.some((_, i) => { const q = pos(i); return Math.abs(x - q.x) < hw + half - 6 && Math.abs(y - q.y) < hh + 8; }) ? 2 : 0)
+      + (labels.some((l) => Math.abs(y - l.y) < 14 && Math.abs(x - l.x) < half + l.text.length * 3.2) ? 1 : 0);
+    const spots = [0.5, 0.38, 0.62, 0.28, 0.72].map((t) => ({ x: g.sx + (g.ex - g.sx) * t, y: g.sy + (g.ey - g.sy) * t }));
+    const best = spots.reduce((a, b) => (clash(b.x, b.y) < clash(a.x, a.y) ? b : a));
+    labels.push({ id: r.id, x: Math.max(half, Math.min(W - half, best.x)), y: best.y, text });
+  }
   return (
     <div>
       {nodes.length > 0 && (
-        <div className="diagram-wrap" style={{ marginBottom: 12 }} role="group" aria-label="Concept map (scrolls sideways on small screens)" tabIndex={0}>
-          <svg className="diagram" viewBox={`0 0 ${W} ${H}`} role="img" aria-label={`Conceptual sketch with ${nodes.length} elements and ${relations.length} relations; the table below lists them.`}>
+        <div className="diagram-wrap cm-wrap" style={{ marginBottom: 12 }} ref={wrapRef}>
+          <svg className="cm-svg" width={W} height={H} viewBox={`0 0 ${W} ${H}`} role="img" aria-label={`Conceptual sketch with ${nodes.length} elements and ${relations.length} relations; the list below names them.`}>
             <defs><marker id="cm-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--ms-relation)" /></marker></defs>
             {relations.map((r) => {
-              const i = nodes.findIndex((n) => n.id === r.from), j = nodes.findIndex((n) => n.id === r.to);
-              if (i < 0 || j < 0) return null;
-              const a = pos(i), b = pos(j);
-              const dx = b.x - a.x, dy = b.y - a.y, len = Math.hypot(dx, dy) || 1;
-              const sx = a.x + (dx / len) * 46, sy = a.y + (dy / len) * 18, ex = b.x - (dx / len) * 50, ey = b.y - (dy / len) * 20;
-              return (
-                <g key={r.id}>
-                  <line x1={sx} y1={sy} x2={ex} y2={ey} className="edge" markerEnd={r.directed ? 'url(#cm-arrow)' : undefined} />
-                  {r.label && <text x={(sx + ex) / 2} y={(sy + ey) / 2 + 3} textAnchor="middle" className="small cp-edge-label">{r.label}</text>}
-                </g>
-              );
+              const g = edge(r);
+              return g && <line key={r.id} x1={g.sx} y1={g.sy} x2={g.ex} y2={g.ey} className="edge" markerEnd={r.directed ? 'url(#cm-arrow)' : undefined} />;
             })}
             {nodes.map((n, i) => {
-              const p = pos(i);
+              const p = pos(i), text = lines(n.label);
               return (
                 <g key={n.id}>
-                  {n.type === 'stakeholder' ? <rect x={p.x - 46} y={p.y - 16} width={92} height={32} rx={16} className="node" />
-                    : n.type === 'variable' ? <ellipse cx={p.x} cy={p.y} rx={48} ry={18} className="node" />
-                    : <rect x={p.x - 46} y={p.y - 16} width={92} height={32} rx={3} className="node" />}
-                  <text x={p.x} y={p.y + 4} textAnchor="middle" className="label">{(n.label || '(unnamed)').slice(0, 16)}</text>
+                  {n.type === 'variable' ? <ellipse cx={p.x} cy={p.y} rx={hw} ry={hh} className="node" />
+                    : <rect x={p.x - hw} y={p.y - hh} width={nodeW} height={nodeH} rx={n.type === 'stakeholder' ? hh : 6} className="node" />}
+                  <text x={p.x} y={p.y + (text.length === 1 ? 4.5 : -3)} textAnchor="middle" className="label cm-label">
+                    {text.map((t, k) => <tspan key={k} x={p.x} dy={k === 0 ? 0 : 15}>{t}</tspan>)}
+                  </text>
                 </g>
               );
             })}
+            {/* Labels last, with a halo, so a node or a crossing line never hides them. */}
+            {labels.map((l) => <text key={l.id} x={l.x} y={l.y + 4} textAnchor="middle" className="cm-edge-label">{l.text}</text>)}
           </svg>
         </div>
       )}

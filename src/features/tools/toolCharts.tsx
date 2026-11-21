@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type { Law } from '../../domain/distributions/laws';
 import type { PreviewRow } from '../../domain/distributions/preview';
-import { useWidth } from '../../ui/charts';
+import { niceTicks, useWidth } from '../../ui/charts';
 import { fmt } from '../../ui/controls';
 
 const AX = { fontSize: 11, fill: 'var(--text-muted)' } as const;
@@ -44,7 +44,7 @@ export function DistChart({ rows, law, unit = 'Value', overlays = [], height = 2
               </g>)}
           {curves.map((c, i) => <path key={i} d={`M${c.pts.map(([v, p]) => `${x(v).toFixed(1)},${y(p).toFixed(1)}`).join(' L')}`} fill="none" stroke={c.color} strokeWidth={2.5} strokeDasharray={c.dashed ? '6 4' : undefined} strokeLinejoin="round" />)}
           <line x1={L} x2={W - R} y1={H - B} y2={H - B} stroke="var(--chart-axis)" />
-          {[0, 0.25, 0.5, 0.75, 1].map((t) => <text key={t} x={x(lo + t * span)} y={H - B + 14} textAnchor={t === 0 ? "start" : t === 1 ? "end" : "middle"} style={AX}>{fmt(lo + t * span, 2)}</text>)}
+          {niceTicks(lo, lo + span).map((t) => <text key={t} x={x(t)} y={H - B + 14} textAnchor="middle" style={AX}>{fmt(t, 2)}</text>)}
           <text x={(L + W - R) / 2} y={H - 4} textAnchor="middle" style={AX}>{unit}</text>
         </svg>
       </div>

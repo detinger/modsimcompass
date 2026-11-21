@@ -3,6 +3,17 @@ import type { RunRecord } from '../domain/sandbox/types';
 import type { ProjectDoc } from '../domain/passport/schema';
 
 /** A run is stale when the current scientific inputs no longer match its snapshot hash. */
+/**
+ * The sandbox is one teaching model. Its results belong in a report only when the project says it used the
+ * sandbox: the run settings name this run or mention the sandbox. A practice run in an unrelated project does not.
+ */
+export function sandboxRecorded(doc: ProjectDoc): boolean {
+  const run = doc.sandbox.lastRun;
+  if (!run) return false;
+  const text = doc.passport.experiment.runSettings;
+  return text.includes(run.id) || /sandbox/i.test(text);
+}
+
 export function runIsStale(doc: ProjectDoc): boolean {
   const run = doc.sandbox.lastRun;
   if (!run) return false;

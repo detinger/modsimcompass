@@ -55,8 +55,8 @@ function SaveIndicator() {
   if (saveStatus === 'failed') {
     return <span className="save-state failed" role="status"><AlertTriangle size={14} aria-hidden="true" />{repoKind === 'memory' ? 'Not saved on this device' : 'Save failed'}<span className="sr-only">{saveError}</span></span>;
   }
-  if (saveStatus === 'saving') return <span className="save-state" role="status"><Loader2 size={14} aria-hidden="true" />Saving…</span>;
-  if (saveStatus === 'saved') return <span className="save-state" role="status"><CheckCircle2 size={14} aria-hidden="true" />Saved on this device</span>;
+  if (saveStatus === 'saving') return <span className="save-state" role="status"><Loader2 size={14} aria-hidden="true" /><span className="save-text">Saving…</span></span>;
+  if (saveStatus === 'saved') return <span className="save-state" role="status"><CheckCircle2 size={14} aria-hidden="true" /><span className="save-text">Saved on this device</span></span>;
   return <span className="save-state" role="status" />;
 }
 

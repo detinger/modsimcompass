@@ -8,7 +8,7 @@ import type { CheckpointId, Passport, ProjectDoc } from './schema';
  * guidance, self-check questions, deterministic warnings and checkpoint rubrics.
  * Warnings explain themselves and never mark written reasoning right or wrong.
  */
-export const COMPASS_RULES_VERSION = 'compass-rules-v1';
+export const COMPASS_RULES_VERSION = 'compass-rules-v2';
 
 export type StepId = 'frame' | 'scope' | 'method' | 'inputs' | 'evaluation' | 'experiment' | 'conclude';
 
@@ -121,6 +121,9 @@ export interface Warning { id: string; step: StepId; severity: Severity; message
 const STOCHASTIC_METHODS: MethodId[] = ['monte-carlo', 'des', 'abm', 'markov-chains', 'queueing-theory'];
 const WAITING_METHODS: MethodId[] = ['des', 'queueing-theory', 'abm'];
 const RELATIONSHIP_METHODS: MethodId[] = ['path-analysis', 'cb-sem', 'pls-sem'];
+const PERIOD_WORDS = /\b(hour|day|week|month|quarter|year|shift|term|season|period|horizon)s?\b/i;
+const SOLUTION_OPENING = /^(we|they|you|the \w+)\s+(should|must|need to|needs to|have to|has to|ought to)\b|^(hire|buy|add|build|implement|install|introduce|open|replace)\b/i;
+const GUESS_WORDS = /\b(guess|guessed|my estimate|made up|rough estimate|assumed|assumption)\b/i;
 
 /** Deterministic compass rules. Order: gaps first within each step, then checks, then tips. */
 export function compassWarnings(doc: ProjectDoc): Warning[] {
@@ -136,6 +139,10 @@ export function compassWarnings(doc: ProjectDoc): Warning[] {
   if (filled(p.decision.question) && !filled(p.decision.outcome)) add('frame', 'check', 'question-outcome', 'Your question has no measurable outcome. Say what you will measure, in which unit.');
   if (!p.decision.claimType) add('frame', 'gap', 'claim', 'Choose the type of claim: description, prediction or decision support need different evidence.');
   if (filled(p.decision.question) && !p.decision.question.includes('?')) add('frame', 'tip', 'question-mark', 'Suggestion: phrase the question as a question a model could answer.');
+  // Prompts for entries that are present but too thin to plan with. Suggestions only: wording is never judged.
+  if (filled(p.decision.question) && !/\d/.test(p.decision.question) && !PERIOD_WORDS.test(p.decision.question)) add('frame', 'tip', 'question-vague', 'Suggestion: the question names no amount and no period. By how much does the lever change, and over what time?');
+  if (filled(p.decision.problem) && SOLUTION_OPENING.test(p.decision.problem.trim())) add('frame', 'tip', 'problem-solution', 'Suggestion: the problem starts like a solution. Describe what is observed first; the solution is one of the levers.');
+  if (filled(p.decision.outcome) && p.decision.outcome.trim().split(/\s+/).length < 3) add('frame', 'tip', 'outcome-thin', 'Suggestion: name the measure and its unit, for example “average waiting time in minutes”.');
   if (filled(p.decision.levers) && filled(p.decision.problem) && p.decision.levers.trim().toLowerCase() === p.decision.problem.trim().toLowerCase()) add('frame', 'check', 'lever-is-problem', 'The problem and the lever are the same text. A proposed solution is not the problem.');
 
   // 2 Scope
@@ -145,6 +152,8 @@ export function compassWarnings(doc: ProjectDoc): Warning[] {
   if (filled(p.scope.boundary) && !filled(p.scope.exclusions)) add('scope', 'check', 'exclusions', 'Nothing is listed as excluded. Every model leaves something out: name it.');
   if (!filled(p.scope.detail)) add('scope', 'gap', 'detail', 'Level of detail not stated: individuals, groups or totals?');
   if (p.representation.nodes.length === 0) add('scope', 'tip', 'sketch', 'Suggestion: sketch the main elements and how they relate.');
+  const bare = p.representation.relations.filter((r) => !filled(r.label)).length;
+  if (bare > 0) add('scope', 'tip', 'relation-label', `Suggestion: ${bare} arrow${bare === 1 ? '' : 's'} in the sketch ${bare === 1 ? 'has' : 'have'} no label. An arrow means only what its label says.`);
 
   // 3 Method
   if (!primary) add('method', 'gap', 'primary', 'No primary method selected.');
@@ -163,7 +172,12 @@ export function compassWarnings(doc: ProjectDoc): Warning[] {
     if (!filled(r.unit)) add('inputs', 'check', `in-unit-${r.id}`, `“${name}” has no unit.`);
     if (r.sourceType === 'unspecified' || !filled(r.provenance)) add('inputs', 'check', `in-src-${r.id}`, `“${name}” has no clear source.`);
     if (!filled(r.value)) add('inputs', 'gap', `in-val-${r.id}`, `“${name}” has no value or range.`);
+    if (r.availability === 'obtainable' && !filled(r.plan)) add('inputs', 'check', `in-plan-${r.id}`, `“${name}” still has to be obtained, but there is no plan: who gets it, and by when?`);
+    if (r.availability === 'assume' && r.sourceType === 'observed') add('inputs', 'check', `in-assume-${r.id}`, `“${name}” is marked as observed data, but its data status is “must assume”.`);
+    if (r.sourceType === 'observed' && GUESS_WORDS.test(r.provenance)) add('inputs', 'check', `in-guess-${r.id}`, `“${name}” is marked as observed data, but its source reads like an estimate.`);
   });
+  const undecided = p.inputs.filter((r) => !r.availability).length;
+  if (undecided > 0) add('inputs', 'tip', 'in-status', `Suggestion: ${undecided} input${undecided === 1 ? ' has' : 's have'} no data status. Do you have the data, can you get it, or must you assume it?`);
   if (p.assumptions.length === 0) add('inputs', 'gap', 'assumptions', 'No assumptions recorded. Every model makes some.');
   p.assumptions.forEach((a, i) => {
     if (!filled(a.consequenceIfWrong)) add('inputs', 'check', `as-cons-${a.id}`, `Assumption ${i + 1} does not say what happens if it fails.`);
@@ -198,9 +212,14 @@ export function compassWarnings(doc: ProjectDoc): Warning[] {
   if (run && run.status === 'partial') add('experiment', 'check', 'partial-run', 'The last sandbox run was cancelled: its results are partial.');
 
   // 7 Conclude
-  if (!filled(p.conclusion.results)) add('conclude', 'gap', 'results', 'No results summary.');
-  if (!filled(p.conclusion.recommendation)) add('conclude', 'gap', 'recommendation', 'No recommendation.');
-  if (!filled(p.conclusion.limitations)) add('conclude', 'gap', 'limitations', 'Limitations are not stated.');
+  // While a project is being planned, results are not expected: they are due later, not missing.
+  const planning = p.identity.stage === 'planning';
+  if (planning && !stepStarted(p, 'conclude')) add('conclude', 'tip', 'planning', 'Planning stage: results, recommendation and limitations come after the runs.');
+  else {
+    if (!filled(p.conclusion.results)) add('conclude', 'gap', 'results', 'No results summary.');
+    if (!filled(p.conclusion.recommendation)) add('conclude', 'gap', 'recommendation', 'No recommendation.');
+    if (!filled(p.conclusion.limitations)) add('conclude', 'gap', 'limitations', 'Limitations are not stated.');
+  }
   if (filled(p.conclusion.recommendation) && !filled(p.conclusion.changeConditions)) add('conclude', 'check', 'conditions', 'The recommendation has no conditions that would change it. When does it stop holding?');
   if (/\b(prove[sd]?|guarantee[sd]?|certainly|always)\b/i.test(p.conclusion.recommendation)) add('conclude', 'tip', 'overclaim', 'Suggestion: a model supports a recommendation under assumptions; check words such as “proves” or “guarantees”.');
 
@@ -209,11 +228,19 @@ export function compassWarnings(doc: ProjectDoc): Warning[] {
   return out.sort((a, b) => order[a.step] - order[b.step] || rank[a.severity] - rank[b.severity]);
 }
 
+/** How many inputs are in hand, still to be obtained, assumed, or undecided. */
+export function dataReadiness(p: Passport): { have: number; obtainable: number; assume: number; undecided: number; total: number } {
+  const count = (k: string) => p.inputs.filter((r) => (r.availability ?? '') === k).length;
+  return { have: count('have'), obtainable: count('obtainable'), assume: count('assume'), undecided: count(''), total: p.inputs.length };
+}
+
 export function warningsFor(doc: ProjectDoc, step: StepId): Warning[] { return compassWarnings(doc).filter((w) => w.step === step); }
 
 // ── Checkpoints and rubrics ──────────────────────────────────────────────
 
 export const RUBRIC_LEVELS = ['Not yet', 'Emerging', 'Developing', 'Strong'];
+/** What each level means for any criterion. “Strong” is spelled out per criterion. */
+export const RUBRIC_LEVEL_MEANING = ['Not addressed yet.', 'Mentioned, but the key parts are missing or vague.', 'Mostly there: one part is missing or not justified.', 'Meets the description of “Strong” below.'] as const;
 
 export interface RubricCriterion { id: string; criterion: string; strong: string }
 export interface CheckpointDef { id: CheckpointId; label: string; steps: StepId[]; expected: string; rubric: RubricCriterion[] }

@@ -2,9 +2,11 @@ import { describe, expect, it } from 'vitest';
 import { match } from '../src/app/router';
 import { workedExample } from '../src/content/workedExample';
 import { isStepId } from '../src/domain/passport/compass';
+import { wrapLabel } from '../src/features/project/ConceptMap';
 import { importProjectObject, isIsoDate } from '../src/domain/passport/importer';
 import type { ProjectDoc } from '../src/domain/passport/schema';
-import { projectJson } from '../src/exports/bundle';
+import { projectJson, renderPart } from '../src/exports/bundle';
+import { sandboxRecorded } from '../src/exports/runInfo';
 import { runToCsv } from '../src/exports/csv';
 import { passportHtml } from '../src/exports/html';
 import { passportMarkdown } from '../src/exports/markdown';
@@ -52,7 +54,7 @@ describe('imported sandbox results are accepted only when every field has the ex
       expect(res.project.sandbox.lastRun).toBeNull();
       expect(res.warnings.join(' ')).toMatch(/sandbox results were not in a recognised format/);
       const html = exportsWork(res.project);
-      expect(html).toContain('No sandbox run included.');
+      expect(html).not.toMatch(/Appendix|Sandbox results/);
     });
   }
 
@@ -128,6 +130,42 @@ describe('exports of a scenario comparison and of numbering', () => {
     expect(reps[0]).toBe(1);
     expect(reps[reps.length - 1]).toBe(100);
     expect(lines.find((l) => l.includes(',daily,Baseline,'))!.split(',')[5]).toBe('1');
+  });
+});
+
+describe('sandbox results in reports', () => {
+  const OPTS = { includeAuthor: false, generatedAt: '2026-11-21T10:00:00.000Z' };
+  it('belong to a report only when the project says it used the sandbox', () => {
+    const d = workedExample();
+    expect(sandboxRecorded(d)).toBe(true); // its run settings name the sandbox
+    d.passport.experiment.runSettings = 'Horizon 30 days, 100 replications, seed 7, SimPy 4.1';
+    expect(sandboxRecorded(d)).toBe(false);
+    d.passport.experiment.runSettings += `\nBacklog sandbox run ${d.sandbox.lastRun!.id}`;
+    expect(sandboxRecorded(d)).toBe(true);
+    d.sandbox.lastRun = null;
+    expect(sandboxRecorded(d)).toBe(false);
+  });
+  it('can be left out of every report while the project file keeps them', () => {
+    const d = workedExample();
+    const without = { ...OPTS, includeSandbox: false };
+    for (const part of ['passport-md', 'report-html'] as const) {
+      expect(renderPart(d, part, OPTS)).toMatch(/Baseline daily table|Sandbox run/);
+      expect(renderPart(d, part, without)).not.toMatch(/Appendix|Sandbox run|run-example|Baseline daily table/);
+    }
+    expect(renderPart(d, 'results-csv', without)).toBeNull();
+    expect(JSON.parse(renderPart(d, 'project-json', without)!).sandbox.lastRun.id).toBe('run-example');
+    expect(d.sandbox.lastRun).not.toBeNull(); // the project itself is untouched
+  });
+});
+
+describe('concept sketch labels', () => {
+  it('wrap onto at most two lines and mark what does not fit', () => {
+    expect(wrapLabel('Students', 14)).toEqual(['Students']);
+    expect(wrapLabel('Pickers on night shift', 14)).toEqual(['Pickers on', 'night shift']);
+    expect(wrapLabel('Lines picked before the cut-off time today', 14)).toEqual(['Lines picked', 'before the…']);
+    expect(wrapLabel('Supercalifragilistic', 10)).toEqual(['Supercali…']);
+    for (const l of wrapLabel('A very long label that keeps going and going', 12)) expect(l.length).toBeLessThanOrEqual(12);
+    expect(wrapLabel('  ', 10)).toEqual([]);
   });
 });
 

@@ -217,12 +217,23 @@ export function qqPairs(law: Law, xs: number[]): { theoretical: number; sample: 
   return s.map((x, i) => ({ theoretical: law.inv((i + 0.5) / n), sample: x }));
 }
 
-export function parseData(text: string): { values: number[]; rejected: string[] } {
-  const parts = text.split(/[\s,;]+/).filter(Boolean);
+/**
+ * Numbers separated by spaces, new lines, semicolons or commas. A comma between two digits is ambiguous
+ * (“1,5” may be one and a half, or 1 and 5): when the text has no other use for commas they are read as
+ * decimal commas; otherwise they separate values and the doubtful pieces are reported in `decimalCommas`.
+ */
+export function parseData(text: string): { values: number[]; rejected: string[]; decimalCommas: string[]; commaIsDecimal: boolean } {
+  const tight = text.match(/\d,(?=\d)/g)?.length ?? 0;            // commas squeezed between digits
+  const loose = (text.match(/,/g)?.length ?? 0) - tight;            // commas used as separators (followed by a space, etc.)
+  const asDecimal = text.replace(/(\d),(?=\d)/g, '$1.').split(/[\s;]+/).filter(Boolean);
+  // Decimal commas need another separator in the text, and no piece may end up with two decimal points (“1,2,3”).
+  const commaIsDecimal = tight > 0 && loose === 0 && /[\s;]/.test(text.trim()) && asDecimal.every((t) => (t.match(/\./g)?.length ?? 0) <= 1);
+  const decimalCommas = commaIsDecimal || tight === 0 || loose === 0 ? [] : (text.match(/\d+,\d+/g) ?? []).slice(0, 5);
+  const parts = commaIsDecimal ? asDecimal : text.split(/[\s,;]+/).filter(Boolean);
   const values: number[] = [], rejected: string[] = [];
   for (const p of parts.slice(0, 5000)) {
     const v = Number(p);
     if (Number.isFinite(v)) values.push(v); else rejected.push(p);
   }
-  return { values, rejected };
+  return { values, rejected, decimalCommas, commaIsDecimal };
 }

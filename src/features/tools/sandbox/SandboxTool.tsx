@@ -8,7 +8,7 @@ import type { RunRecord, SandboxConfig } from '../../../domain/sandbox/types';
 import { newId, type ProjectDoc } from '../../../domain/passport/schema';
 import { FIXTURES } from '../../../content/fixtures';
 import { runToCsv } from '../../../exports/csv';
-import { slugify } from '../../../exports/bundle';
+import { slugify } from '../../../exports/projectFile';
 import { Badge, Callout, SelectField, TextArea, downloadFile } from '../../../ui/controls';
 import { SendArea, ToolFrame } from '../ToolFrame';
 import { ToolArt } from '../ToolArt';
@@ -103,7 +103,6 @@ function SandboxWorkspace({ doc }: { doc: ProjectDoc }) {
   const shownRun = running ? live : sandbox.lastRun;
   const stale = !!shownRun && shownRun.modelHash !== currentHash && phase !== 'running';
   const total = requiredReplications(sandbox.baseline, sandbox.alternative);
-  const question = doc.passport.decision.question.trim();
 
   useEffect(() => { projectIdRef.current = doc.id; }, [doc.id]);
   const recordable = !!sandbox.lastRun && !running && sandbox.lastRun.status === 'complete' && sandbox.lastRun.modelHash === currentHash;
@@ -127,7 +126,7 @@ function SandboxWorkspace({ doc }: { doc: ProjectDoc }) {
   return (
     <ToolFrame id="sandbox" aside={<Badge tone="primary">Daily aggregate model</Badge>}>
       <div className="sandbox-brief">
-        <p className="sandbox-question"><strong>Question</strong> {question || <span className="muted">None yet. <Link to="/project/frame">Write one in step 1</Link>.</span>}</p>
+        <p className="sandbox-question"><strong>What this is</strong> A teaching model of one daily backlog: work arrives, a team serves it, the rest waits. Use it when your project is a backlog like this; otherwise treat it as practice.</p>
         <details><summary>How it works</summary><p className="subtle-text">Unfinished request-equivalents per day. <code>B[t+1] = B[t] + A[t] − served[t] − abandoned[t]</code>, with <code>served[t] = min(B[t] + A[t], capacity[t])</code>.</p></details>
       </div>
 
@@ -237,12 +236,12 @@ function SandboxWorkspace({ doc }: { doc: ProjectDoc }) {
                   const text = runSettingsText(sandbox.lastRun!);
                   const before = doc.passport.experiment.runSettings;
                   update((d) => { d.passport.experiment.runSettings = before.trim() ? `${before.trimEnd()}\n${text}` : text; });
-                  toast('Run settings added to step 6 of your passport.', 'success', { label: 'Undo', run: () => update((d) => {
+                  toast('Run settings added to step 6 of your project.', 'success', { label: 'Undo', run: () => update((d) => {
                     // Remove only the line that was added, so anything typed since stays.
                     const cur = d.passport.experiment.runSettings, at = cur.lastIndexOf(text);
                     if (at >= 0) d.passport.experiment.runSettings = (cur.slice(0, at).replace(/\n$/, '') + cur.slice(at + text.length)).replace(/^\n/, '');
                   }) });
-                }}>{recorded ? 'Already in your passport' : 'Add to run settings'}</button>
+                }}>{recorded ? 'Already in your project' : 'Add to run settings'}</button>
               </li>
             </ul>
             <p className="send-what">Assumptions and limitations of this teaching model. Add the ones that matter for your question.</p>
@@ -258,8 +257,8 @@ function SandboxWorkspace({ doc }: { doc: ProjectDoc }) {
                     <button className="btn small" disabled={exists} onClick={() => {
                       const id = newId('as');
                       update((d) => { d.passport.assumptions.push({ id, statement: a.statement, rationale: 'Property of the ModSim Essentials daily backlog model.', consequenceIfWrong: a.consequence, plannedCheck: a.check, evidenceKind: 'assumed', sourceNote: '' }); });
-                      toast('Assumption added to step 4 of your passport.', 'success', { label: 'Undo', run: () => update((d) => { d.passport.assumptions = d.passport.assumptions.filter((x) => x.id !== id); }) });
-                    }}>{exists ? 'Already in your passport' : 'Add to assumptions'}</button>
+                      toast('Assumption added to step 4 of your project.', 'success', { label: 'Undo', run: () => update((d) => { d.passport.assumptions = d.passport.assumptions.filter((x) => x.id !== id); }) });
+                    }}>{exists ? 'Already in your project' : 'Add to assumptions'}</button>
                   </li>
                 );
               })}

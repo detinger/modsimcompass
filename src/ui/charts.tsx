@@ -32,6 +32,15 @@ function niceMax(v: number): number {
   const n = v / p;
   return (n <= 1 ? 1 : n <= 2 ? 2 : n <= 5 ? 5 : 10) * p;
 }
+/** Round tick values (1, 2 or 5 × a power of ten apart) that lie inside [lo, hi]. */
+export function niceTicks(lo: number, hi: number, target = 5): number[] {
+  if (!Number.isFinite(lo) || !Number.isFinite(hi) || hi <= lo) return [lo];
+  const raw = (hi - lo) / target, p = 10 ** Math.floor(Math.log10(raw)), n = raw / p;
+  const step = (n < 1.5 ? 1 : n < 3.5 ? 2 : n < 7.5 ? 5 : 10) * p;
+  const out: number[] = [];
+  for (let k = Math.ceil(lo / step - 1e-9); k * step <= hi + step * 1e-9; k++) out.push(Number((k * step).toPrecision(12)));
+  return out;
+}
 function ticks(max: number, count = 4): number[] {
   return Array.from({ length: count + 1 }, (_, i) => (max * i) / count);
 }

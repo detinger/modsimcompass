@@ -272,6 +272,8 @@ details.cp-row > .btn { margin-bottom: 10px; }
 .cp-rubric { display: grid; gap: 16px; }
 .cp-rubric-name { margin: 0; font-weight: 700; font-size: 14px; }
 .cp-rubric-strong { margin: 2px 0 8px; font-size: 13px; color: var(--text-muted); line-height: 1.45; }
+.cp-rubric-now { margin: -4px 0 8px; font-size: 13px; color: var(--text); line-height: 1.45; }
+.cp-rubric-now span { display: inline-block; margin-right: 6px; padding: 0 8px; border-radius: 999px; font-size: 11px; font-weight: 700; border: 1px solid var(--border-strong); }
 .cp-rubric-strong span { display: inline-block; margin-right: 6px; padding: 0 8px; border-radius: 999px; font-size: 11px; font-weight: 700; background: var(--tone-soft); color: var(--text); }
 .cp-levels { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; }
 .cp-levels button { display: flex; flex-direction: column; align-items: stretch; gap: 6px; padding: 6px 0 4px; min-height: 44px; border: 0; background: none; font: inherit; font-size: 11.5px; font-weight: 600; color: var(--text-muted); cursor: pointer; border-radius: 8px; text-align: center; overflow-wrap: anywhere; }
@@ -375,6 +377,55 @@ details.cp-row > .btn { margin-bottom: 10px; }
   .cp-foot-link.next { order: -1; }
   .cp-foot > span { display: none; }
 }
+
+/* Guidance fold-out above the form: only where the side column drops below the fields. */
+.cp-quick { display: none; margin: 0 0 14px; border: 1px solid var(--border); border-left: 4px solid var(--tone); border-radius: 12px; background: var(--bg-elevated); padding: 0 14px; }
+.cp-quick > summary { cursor: pointer; display: flex; align-items: center; gap: 8px; min-height: 44px; font-weight: 600; font-size: 14px; list-style: none; }
+.cp-quick > summary::-webkit-details-marker { display: none; }
+.cp-quick > summary::after { content: '▾'; margin-left: auto; color: var(--text-muted); }
+.cp-quick[open] > summary::after { content: '▴'; }
+.cp-quick > p { margin: 0 0 10px; line-height: 1.5; }
+.cp-quick .cp-ex { margin-bottom: 10px; }
+@media (max-width: 1199px) {
+  .cp-quick { display: block; }
+  .cp-panel .cp-why, .cp-panel .cp-examples { display: none; }
+}
+@media (max-width: 640px) {
+  /* Less before the first field on a phone: the status chips live on the Checkpoints page. */
+  .cp-cpchips { display: none; }
+  .cp-root .cp-eyebrow { display: none; }
+  .cp-stephead { margin-bottom: 10px; }
+}
+
+.cp-grid-21 { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 0 12px; }
+.cp-row textarea[rows="1"], .cp-row .cp-grid-2 textarea { min-height: 38px; }
+.cp-ready-data { display: grid; gap: 6px; margin: 0 0 12px; }
+.cp-ready-data-bar { display: flex; height: 8px; border-radius: 999px; overflow: hidden; background: var(--bg-sunken); gap: 2px; }
+.cp-ready-data-bar i { display: block; min-width: 6px; }
+.cp-ready-data-text { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 13px; color: var(--text-muted); }
+.cp-ready-data-text span::before { content: ''; display: inline-block; width: 9px; height: 9px; border-radius: 3px; margin-right: 6px; vertical-align: baseline; }
+.cp-ready-data .k-have, .cp-ready-data-text .k-have::before { background: var(--success); }
+.cp-ready-data .k-obtainable, .cp-ready-data-text .k-obtainable::before { background: var(--primary); }
+.cp-ready-data .k-assume, .cp-ready-data-text .k-assume::before { background: var(--accent); }
+.cp-ready-data .k-undecided, .cp-ready-data-text .k-undecided::before { background: var(--border-strong); }
+.cp-ready-data-text span { background: none !important; }
+.cp-stage { display: flex; gap: 10px; align-items: flex-start; margin: 0 0 14px; padding: 12px 14px; border: 1px dashed var(--border-strong); border-radius: 12px; background: var(--bg-elevated); line-height: 1.45; }
+.cp-stage label { cursor: pointer; }
+.cp-stage input { margin-top: 3px; width: 18px; height: 18px; flex: none; }
+.cp-stage-chip { margin-left: 8px; padding: 1px 10px; border-radius: 999px; font-size: 12px; font-weight: 650; background: var(--accent-soft); color: var(--text); border: 1px solid var(--accent); }
+
+.cm-wrap { overflow: hidden; }
+.cm-svg { display: block; margin: 0 auto; max-width: 100%; }
+.cm-svg .node { fill: var(--model-fill); stroke: var(--model-stroke); stroke-width: 1.5; }
+.cm-svg .edge { stroke: var(--ms-relation); stroke-width: 1.5; }
+.cm-label { font-size: 12.5px; font-weight: 600; fill: var(--model-label); }
+.cm-edge-label { font-size: 11.5px; fill: var(--text); paint-order: stroke; stroke: var(--canvas-bg); stroke-width: 5px; stroke-linejoin: round; }
+
+/* Target date: the native control, dressed like the other fields. */
+.cp-cks input[type="date"] { font: inherit; color: var(--text); background: var(--bg-elevated); border: 1px solid var(--border-strong); border-radius: 10px; min-height: 38px; padding: 6px 10px; max-width: 100%; color-scheme: light dark; }
+.cp-cks input[type="date"]:focus-visible { outline: 2px solid var(--ms-focus); outline-offset: 1px; }
+:root[data-theme="dark"] .cp-cks input[type="date"] { color-scheme: dark; }
+:root[data-theme="light"] .cp-cks input[type="date"] { color-scheme: light; }
 
 /* ── Motion (only when the reader has not asked for less) ── */
 @media (prefers-reduced-motion: no-preference) {
